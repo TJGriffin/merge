@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PreservationRule__c</fullName>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <label>Type</label>
+    <required>true</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Oldest Record</fullName>
+                <default>true</default>
+                <label>Oldest Record</label>
+            </value>
+            <value>
+                <fullName>Newest Record</fullName>
+                <default>false</default>
+                <label>Newest Record</label>
+            </value>
+            <value>
+                <fullName>Largest Value</fullName>
+                <default>false</default>
+                <label>Largest Value</label>
+            </value>
+            <value>
+                <fullName>Smallest Value</fullName>
+                <default>false</default>
+                <label>Smallest Value</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</customField>
