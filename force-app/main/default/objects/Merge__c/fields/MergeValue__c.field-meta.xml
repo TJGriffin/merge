@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>MergeValue__c</fullName>
+    <label>Merge Value</label>
     <externalId>false</externalId>
     <length>255</length>
     <required>false</required>

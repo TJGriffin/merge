@@ -6,6 +6,7 @@
 */
 trigger ContactMerge on Contact (after delete) {
 	if(trigger.isAfter) {
-		CON_Merge_SVC.createMergeRecords(Trigger.old);
+		String deletedContactJSON = JSON.serialize(Trigger.old);
+		system.enqueueJob(CON_Merge_QUEUE(deletedContactJSON));
 	}
 }

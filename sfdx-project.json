@@ -1,11 +1,17 @@
 {
-  "packageDirectories": [
-    {
-      "path": "force-app",
-      "default": true
+    "packageDirectories": [
+        {
+            "path": "force-app",
+            "default": true,
+            "package": "merge",
+            "versionName": "ver 0.1",
+            "versionNumber": "0.1.0.NEXT"
+        }
+    ],
+    "namespace": "",
+    "sfdcLoginUrl": "https://test.salesforce.com",
+    "sourceApiVersion": "49.0",
+    "packageAliases": {
+        "merge": "0Ho4W000000TNLiSAO"
     }
-  ],
-  "namespace": "",
-  "sfdcLoginUrl": "https://test.salesforce.com",
-  "sourceApiVersion": "49.0"
 }

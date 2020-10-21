@@ -11,25 +11,25 @@
         <valueSetDefinition>
             <sorted>false</sorted>
             <value>
-                <fullName>Oldest Record</fullName>
+                <fullName>Oldest</fullName>
                 <default>true</default>
-                <label>Oldest Record</label>
+                <label>Oldest</label>
             </value>
             <value>
-                <fullName>Newest Record</fullName>
+                <fullName>Newest</fullName>
                 <default>false</default>
-                <label>Newest Record</label>
+                <label>Newest</label>
             </value>
             <value>
-                <fullName>Largest Value</fullName>
+                <fullName>Largest</fullName>
                 <default>false</default>
-                <label>Largest Value</label>
+                <label>Largest</label>
             </value>
             <value>
-                <fullName>Smallest Value</fullName>
+                <fullName>Smallest</fullName>
                 <default>false</default>
-                <label>Smallest Value</label>
+                <label>Smallest</label>
             </value>
         </valueSetDefinition>
     </valueSet>
-</customField>
+</CustomField>
