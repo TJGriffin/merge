@@ -22,6 +22,6 @@ public with sharing class CON_Merge_QUEUE implements Queueable {
     * @param context the queueable context
     */
     public void execute(QueueableContext context) {
-        ON_Merge_SVC.createMergeRecords((List<Contact>) JSON.deserialize(deletedContactJSON,List<Contact>.class));
+        CON_Merge_SVC.createMergeRecords((List<Contact>) JSON.deserialize(deletedContactJSON,List<Contact>.class));
     }
 }

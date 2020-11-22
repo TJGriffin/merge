@@ -83,7 +83,7 @@ private class CON_Merge_TEST {
 		}
 
 		oldestcon = cons[0].CreatedDate < cons[1].CreatedDate ? cons[0] : cons[1];
-		newestCon = cons[0].CreatedDate > cons[1].CreatedDate ? cons[0] : cons[1];
+		newestCon = oldestcon == cons[0] ? cons[1] : cons[0];
 		mergedCon = cons[0].IsDeleted ? cons[0] : cons[1];
 		Contact keptCon = !cons[0].isDeleted ? cons[0] : cons[1]; 
 
@@ -113,7 +113,7 @@ private class CON_Merge_TEST {
 		mergeFields.add(createTestMergeField('Birthdate','Preserve','Smallest'));
 		CON_Merge_SVC.mergeFields = mergeFields;
 	}
-	
+
 	private static ContactMergeField__mdt createTestMergeField(String fieldName, String type, String rule) {
 		ContactMergeField__mdt mergeField = new ContactMergeField__mdt();
 		Map<String, Object> mergeFieldFields = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(mergeField));
@@ -129,7 +129,7 @@ private class CON_Merge_TEST {
 		});
 		mergeFieldFields.put('Field__r',new Map<String, Object>{
 			'attributes' => new Map<String, Object>{
-				'type' => 'FieldDefinition'
+				'type' => 'EntityParticle'
 			},
 			'QualifiedAPIName'=>fieldName
 		});

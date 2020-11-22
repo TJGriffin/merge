@@ -3,8 +3,8 @@
     <fullName>PreservationRule__c</fullName>
     <externalId>false</externalId>
     <fieldManageability>SubscriberControlled</fieldManageability>
-    <label>Type</label>
-    <required>true</required>
+    <label>Preservation Rule</label>
+    <required>false</required>
     <type>Picklist</type>
     <valueSet>
         <restricted>true</restricted>

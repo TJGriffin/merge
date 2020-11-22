@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+    <brand>
+        <headerColor>#0D98E6</headerColor>
+    </brand>
+    <description>Merge Control</description>
+    <formFactors>Large</formFactors>
+    <label>Merge Control</label>
+    <navType>Standard</navType>
+    <tabs>Merge</tabs>
+    <tabs>Merge__c</tabs>
+    <tabs>standard-report</tabs>
+    <uiType>Lightning</uiType>
+</CustomApplication>

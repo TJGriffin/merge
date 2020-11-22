@@ -5,7 +5,27 @@
 * @description Service for dealing with contact merges
 */
 public with sharing class CON_Merge_SVC {
-	
+	/*******************************************************************************************************
+	* @description Returns the merge fields
+	* @param mergeFields the mergeFieldWrap collection to save
+	* @return  String metaData deploy job Id
+	*/	
+	public static String saveMergeFields(List<mergeFieldWrap> mergeFields) {
+		CON_Metadata_SVC mdService = new CON_Metadata_SVC();
+		List<ContactMergeField__mdt> mergeFieldMetadata = new List<ContactMergeField__mdt>();
+		for(mergeFieldWrap mergeField:mergeFields) {
+			mergeFieldMetadata.add(getMergeFieldFromObject(mergeField));
+		}
+			
+		List<Metadata.CustomMetadata> mdRecords = new List<Metadata.CustomMetadata>();
+		// get metadata and add to record list
+		for(ContactMergeField__mdt mergeField:mergeFieldMetadata) {
+			Metadata.CustomMetadata mdRecord =  mdService.getMetaDataRecord(mergeField);
+			mdRecords.add(mdRecord);
+		}
+		// deploy record via metadata api
+		return mdService.deployMetadataRecords(mdRecords);
+	}
 	/*******************************************************************************************************
 	* @description Returns the merge fields
 	* @return  List<ContactMergeField__mdt from custom metadata
@@ -18,11 +38,77 @@ public with sharing class CON_Merge_SVC {
 		}
 		set;
 	}
+	/*******************************************************************************************************
+	* @description mergefield wrapper
+	*/		
+	public class mergeFieldWrap implements Comparable {
+		@auraEnabled public String id;
+		@auraEnabled public String label;
+		@auraEnabled public String name;
+		@auraEnabled public String objectName;
+		@auraEnabled public String fieldName;
+		@auraEnabled public String type;
+		@auraEnabled public String rule;
+		@auraEnabled public Boolean disable;
+
+		public mergeFieldWrap(ContactMergeField__mdt mergeField) {
+			this.id = mergeField.Id;
+			this.label = mergeField.Label;
+			this.name = mergeField.QualifiedAPIName;
+			this.objectName = mergeField.Object__r.QualifiedAPIName;
+			this.fieldName = mergeField.Field__r.QualifiedAPIName;
+			this.type = mergeField.Type__c.left(1).toLowerCase();
+			this.rule = mergeField.PreservationRule__c;
+			this.disable = mergeField.Disable__c;
+		}
+		public Integer compareTo(Object compareTo) {
+			mergeFieldWrap sortObj = (mergeFieldWrap) compareTo;
+			return this.fieldName.left(1) > sortObj.fieldName.left(1) ? 1 : -1;
+		}
+	}
+
+	/*******************************************************************************************************
+	* @description get mergeField metadata from object
+	* @param mfw a mergeFieldWrap
+	* @return ContactMergeField__mdt the merge field metadata record
+	*/	
+	public static ContactMergeField__mdt getMergeFieldFromObject(mergeFieldWrap mfw) {
+		ContactMergeField__mdt mergeField = new ContactMergeField__mdt(
+			Label = mfw.label,
+			PreservationRule__c = mfw.rule,
+			Disable__c = mfw.disable
+
+		);
+		mergeField.Type__c = mfw.type == 't' ? 'Track' : 'Preserve';
+		if(String.isNotBlank(mfw.id))
+			mergeField.Id = mfw.id;
+		mergeField.QualifiedAPIName = String.isBlank(mfw.name) ? mfw.fieldName + mfw.objectName : mfw.name;
+		Map<String, Object> mergeFieldJSON = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(mergeField));
+		Map<String, Object> fldField = new Map<String, Object> {
+			'attributes' => new Map<String, Object> {
+				'type' => 'EntityParticle'
+			},
+			'QualifiedAPIName' => mfw.fieldName
+		};
+		Map<String, Object> objField = new Map<String, Object> {
+			'attributes' => new Map<String, Object> {
+				'type' => 'EntityDefinition'
+			},
+			'QualifiedAPIName' => mfw.objectName
+		};
+		mergeFieldJSON.put('Field__r',fldField);
+		mergeFieldJSON.put('Object__r',objField);
+
+		mergeField = (ContactMergeField__mdt) JSON.deserialize(JSON.serialize(mergeFieldJSON),ContactMergeField__mdt.class);
+
+		return mergeField;
+	}
+
 
 	/*******************************************************************************************************
 	* @description merge fields from custom metadata
 	*/	
-	@testVisible private static List<ContactMergeField__mdt> mergeFields {
+	public static List<ContactMergeField__mdt> mergeFields {
 		get {
 			if(mergeFields == null) {
 				return new List<ContactMergeField__mdt>([SELECT
@@ -33,6 +119,7 @@ public with sharing class CON_Merge_SVC {
 					Object__r.QualifiedAPIName,
 					Field__r.QualifiedAPIName,
 					Type__c,
+					Disable__c,
 					PreservationRule__c
 					FROM ContactMergeField__mdt
 				]);
@@ -41,17 +128,16 @@ public with sharing class CON_Merge_SVC {
 		}
 		set;
 	}
-
 	/*******************************************************************************************************
 	* @description a list of fields to track in Merge__c
 	* @return List<ContactMergeField__mdt>
 	*/	
-	public static List<ContactMergeField__mdt> getTrackMergeFields() {
-		List<ContactMergeField__mdt> trackMergeFields = new List<ContactMergeField__mdt>();
+	public static List<mergeFieldWrap> getTrackMergeFields() {
+		List<mergeFieldWrap> trackMergeFields = new List<mergeFieldWrap>();
 		for(ContactMergeField__mdt mergeField:mergeFields) {
 			if(mergeField.Type__c != null
 				&& mergeField.Type__c.equalsIgnoreCase('Track'))
-				trackMergeFields.add(mergeField);
+				trackMergeFields.add(new mergeFieldWrap(mergeField));
 		}
 		return trackMergeFields;
 	}
@@ -60,12 +146,12 @@ public with sharing class CON_Merge_SVC {
 	* @description a list of fields to preserve based on preservation rule
 	* @return List<ContactMergeField__mdt>
 	*/	
-	public static List<ContactMergeField__mdt> getPreserveMergeFields() {
-		List<ContactMergeField__mdt> preserveMergeFields = new List<ContactMergeField__mdt>();
+	public static List<mergeFieldWrap> getPreserveMergeFields() {
+		List<mergeFieldWrap> preserveMergeFields = new List<mergeFieldWrap>();
 		for(ContactMergeField__mdt mergeField:mergeFields) {
 			if(mergeField.Type__c != null
 				&& mergeField.Type__c.equalsIgnoreCase('Preserve'))
-				preserveMergeFields.add(mergeField);
+				preserveMergeFields.add(new mergeFieldWrap(mergeField));
 		}
 		return preserveMergeFields;
 	}
@@ -77,8 +163,8 @@ public with sharing class CON_Merge_SVC {
 	*/
 	public static void createMergeRecords(List<Contact> deletedContacts) {
 		
-		List<ContactMergeField__mdt> trackMergeFields = getTrackMergeFields();
-		List<ContactMergeField__mdt> preserveMergeFields = getPreserveMergeFields();
+		List<mergeFieldWrap> trackMergeFields = getTrackMergeFields();
+		List<mergeFieldWrap> preserveMergeFields = getPreserveMergeFields();
 		
 		/** @description  map to store kept contact */	
 		Map<Id,Contact> keptContactMap = new Map<Id, Contact>();
@@ -112,11 +198,6 @@ public with sharing class CON_Merge_SVC {
 	public static String getSOQLQuery() {
 		String soqlQuery='SELECT Id,CreatedDate';
 		Set<String> queryFields = writeableFields;
-		for(Integer i=0;i<mergeFields.size();i++) {
-			String fieldName = mergeFields[i].Field__r.QualifiedAPIName;
-			if(!queryFields.contains(fieldName.toLowerCase()))
-				soqlQuery+=','+fieldName;
-		}
 		soqlQuery+=', '+String.join((Iterable<String>) writeableFields, ',');
 		soqlQuery+=' FROM Contact';
 		
@@ -129,9 +210,9 @@ public with sharing class CON_Merge_SVC {
 	* @param Map<Id,Contact> kept contacts
 	* @return List<Merge__c> the resulting sync record import list
 	*/
-	public static List<Merge__c> getMergesFromDeletedContacts(List<Contact> mergedContacts, Map<Id,Contact> keptContactMap, List<ContactMergeField__mdt> trackMergeFields, List<ContactMergeField__mdt> preserveMergeFields) {
-		Map<String, ContactMergeField__mdt> trackfieldMap = new Map<String, ContactMergeField__mdt>(getMergeFieldMap(trackMergeFields));
-		Map<String, ContactMergeField__mdt> preserveFieldMap = new Map<String, ContactMergeField__mdt>(getMergeFieldMap(preserveMergeFields));
+	public static List<Merge__c> getMergesFromDeletedContacts(List<Contact> mergedContacts, Map<Id,Contact> keptContactMap, List<mergeFieldWrap> trackMergeFields, List<mergeFieldWrap> preserveMergeFields) {
+		Map<String, mergeFieldWrap> trackfieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(trackMergeFields));
+		Map<String, mergeFieldWrap> preserveFieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(preserveMergeFields));
 		system.debug(JSON.serialize(preserveFieldMap));
 		List<Merge__c> mergeRecords = new List<Merge__c>();
 		Map<Id, Contact> updateContactMap = new Map<Id, Contact>();
@@ -142,8 +223,8 @@ public with sharing class CON_Merge_SVC {
 				Boolean keptcontactIsOlder = keptCon.CreatedDate < con.CreatedDate;
 				Boolean hasChange = false;
 				for(String fieldName:writeableFields) {
-					ContactMergeField__mdt trackField = trackfieldMap.containsKey(fieldName) ? trackfieldMap.get(fieldName) : null;
-					ContactMergeField__mdt preserveField = preserveFieldMap.containsKey(fieldName) ? preserveFieldMap.get(fieldName) : null;
+					mergeFieldWrap trackField = trackfieldMap.containsKey(fieldName) ? trackfieldMap.get(fieldName) : null;
+					mergeFieldWrap preserveField = preserveFieldMap.containsKey(fieldName) ? preserveFieldMap.get(fieldName) : null;
 					Object fieldValue = con.get(fieldName);
 					Object keptContactfieldValue = keptCon.get(fieldName);
 
@@ -157,7 +238,7 @@ public with sharing class CON_Merge_SVC {
 						}
 						// if we should preserve thie value then preserve it
 						if(preserveField != null) {
-							if(testValue(fieldValue, keptContactFieldValue, preserveField.PreservationRule__c, keptcontactIsOlder)) {
+							if(testValue(fieldValue, keptContactFieldValue, preserveField.rule, keptcontactIsOlder)) {
 								keptCon.put(fieldName,fieldValue);
 								hasChange=true;
 							}
@@ -192,10 +273,10 @@ public with sharing class CON_Merge_SVC {
 	* @param mergeFields
 	* @return Map<String, ContactMergeField__mdt>
 	*/
-	public static Map<String, ContactMergeField__mdt> getMergeFieldMap(List<ContactMergeField__mdt> mergeFields) {
-		Map<String, ContactMergeField__mdt> mergeFieldMap = new Map<String, ContactMergeField__mdt>();
-		for(ContactMergeField__mdt mergeField:mergeFields) {
-			mergeFieldMap.put(mergeField.Field__r.QualifiedAPIName.toLowerCase(), mergeField);
+	public static Map<String, mergeFieldWrap> getMergeFieldMap(List<mergeFieldWrap> mergeFields) {
+		Map<String, mergeFieldWrap> mergeFieldMap = new Map<String, mergeFieldWrap>();
+		for(mergeFieldWrap mergeField:mergeFields) {
+			mergeFieldMap.put(mergeField.fieldName.toLowerCase(), mergeField);
 		}
 		return mergeFieldMap;
 	}
@@ -241,8 +322,8 @@ public with sharing class CON_Merge_SVC {
 		Boolean result = false;
 		if(isOldest || isNewest) {
 			result = (isOldest && !keptContactIsOlder) || (isNewest && keptContactIsOlder);
-		}
-		if(isLargest || isSmallest) {
+
+		} else if(isLargest || isSmallest) {
 			switch on getObjectType(fieldValue) {
 				when 'String' {
 					result = (isLargest && (String) fieldValue > (String) keptContactFieldValue) || (isSmallest && (String) fieldValue < (String) keptContactFieldValue);
@@ -259,9 +340,6 @@ public with sharing class CON_Merge_SVC {
 				when 'Time' {
 					result = (isLargest && (Time) fieldValue > (Time) keptContactFieldValue) || (isSmallest && (Time)fieldValue < (Time)keptContactFieldValue);
 				}
-				when 'Long' {
-					result = (isLargest && (Long) fieldValue > (Long) keptContactFieldValue) || (isSmallest && (Long)fieldValue < (Long)keptContactFieldValue);
-				}
 				when 'Integer' {
 					result = (isLargest && (Integer) fieldValue > (Integer) keptContactFieldValue) || (isSmallest && (Integer)fieldValue < (Integer)keptContactFieldValue);
 				}
@@ -270,6 +348,9 @@ public with sharing class CON_Merge_SVC {
 				}
 				when 'Double' {
 					result = (isLargest && (Double) fieldValue > (Double) keptContactFieldValue) || (isSmallest && (Double)fieldValue < (Double)keptContactFieldValue);
+				}
+				when else {
+					result = (isLargest && String.valueOf(fieldValue) > String.valueOf(keptContactFieldValue)) || (isSmallest && String.valueOf(fieldValue) < String.valueOf(keptContactFieldValue));
 				}
 			}
 		}
@@ -292,5 +373,23 @@ public with sharing class CON_Merge_SVC {
 		if(fieldValue instanceOf Decimal) return 'Decimal';
 		if(fieldValue instanceOf Double) return 'Double';
 		return 'String';
+	}
+
+	public class objectField implements Comparable {
+		@auraEnabled public String label;
+		@auraEnabled public String name;
+		@auraEnabled public String type;
+
+		public objectField(Schema.sObjectField field){
+			this.label = field.getDescribe().getLabel();
+			this.name = field.getDescribe().getName();
+			this.type = field.getDescribe().getType().name();
+		}
+
+
+		public Integer compareTo(Object compareTo) {
+			objectField sortObj = (objectField) compareTo;
+			return this.label > sortObj.label ? 1 : -1;
+		}
 	}
 }

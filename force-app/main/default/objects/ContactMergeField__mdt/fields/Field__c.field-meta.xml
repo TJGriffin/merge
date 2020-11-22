@@ -4,7 +4,7 @@
     <externalId>false</externalId>
     <fieldManageability>SubscriberControlled</fieldManageability>
     <label>Field</label>
-    <referenceTo>FieldDefinition</referenceTo>
+    <referenceTo>EntityParticle</referenceTo>
     <relationshipLabel>Contact_Merge_Fields</relationshipLabel>
     <relationshipName>Contact_Merge_Fields</relationshipName>
     <required>true</required>

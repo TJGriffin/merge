@@ -1,0 +1,92 @@
+<template>
+
+        <template if:true={record}>
+            <template if:false={isEdit}>
+                <lightning-layout>
+                    <lightning-layout-item padding="around-small" size="2">
+                        {mergeRecord.objectName}
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        {mergeRecord.fieldName}
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        {trackingType}
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <template if:true={preserve}>
+                            {mergeRecord.rule}
+                        </template>
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <template if:true={isActive}>
+                            <lightning-badge label="Active" class="slds-badge_inverse slds-theme_success"></lightning-badge>
+                        </template>
+                        <template if:false={isActive}>
+                            <lightning-badge label="Disabled"></lightning-badge>
+                        </template>
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <lightning-button-group>
+                            <template if:true={isActive}>
+                                <lightning-button label="Disable" onclick={doDisable}></lightning-button>
+                            </template>
+                            <template if:false={isActive}>
+                                <lightning-button variant="success" label="Activate" onclick={doEnable}></lightning-button>
+                            </template>
+                            <lightning-button variant="brand" label="Edit" onclick={doEdit}></lightning-button>
+                        </lightning-button-group>
+                    </lightning-layout-item>
+                </lightning-layout>          
+            </template>
+            <template if:true={isEdit}>
+                <lightning-layout vertical-align="center">
+                    <lightning-layout-item padding="around-small" size="2">
+                        <lightning-combobox
+                            name="Object"
+                            value={objectType}
+                            placeholder="Select Object"
+                            options={objectOptions}
+                            onchange={handleObjectSelect}
+                        ></lightning-combobox>
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <template if:true={fieldResults}>
+                            <lightning-combobox
+                                name="Field"
+                                value={mergeRecord.fieldName}
+                                placeholder="Select Field"
+                                options={fieldResults}
+                                onchange={handleFieldSelect}
+                            ></lightning-combobox>
+                        </template>
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <lightning-combobox
+                            name="Type"
+                            value={mergeRecord.type}
+                            placeholder="Select Tracking Type"
+                            options={trackOptions}
+                            onchange={handleTypeSelect}
+                        ></lightning-combobox>
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <template if:true={preserve}>
+                            <lightning-combobox
+                                name="Preservation Rule"
+                                value={mergeRecord.rule}
+                                placeholder="Select Rule"
+                                options={ruleOptions}
+                                onchange={handleRuleSelect}
+                            ></lightning-combobox>
+                        </template>
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <lightning-button-group>
+                            <lightning-button onclick={handleCancel} title="Cancel" label="Cancel"></lightning-button>
+                            <lightning-button onclick={handleSave} variant="brand" title="Save" label="Save"></lightning-button>
+                        </lightning-button-group>
+                    </lightning-layout-item>
+                </lightning-layout>  
+            </template>
+        </template>
+</template>
