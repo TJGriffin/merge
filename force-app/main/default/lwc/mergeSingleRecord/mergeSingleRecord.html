@@ -7,7 +7,9 @@
                         {mergeRecord.objectName}
                     </lightning-layout-item>
                     <lightning-layout-item padding="around-small" size="2">
-                        {mergeRecord.fieldName}
+                        <template if:true={mergeRecord.objectName}>
+                            {mergeRecord.fieldName}
+                        </template>
                     </lightning-layout-item>
                     <lightning-layout-item padding="around-small" size="2">
                         {trackingType}
@@ -50,14 +52,16 @@
                         ></lightning-combobox>
                     </lightning-layout-item>
                     <lightning-layout-item padding="around-small" size="2">
-                        <template if:true={fieldResults}>
-                            <lightning-combobox
-                                name="Field"
-                                value={mergeRecord.fieldName}
-                                placeholder="Select Field"
-                                options={fieldResults}
-                                onchange={handleFieldSelect}
-                            ></lightning-combobox>
+                        <template if:true={objectType}>
+                            <template if:true={fieldResults}>
+                                <lightning-combobox
+                                    name="Field"
+                                    value={mergeRecord.fieldName}
+                                    placeholder="Select Field"
+                                    options={fieldResults}
+                                    onchange={handleFieldSelect}
+                                ></lightning-combobox>
+                            </template>
                         </template>
                     </lightning-layout-item>
                     <lightning-layout-item padding="around-small" size="2">

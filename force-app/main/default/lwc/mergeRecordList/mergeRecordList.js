@@ -49,7 +49,18 @@ export default class mergeRecordList extends LightningElement {
     }
     refresh() {
         this.handleSubscribe();
-        return refreshApex(this.resultValue);
+        this.fetchData();
+        //return refreshApex(this.resultValue);
+    }
+    fetchData(){
+        getFieldSettings({type:type,objectType:objectType})
+            .then(result=>{
+                this.results=JSON.stringify(JSON.parse(result));
+            })
+            .catch(error=>{
+                this.error=error;
+                this.handleError();
+            })
     }
     handleSubscribe(){
         // Callback invoked whenever a new event message is received

@@ -1,6 +1,18 @@
 @isTest
-private class CON_Merge_TEST {
+public class CON_Merge_TEST {
 	@testSetup static void setup() {
+		List<Account> accs = new List<Account>();
+		accs.add(
+			new Account(
+				Name='test1'
+			)
+		);
+		accs.add(
+			new Account(
+				Name='test2'
+			)
+		);
+		insert accs;
 		List<Contact> cons = new List<Contact>();
 		cons.add(
 			new Contact(
@@ -28,12 +40,18 @@ private class CON_Merge_TEST {
 		insert cons;
 	}
 
-	static testMethod void myUnitTest() {
+	static testMethod void testContactMerge() {
 		Contact oldestCon;
 		Contact newestCon;
 		Contact mergedCon;
 	
 		createMergeFields();
+		List<Account> accs = [
+			SELECT
+			Id,
+			Name
+			FROM Account
+		];
 		List<Contact> cons = [
 			SELECT
 			Id,
@@ -73,7 +91,7 @@ private class CON_Merge_TEST {
 		for(Merge__c mergeField: [
 			SELECT 
 			Id, 
-			KeptContactId__c,
+			KeptRecordId__c,
 			KeptValue__c,
 			MergeValue__c,
 			MergeValueType__c
@@ -91,7 +109,7 @@ private class CON_Merge_TEST {
 		Merge__c emailMergeField = mergeMap.get('email');
 		system.assertEquals(emailMergeField.mergeValue__c,cons[1].Email);
 		system.assertEquals(emailMergeField.keptValue__c,cons[0].Email);
-		system.assertEquals(emailMergeField.keptContactId__c,cons[0].Id);
+		system.assertEquals(emailMergeField.keptRecordId__c,cons[0].Id);
 		system.assertEquals(keptCon.BirthDate,Date.Today().addDays(-1200));
 		system.assertEquals(keptCon.MailingPostalCode,'78754');
 		system.assertEquals(keptCon.LastName,oldestCon.LastName);
@@ -101,20 +119,53 @@ private class CON_Merge_TEST {
 		system.assert(keptCon.HasOptedOutOfEmail);
 	}
 
-	private static void createMergeFields() {
+
+	static testMethod void testAccountMerge() {
+		Contact oldestCon;
+		Contact newestCon;
+		Contact mergedCon;
+	
+		createMergeFields();
+		List<Account> accs = [
+			SELECT
+			Id,
+			Name
+			FROM Account
+		];
+		List<Contact> cons = [
+			SELECT
+			Id,
+			FirstName,
+			LastNAme,
+			Email,
+			MailingStreet,
+			MailingCity,
+			MailingState,
+			MailingPostalCode,
+			Birthdate
+			FROM Contact	
+		];
+		test.startTest();
+
+		merge accs[0] accs[1];
+		test.stopTest();
+
+	}
+	@testvisible private static void createMergeFields() {
 
 
 		List<ContactMergeField__mdt> mergeFields = new List<ContactMergeField__mdt>();
-		mergeFields.add(createTestMergeField('FirstName','Track','Oldest'));
-		mergeFields.add(createTestMergeField('LastName','Preserve','Oldest'));
-		mergeFields.add(createTestMergeField('Email','Track','Oldest'));
-		mergeFields.add(createTestMergeField('MailingState','Preserve','Newest'));
-		mergeFields.add(createTestMergeField('MailingPostalCode','Preserve','Largest'));
-		mergeFields.add(createTestMergeField('Birthdate','Preserve','Smallest'));
+		mergeFields.add(createTestMergeField('Contact','FirstName','Track','Oldest'));
+		mergeFields.add(createTestMergeField('Contact','LastName','Preserve','Oldest'));
+		mergeFields.add(createTestMergeField('Contact','Email','Track','Oldest'));
+		mergeFields.add(createTestMergeField('Contact','MailingState','Preserve','Newest'));
+		mergeFields.add(createTestMergeField('Contact','MailingPostalCode','Preserve','Largest'));
+		mergeFields.add(createTestMergeField('Contact','Birthdate','Preserve','Smallest'));
+		mergeFields.add(createTestMergeField('Account','Name','Track','Smallest'));
 		CON_Merge_SVC.mergeFields = mergeFields;
 	}
 
-	private static ContactMergeField__mdt createTestMergeField(String fieldName, String type, String rule) {
+	private static ContactMergeField__mdt createTestMergeField(String objectName, String fieldName, String type, String rule) {
 		ContactMergeField__mdt mergeField = new ContactMergeField__mdt();
 		Map<String, Object> mergeFieldFields = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(mergeField));
 		mergeFieldFields.put(ContactMergeField__mdt.Label.getDescribe().getName(),'test'+fieldName);
@@ -125,7 +176,7 @@ private class CON_Merge_TEST {
 			'attributes' => new Map<String, Object>{
 				'type' => 'EntityDefinition'
 			},
-			'QualifiedAPIName'=>'Contact'
+			'QualifiedAPIName'=>objectName
 		});
 		mergeFieldFields.put('Field__r',new Map<String, Object>{
 			'attributes' => new Map<String, Object>{

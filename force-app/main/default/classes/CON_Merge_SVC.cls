@@ -26,18 +26,7 @@ public with sharing class CON_Merge_SVC {
 		// deploy record via metadata api
 		return mdService.deployMetadataRecords(mdRecords);
 	}
-	/*******************************************************************************************************
-	* @description Returns the merge fields
-	* @return  List<ContactMergeField__mdt from custom metadata
-	*/	
-	public static Set<String> writeableFields {
-		get {
-			if(writeableFields == null)
-				writeableFields = getWriteableFields('Contact');
-			return writeableFields;
-		}
-		set;
-	}
+
 	/*******************************************************************************************************
 	* @description mergefield wrapper
 	*/		
@@ -161,30 +150,41 @@ public with sharing class CON_Merge_SVC {
 	* @param List<Contact> oldlist a list of records from trigger.old
 	* @return List<Merge__c> the resulting sync record import list
 	*/
-	public static void createMergeRecords(List<Contact> deletedContacts) {
+	public static void createMergeRecords(List<SObject> deletedRecords, String objectType) {
 		
-		List<mergeFieldWrap> trackMergeFields = getTrackMergeFields();
-		List<mergeFieldWrap> preserveMergeFields = getPreserveMergeFields();
+		List<mergeFieldWrap> trackMergeFields = new List<mergeFieldWrap>();
+		for(mergefieldWrap mergeField:getTrackMergeFields()) {
+			if(mergeField.objectName.equalsIgnorecase(objectType))
+				trackMergeFields.add(mergeField);
+		}
+		List<mergeFieldWrap> preserveMergeFields = new List<mergeFieldWrap>();
+		for(mergeFieldWrap mergeField:getPreserveMergeFields()){
+			if(mergeField.objectName.equalsIgnoreCase(objecttype))
+				preserveMergeFields.add(mergeField);
+		}
 		
 		/** @description  map to store kept contact */	
-		Map<Id,Contact> keptContactMap = new Map<Id, Contact>();
+		Map<Id,SObject> keptRecordMap = new Map<Id, SObject>();
 		
-		/** @description  list to store deleted contacts that are merges */	
-		List<Contact> mergedContacts = new List<Contact>();
+		/** @description  list to store deleted records that are merges */	
+		List<SObject> mergedRecords = new List<SObject>();
 		
-		for(Contact con:deletedContacts) {
-			if(String.isNotBlank(con.MasterRecordId)) {
-				mergedContacts.add(con);
-				keptContactMap.put(con.MasterRecordId, new Contact(Id=con.MasterRecordId));
+		for(Sobject obj:deletedRecords) {
+			String masterRecordId = (String) obj.get('MasterRecordId');
+			if(String.isNotBlank(masterRecordId)) {
+				mergedRecords.add(obj);
+				SObject keptRec = createNewObject(objectType);
+				keptRec.ID = masterRecordId;
+				keptRecordMap.put(masterRecordId, keptRec);
 			}
 		}
-		String soqlQuery = getSOQLQuery();
-		Set<Id> keptContactIds = new Set<Id>();
-		keptContactIds.addAll(keptContactMap.keyset());
-		soqlQuery+=' WHERE Id IN:keptContactIds';
-		keptContactMap = new Map<Id,Contact>((List<Contact>) database.Query(soqlQuery));
+		String soqlQuery = getSOQLQuery(objectType);
+		Set<Id> keptRecordIds = new Set<Id>();
+		keptRecordIds.addAll(keptRecordMap.keyset());
+		soqlQuery+=' WHERE Id IN:keptRecordIds';
+		keptRecordMap = new Map<Id,Sobject>(database.Query(soqlQuery));
 		
-		List<Merge__c> merges = getMergesFromDeletedContacts(mergedContacts,keptContactMap,trackMergeFields,preserveMergeFields);
+		List<Merge__c> merges = getMergesFromDeletedRecords(mergedRecords,keptRecordMap,trackMergeFields,preserveMergeFields, objectType);
 		
 		if(merges.size()>0)
 			insert merges;
@@ -195,76 +195,78 @@ public with sharing class CON_Merge_SVC {
 	* @description get field SOQL
 	* @return String soql query
 	*/
-	public static String getSOQLQuery() {
+	public static String getSOQLQuery(String objectType) {
 		String soqlQuery='SELECT Id,CreatedDate';
-		Set<String> queryFields = writeableFields;
-		soqlQuery+=', '+String.join((Iterable<String>) writeableFields, ',');
-		soqlQuery+=' FROM Contact';
+		Set<String> queryFields = getWriteableFields(objectType);
+		soqlQuery+=', '+String.join((Iterable<String>) queryFields, ',');
+		soqlQuery+=' FROM '+objectType;
 		
 		return soqlQuery;
 	}
 	
 	/*******************************************************************************************************
 	* @description returns a list of Merge records for saving
-	* @param List<Contact> deleted contacts
-	* @param Map<Id,Contact> kept contacts
+	* @param List<SObject> deleted contacts
+	* @param Map<Id,SObject> kept contacts
 	* @return List<Merge__c> the resulting sync record import list
 	*/
-	public static List<Merge__c> getMergesFromDeletedContacts(List<Contact> mergedContacts, Map<Id,Contact> keptContactMap, List<mergeFieldWrap> trackMergeFields, List<mergeFieldWrap> preserveMergeFields) {
+	public static List<Merge__c> getMergesFromDeletedRecords(List<SObject> mergedRecords, Map<Id,Sobject> keptRecordMap, List<mergeFieldWrap> trackMergeFields, List<mergeFieldWrap> preserveMergeFields, String objectType) {
 		Map<String, mergeFieldWrap> trackfieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(trackMergeFields));
 		Map<String, mergeFieldWrap> preserveFieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(preserveMergeFields));
-		system.debug(JSON.serialize(preserveFieldMap));
+		Set<String> writeableFields = getWriteableFields(objectType);
 		List<Merge__c> mergeRecords = new List<Merge__c>();
-		Map<Id, Contact> updateContactMap = new Map<Id, Contact>();
-		for(Contact con:mergedContacts) {
-			if(keptContactMap.containsKey(con.MasterRecordId)) {
-				Contact keptConOld = keptContactMap.get(con.MasterRecordId);
-				Contact keptCon = keptContactMap.get(con.MasterRecordId);
-				Boolean keptcontactIsOlder = keptCon.CreatedDate < con.CreatedDate;
+		Map<Id, SObject> updateRecordMap = new Map<Id, SObject>();
+		for(Sobject obj:mergedRecords) {
+			String masterRecordId = (String) obj.get('MasterRecordId');
+			if(String.isNotBlank(masterRecordId)
+				&& keptRecordMap.containsKey(masterRecordId)) {
+				SObject keptRecOld = keptRecordMap.get(masterRecordId);
+				SObject keptRec = keptRecordMap.get(masterRecordId);
+				Boolean keptRecordIsOlder = (Datetime) keptRec.get('CreatedDate') < (Datetime) obj.get('CreatedDate');
 				Boolean hasChange = false;
 				for(String fieldName:writeableFields) {
 					mergeFieldWrap trackField = trackfieldMap.containsKey(fieldName) ? trackfieldMap.get(fieldName) : null;
 					mergeFieldWrap preserveField = preserveFieldMap.containsKey(fieldName) ? preserveFieldMap.get(fieldName) : null;
-					Object fieldValue = con.get(fieldName);
-					Object keptContactfieldValue = keptCon.get(fieldName);
+					Object fieldValue = obj.get(fieldName);
+					Object keptRecordfieldValue = keptRec.get(fieldName);
 
 					if(fieldValue!= null) {
 						// if we should track this field then track it
 						if(trackField != null) {
-							if(keptContactfieldValue == null
-								|| (keptContactFieldValue != null 
-								&& keptContactFieldValue != fieldValue))
-								mergeRecords.add(getMergeRecord(keptContactFieldValue, fieldValue, keptCon, fieldName));
+							if(keptRecordfieldValue == null
+								|| (keptRecordfieldValue != null 
+								&& keptRecordfieldValue != fieldValue))
+								mergeRecords.add(getMergeRecord(keptRecordfieldValue, fieldValue, keptRec, fieldName));
 						}
 						// if we should preserve thie value then preserve it
 						if(preserveField != null) {
-							if(testValue(fieldValue, keptContactFieldValue, preserveField.rule, keptcontactIsOlder)) {
-								keptCon.put(fieldName,fieldValue);
+							if(testValue(fieldValue, keptRecordfieldValue, preserveField.rule, keptRecordIsOlder)) {
+								keptRec.put(fieldName,fieldValue);
 								hasChange=true;
 							}
 						}
 						// test for nulls and booleans for non preserved fields
 						if(preserveField == null) {
 							// if the new value is null then preserve it
-							if(keptContactfieldValue==null) {
-								keptCon.put(fieldName,fieldValue);
+							if(keptRecordfieldValue==null) {
+								keptRec.put(fieldName,fieldValue);
 								hasChange = true;
 							}
 							// if it is a boolean field and the old value is true then preserve it
 							if(getObjectType(fieldValue) == 'Boolean'
 								&& (Boolean) fieldValue) {
-								keptCon.put(fieldname,fieldValue);
+								keptRec.put(fieldname,fieldValue);
 								hasChange=true;
 							}
 						}
 					}
 				}
 				if(hasChange)
-					updateContactMap.put(keptCon.Id,keptCon);
+					updateRecordMap.put(keptRec.Id,keptRec);
 			}
 		}
-		if(updateContactMap.size()>0)
-			update updateContactMap.values();
+		if(updateRecordMap.size()>0)
+			update updateRecordMap.values();
 		return mergeRecords;
 	}
 
@@ -299,10 +301,10 @@ public with sharing class CON_Merge_SVC {
 	* @param objectType the string representation of the object type
 	* @return Set<String> writeable fields
 	*/
-	public static Merge__c getMergeRecord(Object keptContactFieldValue, Object fieldValue, Contact keptCon, String fieldName) {
+	public static Merge__c getMergeRecord(Object keptRecordFieldValue, Object fieldValue, SObject keptRec, String fieldName) {
 		Merge__c mergeRecord = new Merge__c(
-			KeptContactId__c = keptCon.Id,
-			KeptValue__c = String.valueOf(keptContactfieldValue),
+			KeptRecordId__c = keptRec.Id,
+			KeptValue__c = String.valueOf(keptRecordFieldValue),
 			MergeValue__c = String.valueOf(fieldValue),
 			MergeValueType__c = fieldName
 		);
@@ -391,5 +393,11 @@ public with sharing class CON_Merge_SVC {
 			objectField sortObj = (objectField) compareTo;
 			return this.label > sortObj.label ? 1 : -1;
 		}
+	}
+
+	public static SObject createNewObject(String objectType) {
+		Schema.SObjectType sObjectType = Schema.getGlobalDescribe().get(objectType);
+
+		return sObjectType.newSObject();
 	}
 }

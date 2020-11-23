@@ -22,6 +22,8 @@ public with sharing class CON_MergeSettings_CTRL {
 		for(ContactMergeField__mdt mergeField:CON_Merge_SVC.mergeFields) {
 			mergeFieldWraps.add(new CON_Merge_SVC.mergeFieldWrap(mergeField));
 		}
+		if(mergeFieldWraps.size()>0)
+			mergeFieldWraps.sort();
 		return mergeFieldWraps;
 	}
 	/*******************************************************************************************************
@@ -46,6 +48,8 @@ public with sharing class CON_MergeSettings_CTRL {
 				mergeFieldWraps.add(mergeField);
 			}	
 		}
+		if(mergeFieldWraps.size()>0)
+			mergeFieldWraps.sort();
 		return mergeFieldWraps;
     }
 	/*******************************************************************************************************
@@ -55,6 +59,8 @@ public with sharing class CON_MergeSettings_CTRL {
 	@auraEnabled(cacheable=true)
 	public static List<CON_Merge_SVC.objectField> getObjectFields(String objectType) {
 		List<CON_Merge_SVC.objectField> fields = new List<CON_Merge_SVC.objectField>();
+		if(String.isBlank(objectType))
+			return fields;
 		SObjectType objType = Schema.getGlobalDescribe().get(objectType);
 		for(SObjectfield objField : objType.getDescribe().fields.getMap().values()) {
 			if(objField.getDescribe().isAccessible() 
@@ -63,7 +69,8 @@ public with sharing class CON_MergeSettings_CTRL {
 				fields.add(new CON_Merge_SVC.objectField(objField));
 			}
 		}
-		fields.sort();
+		if(fields.size()>0)
+			fields.sort();
 
 		return fields;
 	}

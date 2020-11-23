@@ -28,45 +28,7 @@ public with sharing class CON_Metadata_SVC {
 		}
 		return metadataRecord;
 	}
-	/*******************************************************************************************************
-	* @description disables a metadata record because you can't delete via the API
-	* @param metadataRecord meta data object to disable
-	* @return Metadata.CustomMetadata metadata record with custom disable field set to true
-	*/	 
-	public List<Metadata.Metadata> disableMetadataRecordsByName(List<String> QualifiedAPINames) {
-		List<Metadata.Metadata> records = getMetadataRecords(QualifiedAPINames);
-		for(Metadata.CustomMetadata record : (List<Metadata.CustomMetadata>) records) {
-			Metadata.CustomMetadataValue fieldSetting = new Metadata.CustomMetadataValue();
-			fieldSetting.field = 'Disable__c';
-			fieldSetting.value = true;
-			record.values.add(fieldSetting);
-		}
-		return records;
-	}
 
-	/*******************************************************************************************************
-	* @description queue a single metadata record for deploy
-	* @param metadataRecord metadata record to deploy
-	* @return String jobId of the deployment
-	*/	 
-	public String deployMetadataRecord(Metadata.CustomMetadata metadataRecord) {
-		// create deploy container to deploy the metadata values
-		Metadata.DeployContainer container = new Metadata.DeployContainer();
-		container.addMetadata(metadataRecord);	 	
-		DeployCallback callback = new DeployCallback();	
-		String jobId = Test.isRunningTest() ? 'Test Job Id' : Metadata.Operations.enqueueDeployment(container, callback);
-		Return (String) jobId;
-	}
-	/*******************************************************************************************************
-	* @description queue a list of metadata records to deploy
-	* @param metadataRecords a list of metadata records to deploy
-	* @return String jobId of the deployment
-	*/	 
-	public String checkStatus(String jobId) {
-		String Status;
-
-		return Status;
-	}
 	/*******************************************************************************************************
 	* @description queue a list of metadata records to deploy
 	* @param metadataRecords a list of metadata records to deploy
@@ -90,24 +52,12 @@ public with sharing class CON_Metadata_SVC {
 	*/
 	
 	private class DeployCallback implements Metadata.DeployCallback {
-
-		/*******************************************************************************************************
-		* @description reference to Log class for calling log functions
-		*/ 
-		private String jobId;
 		
 		/*******************************************************************************************************
 		* @description constructor
 		*/ 				
 		public DeployCallback() {
 			
-		}
-        
-		/*******************************************************************************************************
-		* @description constructor
-		*/ 				
-		public DeployCallback(String jobId) {
-			this.jobId = jobId;
 		}
 
   		/*******************************************************************************************************
@@ -116,7 +66,6 @@ public with sharing class CON_Metadata_SVC {
 		public void handleResult(Metadata.DeployResult result, Metadata.DeployCallbackContext context) {
 			MergeRecordSave__e saveEvent = new MergeRecordSave__e();
 			saveEvent.isSuccess__c = result.status == Metadata.DeployStatus.Succeeded;
-			saveEvent.JobId__c = jobId;
 			String message;
 			if(result.status != Metadata.DeployStatus.Succeeded) {
 				message = String.isNotBlank(result.errorMessage) ? result.errorMessage.left(255) : result.errorMessage;

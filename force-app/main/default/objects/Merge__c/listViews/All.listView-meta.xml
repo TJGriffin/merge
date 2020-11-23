@@ -2,7 +2,7 @@
 <ListView xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>All</fullName>
     <columns>NAME</columns>
-    <columns>KeptContactId__c</columns>
+    <columns>KeptRecordId__c</columns>
     <columns>KeptValue__c</columns>
     <columns>MergeValue__c</columns>
     <columns>MergeValueType__c</columns>

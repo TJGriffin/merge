@@ -9,12 +9,16 @@ public with sharing class CON_Merge_QUEUE implements Queueable {
 	* @description JSON representation of the deleted contacts
     */
     public String deletedContactJSON;
-
+	/*******************************************************************************************************
+	* @description objectType
+    */
+    public String objectType;
 	/*******************************************************************************************************
 	* @description constructor
     */
-    public CON_Merge_QUEUE(String deletedContactJSON) {
+    public CON_Merge_QUEUE(String deletedContactJSON, String objectType) {
         this.deletedContactJSON = deletedContactJSON;
+        this.objectType = objectType;
     }
 
 	/*******************************************************************************************************
@@ -22,6 +26,7 @@ public with sharing class CON_Merge_QUEUE implements Queueable {
     * @param context the queueable context
     */
     public void execute(QueueableContext context) {
-        CON_Merge_SVC.createMergeRecords((List<Contact>) JSON.deserialize(deletedContactJSON,List<Contact>.class));
+        CON_Merge_SVC.createMergeRecords((List<SObject>) JSON.deserialize(deletedContactJSON,List<SObject>.class), objectType);
+
     }
 }
