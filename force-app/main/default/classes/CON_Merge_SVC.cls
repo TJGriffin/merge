@@ -6,6 +6,78 @@
 */
 public with sharing class CON_Merge_SVC {
 	/*******************************************************************************************************
+	* @description get the custom settings
+	* @return MergeControlSettings__c settings
+	*/	
+	public static MergeControlSettings__c getSettings(){
+		MergeControlSettings__c settings = MergeControlSettings__c.getOrgDefaults();
+
+		return settings;
+	}
+	/*******************************************************************************************************
+	* @description get the custom settings
+	* @return Boolean whether or not the account trigger is disabled
+	*/	
+	public static Boolean getAccountTriggerDisabled(){
+		MergeControlSettings__c settings = getSettings();
+		return settings != null && settings.DisableAccountTrigger__c;
+	}
+	/*******************************************************************************************************
+	* @description get the custom settings
+	* @return Boolean whether or not the contact trigger is disabled
+	*/	
+	public static Boolean getContactTriggerDisabled(){
+		MergeControlSettings__c settings = getSettings();
+		return settings != null && settings.DisableContactTrigger__c;
+	}
+	/*******************************************************************************************************
+	* @description get the custom settings
+	* @return Set<String> a set of profile Ids that this is disabled for
+	*/	
+	public static Set<String> getDisabledProfileIds(){
+		MergeControlSettings__c settings = getSettings();
+		Set<String> profileIds = new Set<String>();
+		if(settings != null) {
+			 if(String.isNotBlank(settings.DisableForProfiles__c)){
+				 profileIds.addAll(getSetFromString(settings.DisableForProfiles__c));
+			 }
+		 }
+		return profileIds;
+	}
+	/*******************************************************************************************************
+	* @description get the custom settings
+	* @return Set<String> a set of user Ids
+	*/	
+	public static Set<String> getDisabledUserIds(){
+		MergeControlSettings__c settings = getSettings();
+		Set<String> userIds = new Set<String>();
+		if(settings != null) {
+			 if(String.isNotBlank(settings.DisableForUsers__c)){
+				 userIds.addAll(getSetFromString(settings.DisableForUsers__c));
+			 }
+		 }
+		return userIds;
+	}
+	/*******************************************************************************************************
+	* @description get the custom settings
+	* @return Boolean
+	*/	
+	public static Boolean getTriggerDisabled(String objectType){
+		if(objectType=='Account'
+			&& getAccountTriggerDisabled())
+			return true;
+		if(objectType=='Contact'
+			&& getContactTriggerDisabled())
+			return true;
+		if(getDisabledUserIds().size()>0
+			&& getDisabledUserIds().contains(UserInfo.getUserId()))
+			return true;
+		if(getDisabledProfileIds().size()>0
+			&& getDisabledProfileIds().contains(UserInfo.getProfileId()))
+			return true;
+		return false;
+	}
+	/*******************************************************************************************************
 	* @description Returns the merge fields
 	* @param mergeFields the mergeFieldWrap collection to save
 	* @return  String metaData deploy job Id
@@ -25,6 +97,37 @@ public with sharing class CON_Merge_SVC {
 		}
 		// deploy record via metadata api
 		return mdService.deployMetadataRecords(mdRecords);
+	}
+	/*******************************************************************************************************
+	* @description settings wrapper
+	*/
+	public class mergeSetting {
+		@auraEnabled public boolean disableAccountTrigger;
+		@auraEnabled public boolean disableContactTrigger;
+		@auraEnabled public List<String> disabledForProfiles;
+		@auraEnabled public List<String> disabledForUsers;
+
+		public mergeSetting(MergeControlSettings__c setting) {
+			this.disableAccountTrigger = setting.DisableAccountTrigger__c;
+			this.disableContactTrigger = setting.DisableContactTrigger__c;
+			List<String> profileIDs = new List<String>();
+			List<String> userIds = new List<String>();
+			profileIDs.addAll(getSetFromString(setting.DisableForProfiles__c));
+			userIds.addAll(getSetFromString(setting.DisableForUsers__c));
+			this.disabledForProfiles = profileIDs;
+			this.disabledForUsers = userIds;
+		}
+	}
+	/*******************************************************************************************************
+	* @description get setting from wrapper
+	*/
+	public static MergeControlSettings__c getSettingsFromObject(mergeSetting settingObj) {
+		MergeControlSettings__c setting = MergeControlSettings__c.getOrgDefaults();
+		setting.DisableAccountTrigger__c = settingObj.disableAccountTrigger;
+		setting.DisableContactTrigger__c = settingObj.disableContactTrigger;
+		setting.DisableForProfiles__c = settingObj.disabledForProfiles != null && settingObj.disabledForProfiles.size()>0 ? String.join(settingObj.disabledForProfiles,';') : null;
+		setting.DisableForUsers__c = settingObj.disabledForUsers != null && settingObj.disabledForUsers.size()>0 ? String.join(settingObj.disabledForUsers,';') : null;
+		return setting;
 	}
 
 	/*******************************************************************************************************
@@ -46,7 +149,7 @@ public with sharing class CON_Merge_SVC {
 			this.name = mergeField.QualifiedAPIName;
 			this.objectName = mergeField.Object__r.QualifiedAPIName;
 			this.fieldName = mergeField.Field__r.QualifiedAPIName;
-			this.type = mergeField.Type__c.left(1).toLowerCase();
+			this.type = mergeField.Type__c != null ? mergeField.Type__c.left(1).toLowerCase() : 't';
 			this.rule = mergeField.PreservationRule__c;
 			this.disable = mergeField.Disable__c;
 		}
@@ -71,7 +174,7 @@ public with sharing class CON_Merge_SVC {
 		mergeField.Type__c = mfw.type == 't' ? 'Track' : 'Preserve';
 		if(String.isNotBlank(mfw.id))
 			mergeField.Id = mfw.id;
-		mergeField.QualifiedAPIName = String.isBlank(mfw.name) ? mfw.fieldName + mfw.objectName : mfw.name;
+		mergeField.QualifiedAPIName = String.isBlank(mfw.name) || mfw.name.contains('__c') ? mfw.fieldName.replace('__c','') + mfw.objectName.left(1) : mfw.name;
 		Map<String, Object> mergeFieldJSON = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(mergeField));
 		Map<String, Object> fldField = new Map<String, Object> {
 			'attributes' => new Map<String, Object> {
@@ -278,7 +381,8 @@ public with sharing class CON_Merge_SVC {
 	public static Map<String, mergeFieldWrap> getMergeFieldMap(List<mergeFieldWrap> mergeFields) {
 		Map<String, mergeFieldWrap> mergeFieldMap = new Map<String, mergeFieldWrap>();
 		for(mergeFieldWrap mergeField:mergeFields) {
-			mergeFieldMap.put(mergeField.fieldName.toLowerCase(), mergeField);
+			if(!mergeField.disable)
+				mergeFieldMap.put(mergeField.fieldName.toLowerCase(), mergeField);
 		}
 		return mergeFieldMap;
 	}
@@ -376,7 +480,9 @@ public with sharing class CON_Merge_SVC {
 		if(fieldValue instanceOf Double) return 'Double';
 		return 'String';
 	}
-
+	/*******************************************************************************************************
+	* @description objectField class
+	*/	
 	public class objectField implements Comparable {
 		@auraEnabled public String label;
 		@auraEnabled public String name;
@@ -394,10 +500,34 @@ public with sharing class CON_Merge_SVC {
 			return this.label > sortObj.label ? 1 : -1;
 		}
 	}
-
+	/*******************************************************************************************************
+	* @description creates a new SObject
+	* @param objecttype the type of object to create
+	* @return SObject the empty object
+	*/
 	public static SObject createNewObject(String objectType) {
 		Schema.SObjectType sObjectType = Schema.getGlobalDescribe().get(objectType);
 
 		return sObjectType.newSObject();
+	}
+	/*******************************************************************************************************
+	* @description returns a set String from a String value
+	* @param settingValue
+	* @return Set<String>
+	*/
+	public static Set<String> getSetFromString(String settingValue) {
+		Set<String> stringSet = new Set<String>();
+			if(String.isBlank(settingValue))
+				return stringSet;
+			if(settingValue.contains(';')) {
+				String[] vals = settingValue.split(';');
+				for(String val:vals) {
+					if(String.isNotBlank(val))
+					stringSet.add(val.trim());
+				}
+			} else {
+				stringSet.add(settingValue);
+			}
+		return stringSet;
 	}
 }

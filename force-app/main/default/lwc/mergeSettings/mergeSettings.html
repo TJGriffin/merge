@@ -1,0 +1,61 @@
+<template>
+    <lightning-card title="Merge Control Settings" icon-name="standard:task">
+        <div slot="footer">
+            <template if:true={hasChanges}>
+                <lightning-button variant="brand" label="Save Settings" onclick={handleSave}></lightning-button>
+            </template>
+        </div>
+        <div class="slds-m-around_medium">
+            <template if:true={settings}>
+                <lightning-tabset variant="vertical">
+                    <lightning-tab label="Trigger Configuration">
+                        <h2 class="slds-text-title_caps">Trigger Configuration</h2>
+                        <lightning-layout>
+                            <lightning-layout-item padding="around-small" size="4">
+                                <lightning-input type="toggle" label="Account Trigger Disabled" name="accountDisabled" checked={isAccountTriggerDisabled} onchange={handleAccountTriggerChange}></lightning-input>
+                            </lightning-layout-item>
+                        </lightning-layout>
+                        <lightning-layout>
+                            <lightning-layout-item padding="around-small" size="4">
+                                <lightning-input type="toggle" label="Contact Trigger Disabled" name="contactDisabled" checked={isContactTriggerDisabled} onclick={handleContactTriggerChange}></lightning-input>
+                            </lightning-layout-item>
+                        </lightning-layout>
+                    </lightning-tab>
+                    <lightning-tab label="User Configuration">
+                        <h2 class="slds-text-title_caps">User Configuration</h2>
+                        <lightning-layout>
+                            <lightning-layout-item padding="around-small" size="6">
+                                <template if:true={_users}>
+                                    <lightning-datatable
+                                        key-field="id"
+                                        data={_users}
+                                        columns={userCols}
+                                        onrowaction={handleUserAction}
+                                        hide-checkbox-column
+                                    ></lightning-datatable>
+                                </template>
+                            </lightning-layout-item>
+                        </lightning-layout>
+
+                    </lightning-tab>
+                    <lightning-tab label="Profile Configuration">
+                        <h2 class="slds-text-title_caps">Profile Configuration</h2>
+                        <lightning-layout>
+                            <lightning-layout-item padding="around-small" size="6">
+                                <template if:true={_profiles}>
+                                    <lightning-datatable
+                                        key-field="id"
+                                        data={_profiles}
+                                        columns={profileCols}
+                                        hide-checkbox-column
+                                        onrowaction={handleProfileAction}
+                                    ></lightning-datatable>
+                                </template>
+                            </lightning-layout-item>
+                        </lightning-layout>
+                    </lightning-tab>
+                </lightning-tabset>
+            </template>
+            </div>
+    </lightning-card>
+</template>

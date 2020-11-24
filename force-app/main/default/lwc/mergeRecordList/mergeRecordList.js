@@ -40,8 +40,8 @@ export default class mergeRecordList extends LightningElement {
     }
     
     connectedCallback() {
-        this.type = this.type == null ? 't' : this.type;
-        this.objectType = this.objectType == null ? 'Contact' : this.objectType;
+        this.type = this.type == null ? '' : this.type;
+        this.objectType = this.objectType == null ? '' : this.objectType;
         this.disabled = false;
         this.registerErrorListener();
         this.handleSubscribe();

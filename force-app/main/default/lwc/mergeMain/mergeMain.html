@@ -1,3 +1,10 @@
 <template>
-    <c-merge-record-list></c-merge-record-list>
+    <lightning-tabset>
+        <lightning-tab label="Field Settings">
+            <c-merge-record-list></c-merge-record-list>
+        </lightning-tab>
+        <lightning-tab label="Global Settings">
+            <c-merge-settings></c-merge-settings>
+        </lightning-tab>
+    </lightning-tabset>
 </template>
