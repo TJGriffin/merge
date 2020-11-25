@@ -328,40 +328,50 @@ public with sharing class CON_Merge_SVC {
 				Boolean keptRecordIsOlder = (Datetime) keptRec.get('CreatedDate') < (Datetime) obj.get('CreatedDate');
 				Boolean hasChange = false;
 				for(String fieldName:writeableFields) {
+					Boolean mergedFieldIsKept = false;
 					mergeFieldWrap trackField = trackfieldMap.containsKey(fieldName) ? trackfieldMap.get(fieldName) : null;
 					mergeFieldWrap preserveField = preserveFieldMap.containsKey(fieldName) ? preserveFieldMap.get(fieldName) : null;
-					Object fieldValue = obj.get(fieldName);
+					Object mergeRecordFieldValue = obj.get(fieldName);
 					Object keptRecordfieldValue = keptRec.get(fieldName);
-
-					if(fieldValue!= null) {
-						// if we should track this field then track it
-						if(trackField != null) {
-							if(keptRecordfieldValue == null
-								|| (keptRecordfieldValue != null 
-								&& keptRecordfieldValue != fieldValue))
-								mergeRecords.add(getMergeRecord(keptRecordfieldValue, fieldValue, keptRec, fieldName));
-						}
+					Object keepValue = keptRecordfieldValue;
+					Object mergeValue = mergeRecordFieldValue;
+					if(mergeRecordFieldValue!= null) {
 						// if we should preserve thie value then preserve it
 						if(preserveField != null) {
-							if(testValue(fieldValue, keptRecordfieldValue, preserveField.rule, keptRecordIsOlder)) {
-								keptRec.put(fieldName,fieldValue);
+							if(testValue(mergeRecordFieldValue, keptRecordfieldValue, preserveField.rule, keptRecordIsOlder)) {
+								keepValue = mergeRecordFieldValue;
+								mergeValue = keptRecordfieldValue;
+								keptRec.put(fieldName,keepValue);
 								hasChange=true;
+								mergedFieldIsKept=true;
 							}
-						}
-						// test for nulls and booleans for non preserved fields
-						if(preserveField == null) {
+						} else {
 							// if the new value is null then preserve it
 							if(keptRecordfieldValue==null) {
-								keptRec.put(fieldName,fieldValue);
+								keepValue = mergeRecordFieldValue;
+								mergeValue = keptRecordfieldValue;
+								keptRec.put(fieldName,keepValue);
 								hasChange = true;
 							}
 							// if it is a boolean field and the old value is true then preserve it
-							if(getObjectType(fieldValue) == 'Boolean'
-								&& (Boolean) fieldValue) {
-								keptRec.put(fieldname,fieldValue);
+							if(getObjectType(mergeRecordFieldValue) == 'Boolean'
+								&& (Boolean) mergeRecordFieldValue) {
+								keepValue = mergeRecordFieldValue;
+								mergeValue = keptRecordfieldValue;
+								keptRec.put(fieldname,keepValue);
 								hasChange=true;
 							}
 						}
+						// if we should track this field then track it
+						if(trackField != null) {
+							if(keepValue != null 
+								&& keepValue != mergeValue) {
+									
+								mergeRecords.add(getMergeRecord(keepValue, mergeValue, keptRec, fieldName));
+								
+							}
+						}
+
 					}
 				}
 				if(hasChange)
@@ -405,11 +415,11 @@ public with sharing class CON_Merge_SVC {
 	* @param objectType the string representation of the object type
 	* @return Set<String> writeable fields
 	*/
-	public static Merge__c getMergeRecord(Object keptRecordFieldValue, Object fieldValue, SObject keptRec, String fieldName) {
+	public static Merge__c getMergeRecord(Object keepValue, Object mergeValue, SObject keptRec, String fieldName) {
 		Merge__c mergeRecord = new Merge__c(
 			KeptRecordId__c = keptRec.Id,
-			KeptValue__c = String.valueOf(keptRecordFieldValue),
-			MergeValue__c = String.valueOf(fieldValue),
+			KeptValue__c = String.valueOf(keepValue),
+			MergeValue__c = String.valueOf(mergeValue),
 			MergeValueType__c = fieldName
 		);
 		return mergeRecord;
