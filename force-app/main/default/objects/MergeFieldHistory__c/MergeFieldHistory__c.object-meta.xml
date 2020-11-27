@@ -32,11 +32,11 @@
         <actionName>SaveEdit</actionName>
         <type>Default</type>
     </actionOverrides>
-    <label>Merge</label>
-    <pluralLabel>Merges</pluralLabel>
+    <label>Merge Field History</label>
+    <pluralLabel>Merge Field Histories</pluralLabel>
     <visibility>Public</visibility>
     <nameField>
-        <displayFormat>Merge-{0000000}</displayFormat>
+        <displayFormat>MFH-{0000000}</displayFormat>
         <label>Name</label>
         <trackHistory>false</trackHistory>
         <type>AutoNumber</type>

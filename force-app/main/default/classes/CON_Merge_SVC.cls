@@ -221,7 +221,7 @@ public with sharing class CON_Merge_SVC {
 		set;
 	}
 	/*******************************************************************************************************
-	* @description a list of fields to track in Merge__c
+	* @description a list of fields to track in MergeFieldHistory__c
 	* @return List<ContactMergeField__mdt>
 	*/	
 	public static List<mergeFieldWrap> getTrackMergeFields() {
@@ -251,7 +251,7 @@ public with sharing class CON_Merge_SVC {
 	/*******************************************************************************************************
 	* @description translates deleted contacts into merge records
 	* @param List<Contact> oldlist a list of records from trigger.old
-	* @return List<Merge__c> the resulting sync record import list
+	* @return List<MergeFieldHistory__c> the resulting sync record import list
 	*/
 	public static void createMergeRecords(List<SObject> deletedRecords, String objectType) {
 		
@@ -287,7 +287,7 @@ public with sharing class CON_Merge_SVC {
 		soqlQuery+=' WHERE Id IN:keptRecordIds';
 		keptRecordMap = new Map<Id,Sobject>(database.Query(soqlQuery));
 		
-		List<Merge__c> merges = getMergesFromDeletedRecords(mergedRecords,keptRecordMap,trackMergeFields,preserveMergeFields, objectType);
+		List<MergeFieldHistory__c> merges = getMergesFromDeletedRecords(mergedRecords,keptRecordMap,trackMergeFields,preserveMergeFields, objectType);
 		
 		if(merges.size()>0)
 			insert merges;
@@ -311,13 +311,13 @@ public with sharing class CON_Merge_SVC {
 	* @description returns a list of Merge records for saving
 	* @param List<SObject> deleted contacts
 	* @param Map<Id,SObject> kept contacts
-	* @return List<Merge__c> the resulting sync record import list
+	* @return List<MergeFieldHistory__c> the resulting sync record import list
 	*/
-	public static List<Merge__c> getMergesFromDeletedRecords(List<SObject> mergedRecords, Map<Id,Sobject> keptRecordMap, List<mergeFieldWrap> trackMergeFields, List<mergeFieldWrap> preserveMergeFields, String objectType) {
+	public static List<MergeFieldHistory__c> getMergesFromDeletedRecords(List<SObject> mergedRecords, Map<Id,Sobject> keptRecordMap, List<mergeFieldWrap> trackMergeFields, List<mergeFieldWrap> preserveMergeFields, String objectType) {
 		Map<String, mergeFieldWrap> trackfieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(trackMergeFields));
 		Map<String, mergeFieldWrap> preserveFieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(preserveMergeFields));
 		Set<String> writeableFields = getWriteableFields(objectType);
-		List<Merge__c> mergeRecords = new List<Merge__c>();
+		List<MergeFieldHistory__c> mergeRecords = new List<MergeFieldHistory__c>();
 		Map<Id, SObject> updateRecordMap = new Map<Id, SObject>();
 		for(Sobject obj:mergedRecords) {
 			String masterRecordId = (String) obj.get('MasterRecordId');
@@ -415,8 +415,8 @@ public with sharing class CON_Merge_SVC {
 	* @param objectType the string representation of the object type
 	* @return Set<String> writeable fields
 	*/
-	public static Merge__c getMergeRecord(Object keepValue, Object mergeValue, SObject keptRec, String fieldName) {
-		Merge__c mergeRecord = new Merge__c(
+	public static MergeFieldHistory__c getMergeRecord(Object keepValue, Object mergeValue, SObject keptRec, String fieldName) {
+		MergeFieldHistory__c mergeRecord = new MergeFieldHistory__c(
 			KeptRecordId__c = keptRec.Id,
 			KeptValue__c = String.valueOf(keepValue),
 			MergeValue__c = String.valueOf(mergeValue),

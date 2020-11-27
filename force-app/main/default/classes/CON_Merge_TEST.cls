@@ -87,15 +87,15 @@ public class CON_Merge_TEST {
 			FROM Contact
 			ALL ROWS	
 		];
-		Map<String, Merge__c> mergeMap = new Map<String, Merge__c>();
-		for(Merge__c mergeField: [
+		Map<String, MergeFieldHistory__c> mergeMap = new Map<String, MergeFieldHistory__c>();
+		for(MergeFieldHistory__c mergeField: [
 			SELECT 
 			Id, 
 			KeptRecordId__c,
 			KeptValue__c,
 			MergeValue__c,
 			MergeValueType__c
-			FROM Merge__c
+			FROM MergeFieldHistory__c
 		]) {
 			mergeMap.put(mergeField.MergeValueType__c.trim().toLowerCase(), mergeField);
 		}
@@ -106,7 +106,7 @@ public class CON_Merge_TEST {
 		Contact keptCon = !cons[0].isDeleted ? cons[0] : cons[1]; 
 
 		system.assert(mergeMap.size()>0);
-		Merge__c emailMergeField = mergeMap.get('email');
+		MergeFieldHistory__c emailMergeField = mergeMap.get('email');
 		system.assertEquals(emailMergeField.mergeValue__c,cons[1].Email);
 		system.assertEquals(emailMergeField.keptValue__c,cons[0].Email);
 		system.assertEquals(emailMergeField.keptRecordId__c,cons[0].Id);
