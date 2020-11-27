@@ -367,7 +367,8 @@ public with sharing class CON_Merge_SVC {
 						if(trackField != null
 							|| (preserveField != null 
 								&& hasChange)) {
-							if(keepValue != null 
+							if(keepValue != null
+								&& mergeValue != null
 								&& keepValue != mergeValue) {
 									
 								mergeRecords.add(getMergeRecord(keepValue, mergeValue, keptRec, mergedRecordId, fieldName));
