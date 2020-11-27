@@ -365,7 +365,8 @@ public with sharing class CON_Merge_SVC {
 						}
 						// if we should track this field then track it
 						if(trackField != null
-							|| hasChange) {
+							|| (preserveField != null 
+								&& hasChange)) {
 							if(keepValue != null 
 								&& keepValue != mergeValue) {
 									

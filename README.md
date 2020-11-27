@@ -12,7 +12,11 @@ Note:  this app requires Lightning Experience
 ## Configuration
 1) After installation, open the Merge Control app by going to the application menu and selecting Merge Control.
 
-### Merge
+### Field Settings
+
+### Global Settings
+
+
 
 ## Package Contents
 
@@ -22,10 +26,11 @@ The following contents are in this package
 #### MergeFieldHistory__c
 The Merge Object allows you to report on values for fields that have been merged away.
 ##### Fields
-1) Kept Contact Id:  the Salesforce Id of the contact that was kept
-2) Kept Value:  the value of the field on the kept record
-3) Merge Value:  the value of the field on the merged record
-4) Merge Value Type: the field that the values exist on
+1) Kept Record Id:  the Salesforce Id of the object that was kept
+2) Merged Record Id:  the Salesforce Id of the object that was merged
+3) Kept Value:  the value of the field on the kept record
+4) Merge Value:  the value of the field on the merged record
+5) Merge Value Type: the field that the values exist on
 #### ContactMergeField__mdt
 Custom metadata type to store rules for whether fields should be tracked or values preserved during merge
 ##### Fields
