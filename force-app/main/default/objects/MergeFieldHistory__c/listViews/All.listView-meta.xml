@@ -3,6 +3,7 @@
     <fullName>All</fullName>
     <columns>NAME</columns>
     <columns>KeptRecordId__c</columns>
+    <columns>MergedRecordId__c</columns>
     <columns>KeptValue__c</columns>
     <columns>MergeValue__c</columns>
     <columns>MergeValueType__c</columns>

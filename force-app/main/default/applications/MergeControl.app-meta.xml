@@ -8,7 +8,7 @@
     <label>Merge Control</label>
     <navType>Standard</navType>
     <tabs>Merge</tabs>
-    <tabs>Merge__c</tabs>
+    <tabs>MergeFieldHistory__c</tabs>
     <tabs>standard-report</tabs>
     <uiType>Lightning</uiType>
 </CustomApplication>

@@ -320,6 +320,7 @@ public with sharing class CON_Merge_SVC {
 		List<MergeFieldHistory__c> mergeRecords = new List<MergeFieldHistory__c>();
 		Map<Id, SObject> updateRecordMap = new Map<Id, SObject>();
 		for(Sobject obj:mergedRecords) {
+			String mergedRecordId = (String) obj.get('Id'); 
 			String masterRecordId = (String) obj.get('MasterRecordId');
 			if(String.isNotBlank(masterRecordId)
 				&& keptRecordMap.containsKey(masterRecordId)) {
@@ -363,11 +364,12 @@ public with sharing class CON_Merge_SVC {
 							}
 						}
 						// if we should track this field then track it
-						if(trackField != null) {
+						if(trackField != null
+							|| hasChange) {
 							if(keepValue != null 
 								&& keepValue != mergeValue) {
 									
-								mergeRecords.add(getMergeRecord(keepValue, mergeValue, keptRec, fieldName));
+								mergeRecords.add(getMergeRecord(keepValue, mergeValue, keptRec, mergedRecordId, fieldName));
 								
 							}
 						}
@@ -415,9 +417,10 @@ public with sharing class CON_Merge_SVC {
 	* @param objectType the string representation of the object type
 	* @return Set<String> writeable fields
 	*/
-	public static MergeFieldHistory__c getMergeRecord(Object keepValue, Object mergeValue, SObject keptRec, String fieldName) {
+	public static MergeFieldHistory__c getMergeRecord(Object keepValue, Object mergeValue, SObject keptRec, String mergedRecordId, String fieldName) {
 		MergeFieldHistory__c mergeRecord = new MergeFieldHistory__c(
 			KeptRecordId__c = keptRec.Id,
+			MergedRecordId__c = mergedRecordId,
 			KeptValue__c = String.valueOf(keepValue),
 			MergeValue__c = String.valueOf(mergeValue),
 			MergeValueType__c = fieldName
