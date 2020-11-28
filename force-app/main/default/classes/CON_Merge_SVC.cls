@@ -223,6 +223,53 @@ public with sharing class CON_Merge_SVC {
 	/*******************************************************************************************************
 	* @description a list of fields to track in MergeFieldHistory__c
 	* @return List<ContactMergeField__mdt>
+	*/
+	public static void processMergesFromBatch(List<MergeCandidate__c> records, String objectType) {
+		CON_Duplicate_SVC.triggerDisabled=true;
+		Map<Id,Id> mergeCandidateIdByKeepId = CON_Duplicate_SVC.getMergeCandidateIdByKeepId(records);
+		Map<Id, MergeCandidate__c> mergeCandidateMap = new Map<Id, MergeCandidate__c>(records);
+		Map<Id, Set<Id>> mergeKeyMap = CON_Duplicate_SVC.getMergeKeyMap(records);
+		Set<Id> allIds = CON_Duplicate_SVC.getAllIds(mergeKeyMap);
+		String soqlQuery = CON_Duplicate_SVC.getMergeSOQLQuery(objectType);
+		soqlQuery+=' WHERE Id in:allIds';
+		Map<Id, SObject> objMap = new Map<Id, SObject>(Database.query(soqlQuery));
+		mergeHistoryResult mergeResult = createMergeRecords(objMap, mergeKeyMap, objectType);
+		if(mergeResult.fieldHistory.size()>0)
+			insert mergeResult.fieldHistory;
+		Map<Id, Sobject> keptRecordMap = new Map<Id, SObject>(mergeResult.updateRecords);
+		Set<Id> keepIdsMerged = new Set<Id>();
+		for(Id keepId:mergeKeyMap.keyset()){
+			if(objectType=='Account') {
+				Account keepObject = (Account) keptRecordMap.get(keepId).clone(true,false,false,false);
+				List<Account> mergeObjects = new List<Account>();
+				for(Id mergeId:mergeKeyMap.get(keepId)) {
+					mergeObjects.add((Account) objMap.get(mergeId));
+				}
+				merge keepObject mergeObjects;
+				keepIdsMerged.add(keepObject.Id);
+
+			} else {
+				Contact keepObject = (Contact) keptRecordMap.get(keepId).clone(true,false,false,false);
+				List<Contact> mergeObjects = new List<Contact>();
+				for(Id mergeId:mergeKeyMap.get(keepId)) {
+					mergeObjects.add((Contact) objMap.get(mergeId));
+				}
+				merge keepObject mergeObjects;
+				keepIdsMerged.add(keepObject.Id);
+
+			}
+		}
+		for(Id keepId:keepIdsMerged){
+			Id mergeCandidateId = mergeCandidateIdByKeepId.get(keepId);
+			MergeCandidateMap.get(mergeCandidateId).Status__c='Processed';
+		}
+		if(mergeCandidateMap.size()>0)
+			update mergeCandidateMap.values();
+		CON_Duplicate_SVC.triggerDisabled=false;
+	}
+	/*******************************************************************************************************
+	* @description a list of fields to track in MergeFieldHistory__c
+	* @return List<ContactMergeField__mdt>
 	*/	
 	public static List<mergeFieldWrap> getTrackMergeFields() {
 		List<mergeFieldWrap> trackMergeFields = new List<mergeFieldWrap>();
@@ -247,7 +294,37 @@ public with sharing class CON_Merge_SVC {
 		}
 		return preserveMergeFields;
 	}
+	/*******************************************************************************************************
+	* @description translates deleted contacts into merge records
+	* @param List<Contact> oldlist a list of records from trigger.old
+	* @return List<MergeFieldHistory__c> the resulting sync record import list
+	*/
+	public static mergeHistoryResult createMergeRecords(Map<Id, SObject> objMap, Map<Id, Set<Id>> mergeKeyMap, String objectType) {
+		List<mergeFieldWrap> trackMergeFields = new List<mergeFieldWrap>();
+		for(mergefieldWrap mergeField:getTrackMergeFields()) {
+			if(mergeField.objectName.equalsIgnorecase(objectType))
+				trackMergeFields.add(mergeField);
+		}
+		List<mergeFieldWrap> preserveMergeFields = new List<mergeFieldWrap>();
+		for(mergeFieldWrap mergeField:getPreserveMergeFields()){
+			if(mergeField.objectName.equalsIgnoreCase(objecttype))
+				preserveMergeFields.add(mergeField);
+		}
 
+		List<SObject> mergedRecords = new List<SObject>();
+		Map<Id,SObject> keptRecordMap = new Map<Id, SObject>();
+
+		for(Id keepId:mergeKeyMap.keyset()){
+			if(objMap.containsKey(keepId))
+				keptRecordMap.put(keepId, objMap.get(keepId));
+			for(Id mergeId:mergeKeyMap.get(keepId)){
+				if(objMap.containsKey(mergeId))
+					mergedRecords.add(objMap.get(mergeId));
+			}
+		}
+		mergeHistoryResult mergeResult = getMergesFromDeletedRecords(mergedRecords,mergeKeyMap, keptRecordMap,trackMergeFields,preserveMergeFields, objectType);
+		return mergeResult;
+	}
 	/*******************************************************************************************************
 	* @description translates deleted contacts into merge records
 	* @param List<Contact> oldlist a list of records from trigger.old
@@ -286,14 +363,44 @@ public with sharing class CON_Merge_SVC {
 		keptRecordIds.addAll(keptRecordMap.keyset());
 		soqlQuery+=' WHERE Id IN:keptRecordIds';
 		keptRecordMap = new Map<Id,Sobject>(database.Query(soqlQuery));
+		Map<Id, Set<Id>> mergeKeyMap = getMergeKeyMap(mergedRecords);
 		
-		List<MergeFieldHistory__c> merges = getMergesFromDeletedRecords(mergedRecords,keptRecordMap,trackMergeFields,preserveMergeFields, objectType);
+		mergeHistoryResult mergeResult = getMergesFromDeletedRecords(mergedRecords,mergeKeyMap, keptRecordMap,trackMergeFields,preserveMergeFields, objectType);
 		
-		if(merges.size()>0)
-			insert merges;
+		if(mergeResult.fieldHistory.size()>0)
+			insert mergeResult.fieldHistory;
+		if(mergeResult.updateRecords.size()>0)
+			update mergeResult.updateRecords;
 		
 	}
-
+	/*******************************************************************************************************
+	* @description get field SOQL
+	* @return String soql query
+	*/
+	public static Map<Id,Id> getKeepIdMap(Map<Id, Set<Id>> mergeKeyMap){
+		Map<Id, Id> keepIdMap = new Map<Id, Id>();
+		for(Id keepId:mergeKeyMap.keyset()) {
+			for(Id mergeId:mergeKeyMap.get(keepId)){
+				keepIdMap.put(mergeId,keepId);
+			}
+		}
+		return keepIdMap;
+	}
+	/*******************************************************************************************************
+	* @return String soql query
+	*/
+	public static Map<Id, Set<Id>> getMergeKeyMap(List<SObject> mergeRecords){
+		Map<Id, Set<Id>> mergeKeyMap = new Map<Id, Set<Id>>();
+		for(SObject record:mergeRecords){
+			if(record.get('MasterRecordId') != null) {
+				Id keepId = Id.valueOf((String) record.get('MasterRecordId'));
+				if(!mergeKeyMap.containsKey(keepId))
+					mergeKeyMap.put(keepId,new Set<Id>());
+				mergeKeyMap.get(keepId).add(Id.valueOf((String) record.get('Id')));
+			}
+		}
+		return mergeKeyMap;
+	}
 	/*******************************************************************************************************
 	* @description get field SOQL
 	* @return String soql query
@@ -311,9 +418,10 @@ public with sharing class CON_Merge_SVC {
 	* @description returns a list of Merge records for saving
 	* @param List<SObject> deleted contacts
 	* @param Map<Id,SObject> kept contacts
-	* @return List<MergeFieldHistory__c> the resulting sync record import list
+	* @return mergeHistoryResult the resulting sync record import list
 	*/
-	public static List<MergeFieldHistory__c> getMergesFromDeletedRecords(List<SObject> mergedRecords, Map<Id,Sobject> keptRecordMap, List<mergeFieldWrap> trackMergeFields, List<mergeFieldWrap> preserveMergeFields, String objectType) {
+	public static mergeHistoryResult getMergesFromDeletedRecords(List<SObject> mergedRecords, Map<Id, Set<Id>> mergeKeyMap, Map<Id,Sobject> keptRecordMap, List<mergeFieldWrap> trackMergeFields, List<mergeFieldWrap> preserveMergeFields, String objectType) {
+		Map<Id,Id> keepIdMap = getKeepIdMap(mergeKeyMap);
 		Map<String, mergeFieldWrap> trackfieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(trackMergeFields));
 		Map<String, mergeFieldWrap> preserveFieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(preserveMergeFields));
 		Set<String> writeableFields = getWriteableFields(objectType);
@@ -321,7 +429,7 @@ public with sharing class CON_Merge_SVC {
 		Map<Id, SObject> updateRecordMap = new Map<Id, SObject>();
 		for(Sobject obj:mergedRecords) {
 			String mergedRecordId = (String) obj.get('Id'); 
-			String masterRecordId = (String) obj.get('MasterRecordId');
+			String masterRecordId = keepIdMap.containsKey(Id.valueOf(mergedRecordId)) ? keepIdMap.get(Id.valueOf(mergedRecordId)) : null;
 			if(String.isNotBlank(masterRecordId)
 				&& keptRecordMap.containsKey(masterRecordId)) {
 				SObject keptRecOld = keptRecordMap.get(masterRecordId);
@@ -382,9 +490,8 @@ public with sharing class CON_Merge_SVC {
 					updateRecordMap.put(keptRec.Id,keptRec);
 			}
 		}
-		if(updateRecordMap.size()>0)
-			update updateRecordMap.values();
-		return mergeRecords;
+		mergeHistoryResult mergeResult = new mergeHistoryResult(updateRecordMap.values(),mergeRecords);
+		return mergeResult;
 	}
 
 	/*******************************************************************************************************
@@ -513,6 +620,22 @@ public with sharing class CON_Merge_SVC {
 		public Integer compareTo(Object compareTo) {
 			objectField sortObj = (objectField) compareTo;
 			return this.label > sortObj.label ? 1 : -1;
+		}
+	}
+	/*******************************************************************************************************
+	* @description creates a new SObject
+	*/
+	public class mergeHistoryResult {
+		public List<SObject> updateRecords {get;set;}
+		public List<MergeFieldHistory__c> fieldHistory {get;set;}
+
+		public mergeHistoryResult(){
+
+		}
+
+		public mergeHistoryResult(List<Sobject> updateRecords, List<MergeFieldHistory__c> fieldHistory){
+			this.updateRecords = updateRecords;
+			this.fieldHistory = fieldHistory;
 		}
 	}
 	/*******************************************************************************************************
