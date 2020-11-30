@@ -1,3 +1,9 @@
+/**
+* @author tj@tjgriffin.com
+* @date 2020
+* @group Merge
+* @description controller for merge settings lwc
+*/
 public with sharing class CON_MergeSettings_CTRL {
 	/*******************************************************************************************************
 	* @description a set of fields to always ignore

@@ -1,0 +1,51 @@
+<template>
+    <lightning-card title="Duplicate Rule Settings" icon-name="standard:task">
+        <div class="slds-m-around_medium">
+            <lightning-layout>
+                <lightning-layout-item padding="around-small" size="2">
+                    <!--<lightning-combobox
+                    name="objectType"
+                    label="Filter By Object"
+                    value={objectType}
+                    placeholder="Object Type"
+                    options={objectOptions}
+                    onchange={handleObjectFilterChange} ></lightning-combobox>-->
+                </lightning-layout-item>
+            </lightning-layout>
+            <template if:true={rows}>
+                <lightning-layout class="slds-theme_shade">
+                    <lightning-layout-item padding="around-small" size="2">
+                        <div class="slds-text-title_caps">Rule Name</div>
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <div class="slds-text-title_caps">Object</div>
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <div class="slds-text-title_caps">Auto Merge</div>
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        &nbsp;
+                    </lightning-layout-item>
+                </lightning-layout> 
+                <template for:each={rows} for:item="row" >
+                    <c-dupe-rule-single-record record={row} key={row.name} onnotify={handleNotify}></c-dupe-rule-single-record>
+                </template>
+            </template>
+            <lightning-layout vertical-align="end" pull-to-boundary="small">
+                <template if:false={disabled}>
+                    <lightning-layout-item padding="around-small" size="4">
+                        <lightning-button onclick={addRow} variant="brand" title="Add New Duplicate Rule Setting" label="Add New Duplicate Rule Setting"></lightning-button> 
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="4">
+                        <template if:true={hasChanged}>
+                            <lightning-button-group>
+                                <lightning-button onclick={handleCancel}  title="Cancel" label="Cancel"></lightning-button>
+                                <lightning-button onclick={handleSave} variant="brand" title="Save Records" label="Save Records"></lightning-button>
+                            </lightning-button-group>
+                        </template>
+                    </lightning-layout-item>
+                </template>
+            </lightning-layout>
+        </div>
+    </lightning-card>    
+</template>
