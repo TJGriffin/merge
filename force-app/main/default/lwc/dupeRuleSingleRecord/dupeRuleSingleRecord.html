@@ -1,0 +1,57 @@
+<template>
+    <template if:true={dupeRules}>
+        <template if:true={record}>
+            <template if:false={isEdit}>
+                <lightning-layout>
+                    <lightning-layout-item padding="around-small" size="2">
+                        {record.name}
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        {record.objectType}
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <template if:true={autoMerge}>
+                            <lightning-badge label="Auto Merge" class="slds-badge_inverse slds-theme_success"></lightning-badge>
+                        </template>
+                        <template if:false={autoMerge}>
+                            <lightning-badge label="Auto Merge Disabled"></lightning-badge>
+                        </template>
+                    </lightning-layout-item>
+
+                    <lightning-layout-item padding="around-small" size="2">
+                        <lightning-button variant="brand" label="Edit" onclick={doEdit}></lightning-button>
+                    </lightning-layout-item>
+                </lightning-layout>          
+            </template>
+            <template if:true={isEdit}>
+                <lightning-layout vertical-align="center">
+                    <lightning-layout-item padding="around-small" size="2">
+                        <template if:true={activeDuplicateRules}>
+                            <lightning-combobox
+                                name="Duplicate Rule"
+                                value={dupeRule}
+                                placeholder="Select Duplicate Rule"
+                                options={activeDuplicateRules}
+                                onchange={handleDupeRuleSelect}
+                            ></lightning-combobox>
+                        </template>
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <template if:true={record.objectType}>
+                            {record.objectType}
+                        </template>
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <lightning-input type="checkbox" label="" name="automerge" onchange={handleAutoMerge} value={autoMerge}></lightning-input>
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <lightning-button-group>
+                            <lightning-button onclick={handleCancel} title="Cancel" label="Cancel"></lightning-button>
+                            <lightning-button onclick={handleSave} variant="brand" title="Save" label="Save"></lightning-button>
+                        </lightning-button-group>
+                    </lightning-layout-item>
+                </lightning-layout>  
+            </template>
+        </template>
+    </template>
+</template>

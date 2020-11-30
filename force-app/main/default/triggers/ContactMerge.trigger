@@ -7,6 +7,8 @@
 trigger ContactMerge on Contact (after delete) {
 	if(CON_Merge_SVC.getTriggerDisabled('Contact'))
 		return;
+	if(CON_Duplicate_SVC.getTriggerDisabled())
+		return;
 	if(trigger.isAfter) {
 		if(System.isBatch() 
 			|| System.isQueueable()) {

@@ -29,22 +29,38 @@ public with sharing class CON_Duplicate_SVC {
 	* @return List<dupeRule> a list of duplicate rule wrappers
 	********************************************************************************************************/ 
     public Static List<dupeRule> getActiveDuplicateRules(String objectType){
+
         List<dupeRule> duplicateRules = new List<dupeRule>();
+        for(dupeRule dupeRule:getActiveDuplicateRules()){
+            if(dupeRule.objectType.equalsIgnoreCase(objectType)){
+                duplicateRules.add(dupeRule);
+            }
+        }
+        return duplicateRules;
+    }
+	/*******************************************************************************************************
+	* @description get active duplicate rules for Object type
+	* @return List<dupeRule> a list of duplicate rule wrappers
+	********************************************************************************************************/ 
+    public Static List<dupeRule> getActiveDuplicateRules(){
+        Map<String, dupeRule> dupeRulesByName = new Map<String, dupeRule>();
         for(DuplicateRule duplicateRule:[
             SELECT 
             Id,
             DeveloperName,
             SObjectType
             FROM DuplicateRule
-            WHERE SObjectType=:objectType
-            AND IsActive=true
+            WHERE IsActive=true
         ]){
-            duplicateRules.add(new dupeRule(duplicateRule));
+            dupeRule dr = new dupeRule(duplicateRule);
+            dupeRulesByName.put(dr.ruleName,dr);
         }
-
-        return duplicateRules;
+        for(dupeRule drSetting:duplicateRuleSettings){
+            if(dupeRulesByName.containsKey(drSetting.ruleName))
+                dupeRulesByName.put(drSetting.ruleName, drSetting);
+        }
+        return dupeRulesByName.values();
     }
-
 	/*******************************************************************************************************
 	* @description gets the SOQL query for the duplicate scan batch
 	* @param objectType
@@ -123,18 +139,27 @@ public with sharing class CON_Duplicate_SVC {
 	* @return Boolean
 	*/ 
     public static List<MergeCandidate__c> getMergeCandidates(List<Id> recordIds, List<Datacloud.DuplicateResult> duplicateResults, List<dupeRule> duplicateRules){
+        Map<String, dupeRule> duplicateRuleMap = new Map<String, dupeRule>();
+        for(dupeRule duplicateRule:duplicateRules) {
+            duplicateRuleMap.put(duplicateRule.ruleName, duplicateRule);
+        }
         Map<String, MergeCandidate__c> mergeCandidates = new Map<String, MergeCandidate__c>();
         Set<String> mergedIds = new Set<String>();
         Integer i=0;
         for(Id recordId:recordIds) {
-            for(dupeRule duplicateRule:duplicateRules) {
+            for(Integer d=0;d<duplicateRules.size();d++) {
+
                 DataCloud.DuplicateResult duplicateResult = duplicateResults[i];
-                MergeCandidate__c mergeCandidate = getMergeCandidate(recordId, duplicateResult);
+                String ruleName = duplicateResult.getDuplicateRule();
+                dupeRule duplicateRule = duplicateRuleMap.containsKey(ruleName) ? duplicateRuleMap.get(ruleName) : null;
+                MergeCandidate__c mergeCandidate = getMergeCandidate(recordId, duplicateResult,duplicateRule);
                 system.debug('merge candidate');
+                system.debug(JSON.serialize(duplicateRule));
                 system.debug(JSON.serialize(mergeCandidate));
                 if(mergeCandidate != null) {
                     String keepId = mergeCandidate.KeepRecordId__c;
                     String mergeId = mergeCandidate.MergeRecordId__c;
+                    mergeCandidate.AutoMerge__c = mergeCandidate.Rule__c.equalsIgnoreCase(duplicateRule.ruleName) ? duplicateRule.autoMerge : mergeCandidate.AutoMerge__c;
                     if(!mergedIds.contains(keepId)
                         && !mergedIds.contains(mergeId)) {
                         mergeCandidates.put(keepId, mergeCandidate);
@@ -164,9 +189,10 @@ public with sharing class CON_Duplicate_SVC {
 	* @description determines if duplicate rules are active for this object
     * @param recordid
 	* @param duplicateResult
+	* @param dupeRule
 	* @return MergeCandidate__c
 	*/ 
-    public static MergeCandidate__c getMergeCandidate(Id recordId, Datacloud.DuplicateResult duplicateResult){
+    public static MergeCandidate__c getMergeCandidate(Id recordId, Datacloud.DuplicateResult duplicateResult, dupeRule duplicateRule){
         MergeCandidate__c mergeCandidate = new MergeCandidate__c();
         mergeCandidate.Rule__c = duplicateResult.getDuplicateRule();
         Set<String> matchIds = new Set<String>();
@@ -244,7 +270,76 @@ public with sharing class CON_Duplicate_SVC {
         }
         return mergeKeyMap;
     }
-
+	/*******************************************************************************************************
+	* @description gets the SOQL query for the duplicate scan batch
+	* @return List<dupeRule>
+	********************************************************************************************************/ 
+    public static List<dupeRule> duplicateRuleSettings {
+        get {
+            if(duplicateRuleSettings == null) {
+                List<dupeRule> dupeSettings = new List<dupeRule>();
+                for(DuplicateRuleSettings__mdt dupeSetting:[
+                    SELECT 
+                    Id,
+                    Label,
+                    QualifiedAPIName,
+                    Object__c,
+                    Object__r.QualifiedAPIName,
+                    AutoMerge__c,
+                    RuleName__c
+                    FROM DuplicateRuleSettings__mdt
+                ]){
+                    dupeSettings.add(new dupeRule(dupeSetting));
+                }
+                duplicateRuleSettings = dupeSettings;
+            }
+            return duplicateRuleSettings;
+        }
+        set;
+    }
+	/*******************************************************************************************************
+	* @description Returns the merge fields
+	* @param dupeRules the mergeFieldWrap collection to save
+	* @return  String metaData deploy job Id
+	*/	
+	public static String saveDuplicateRules(List<dupeRule> dupeRules) {
+		CON_Metadata_SVC mdService = new CON_Metadata_SVC();
+		List<DuplicateRuleSettings__mdt> dupeRuleSettings = new List<DuplicateRuleSettings__mdt>();
+		for(dupeRule dupeRule:dupeRules) {
+			dupeRuleSettings.add(getDuplicateRuleSettingFromObject(dupeRule));
+		}
+		List<Metadata.CustomMetadata> mdRecords = new List<Metadata.CustomMetadata>();
+		// get metadata and add to record list
+		for(DuplicateRuleSettings__mdt dupeRuleSetting:dupeRuleSettings) {
+			Metadata.CustomMetadata mdRecord =  mdService.getMetaDataRecord(dupeRuleSetting);
+			mdRecords.add(mdRecord);
+		}
+		// deploy record via metadata api
+		return mdService.deployMetadataRecords(mdRecords);
+	}
+	/*******************************************************************************************************
+	* @description duplicate rule
+	*/ 
+    public static DuplicateRuleSettings__mdt getDuplicateRuleSettingFromObject(dupeRule dupeRule) {
+        DuplicateRuleSettings__mdt dupeSetting = new DuplicateRuleSettings__mdt(
+            Label = dupeRule.name,
+            RuleName__c = dupeRule.ruleName,
+            AutoMerge__c = dupeRule.autoMerge
+        );
+        String qualifiedName = dupeSetting.Label.contains('_') ? dupeSetting.label.replace('_','') : dupeSetting.label;
+        qualifiedName = !qualifiedName.startsWith('DR') ? 'DR'+qualifiedName : qualifiedName;
+        dupeSetting.qualifiedAPIName = qualifiedName;
+        Map<String, Object> dupeSettingJSON = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(dupeSetting));
+		Map<String, Object> objField = new Map<String, Object> {
+			'attributes' => new Map<String, Object> {
+				'type' => 'EntityDefinition'
+			},
+			'QualifiedAPIName' => dupeRule.objectType
+		};
+        dupeSettingJSON.put('Object__r',objField);
+        dupeSetting = (DuplicateRuleSettings__mdt) JSON.deserialize(JSON.serialize(dupeSettingJSON),DuplicateRuleSettings__mdt.class);
+        return dupeSetting;
+    }
 	/*******************************************************************************************************
 	* @description duplicate rule
 	*/ 
@@ -252,11 +347,23 @@ public with sharing class CON_Duplicate_SVC {
         /***
         * @description rule name
         */ 
+        @auraEnabled 
         public String name;
+        /***
+        * @description rule name
+        */ 
+        @auraEnabled 
+        public String ruleName;
         /***
         * @description object Type
         */ 
+        @auraEnabled 
         public String objectType;
+        /***
+        * @description object Type
+        */ 
+        @auraEnabled 
+        public Boolean autoMerge;
         /*******************************************************************************************************
         * @description constructor
         */ 
@@ -268,7 +375,18 @@ public with sharing class CON_Duplicate_SVC {
         */ 
         public dupeRule(DuplicateRule duplicateRule){
             this.name = duplicateRule.DeveloperName;
+            this.ruleName = duplicateRule.DeveloperName;
             this.objectType = duplicateRule.SObjectType;
+            this.autoMerge = false;
+        }
+        /*******************************************************************************************************
+        * @description constructor override
+        */ 
+        public dupeRule(DuplicateRuleSettings__mdt dupeRuleSetting){
+            this.name = dupeRuleSetting.label;
+            this.ruleName = dupeRuleSetting.RuleName__c;
+            this.objectType = dupeRuleSetting.Object__r.QualifiedAPIName;
+            this.autoMerge = dupeRuleSetting.AutoMerge__c;
         }
     }
 }
