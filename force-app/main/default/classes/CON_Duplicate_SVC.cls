@@ -117,7 +117,23 @@ public with sharing class CON_Duplicate_SVC {
 
         return mergeCandidates;
 
-    }    
+    } 
+	/*******************************************************************************************************
+	* @description processes duplicate rules for records
+	* @param List<Id> records
+	* @return List<Datacloud.DuplicateResult> duplicate results
+	*/ 
+	public static List<Datacloud.DuplicateResult> getDuplicateResults(List<SOBject> records, String objectType) {
+        List<Datacloud.DuplicateResult> duplicateResults = new List<Datacloud.DuplicateResult>();
+		if(duplicateRulesAreActive(records) && 
+            (objectType=='Account' || objectType=='Lead' || objectType=='Contact')) {
+			For(Datacloud.FindDuplicatesResult findDupeResult:Datacloud.FindDuplicates.findDuplicates(records)) {
+                duplicateResults.addAll(findDupeResult.getDuplicateResults());
+			}
+		}
+		return duplicateResults;
+	}
+
 	/*******************************************************************************************************
 	* @description processes duplicate rules for records
 	* @param List<Id> records
@@ -231,6 +247,23 @@ public with sharing class CON_Duplicate_SVC {
 		
 		try {
 			Datacloud.FindDuplicatesByIds.findDuplicatesByIds(recordIds);
+		} catch(Exception e) {
+			rulesAreActive = false;
+		} finally {
+			return rulesAreActive;
+		}
+		return rulesAreActive;
+	}
+	/*******************************************************************************************************
+	* @description determines if duplicate rules are active for this object
+	* @param List<SObject> records
+	* @return Boolean
+	*/ 
+	public static Boolean duplicateRulesAreActive(List<SObject> records) {
+		Boolean rulesAreActive = true;
+		
+		try {
+			Datacloud.FindDuplicates.findDuplicates(records);
 		} catch(Exception e) {
 			rulesAreActive = false;
 		} finally {
