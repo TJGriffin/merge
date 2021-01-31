@@ -54,7 +54,8 @@ public with sharing class CON_DuplicateMerge_BATCH implements Database.Batchable
         List<String> objectList = new List<String>();
         objectList.addAll(objects);
         objectType = objectList[0];
-        String soqlQuery = 'SELECT Id,KeepRecordId__c, MergeRecordId__c, Merge2RecordId__c FROM MergeCandidate__c WHERE Status__c=\'New\' AND Object__c =:objectType AND AutoMerge__c = true';
+		String soqlQuery  = CON_Duplicate_SVC.getMergeCandidateFieldSOQL();
+        soqlQuery += ' WHERE Status__c=\'New\' AND Object__c =:objectType AND AutoMerge__c = true';
         return Database.getQueryLocator(SOQLQuery);	
     }
 	/*******************************************************************************************************

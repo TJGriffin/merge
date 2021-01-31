@@ -31,7 +31,7 @@ The Merge Object allows you to report on values for fields that have been merged
 3) Kept Value:  the value of the field on the kept record
 4) Merge Value:  the value of the field on the merged record
 5) Merge Value Type: the field that the values exist on
-#### ContactMergeField__mdt
+#### MergeFieldSetting__mdt
 Custom metadata type to store rules for whether fields should be tracked or values preserved during merge
 ##### Fields
 1) Disable:  this field disables the tracking or preserving of the field

@@ -1,0 +1,50 @@
+  
+<template>
+    <section>
+        <template if:true={showPager}>
+            <lightning-layout>
+                <lightning-layout-item size="12" medium-device-size="6">
+                    
+                    <template if:true={showPrevious}>
+                        <lightning-button-icon
+                            alternative-text="Previous"
+                            icon-class="slds-m-around_medium"
+                            icon-name="utility:chevronleft"
+                            onclick={handlePrev}
+                            variant="bare"
+                        >
+                        </lightning-button-icon>
+                    </template>
+                    <template
+                        for:each={pages}
+                        for:item="page"
+                    >
+                        <button
+                            class="page-index slds-m-around_x-small"
+                            key={page.value}
+                            onclick={handlePageSelect}
+                            title={page.label}
+                            disabled={page.isCurrentPage}
+                            value={page.value}
+                        >
+                            {page.label}
+                        </button>
+                    </template>
+                    <template if:true={isLargeRange}>
+                        <span>...</span>
+                    </template>
+                    <template if:true={showNext}>
+                        <lightning-button-icon
+                            alternative-text="Next"
+                            icon-class="slds-m-around_medium"
+                            icon-name="utility:chevronright"
+                            onclick={handleNext}
+                            variant="bare"
+                        >
+                        </lightning-button-icon>
+                    </template>
+                </lightning-layout-item>
+            </lightning-layout>
+        </template>
+    </section>
+</template>

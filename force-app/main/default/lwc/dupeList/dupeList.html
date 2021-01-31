@@ -1,0 +1,105 @@
+<template>
+    <lightning-card title="Duplicate Records" icon-name="standard:task">
+        <div class="slds-m-around_medium">
+            <lightning-layout>
+                <lightning-layout-item padding="around-small" size="2">
+                    <lightning-combobox
+                    name="objectType"
+                    label="Filter By Object"
+                    value={objectType}
+                    placeholder="Object Type"
+                    options={objectOptions}
+                    onchange={handleObjectFilterChange} ></lightning-combobox>
+                </lightning-layout-item>
+                <template if:true={ruleOptions}>
+                    <lightning-layout-item padding="around-small" size="2">
+                        <lightning-combobox
+                        name="ruleName"
+                        label="Filter By Rule"
+                        value={rule}
+                        placeholder="Object Type"
+                        options={ruleOptions}
+                        onchange={handleRuleFilterChange} ></lightning-combobox>
+                    </lightning-layout-item>
+                </template>
+            </lightning-layout>
+        </div>
+        <template if:true={rows}>
+            <template if:true={hasPager}>
+                <c-pager total-pages={totalPages} current-page={currentPage} onpage={handlePager}></c-pager>
+            </template>
+            <div class="slds-m-around_medium">
+                <lightning-layout>
+                    <lightning-layout-item padding="around-small" size="1">
+                        Group Name
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="1">
+                        Keep Record
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="1">
+                        Merge Record
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="1">
+                        Merge 2 Record
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="1">
+                        Object Type
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="2">
+                        Duplicate Rule
+                    </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="1">
+                        Auto Merge?
+                    </lightning-layout-item>
+                </lightning-layout>
+                <template for:each={rows} for:item="row">
+                    <lightning-layout key={row.id}>
+                        <lightning-layout-item padding="around-small" size="1">
+                            <lightning-formatted-url 
+                                value={row.link}
+                                label={row.name}
+                                target="_blank"></lightning-formatted-url>
+                        </lightning-layout-item>
+                        <lightning-layout-item padding="around-small" size="1">
+                            <lightning-formatted-url 
+                            value={row.keepLink}
+                            label={row.keepName}
+                            target="_blank"></lightning-formatted-url>                         
+                        </lightning-layout-item>
+                        <lightning-layout-item padding="around-small" size="1">
+                            <lightning-formatted-url 
+                            value={row.mergeLink}
+                            label={row.mergeName}
+                            target="_blank"></lightning-formatted-url>                       
+                        </lightning-layout-item>
+                        <lightning-layout-item padding="around-small" size="1">
+                            <template if:true={row.merge2Id}>
+                                <lightning-formatted-url 
+                                value={row.merge2Link}
+                                label={row.merge2Name}
+                                target="_blank"></lightning-formatted-url> 
+                            </template>                         
+                        </lightning-layout-item>
+                        <lightning-layout-item padding="around-small" size="1">
+                            
+                            {row.objectType}
+                                                
+                        </lightning-layout-item>
+                        <lightning-layout-item padding="around-small" size="2">
+                            
+                            {row.rule}
+                                                
+                        </lightning-layout-item>
+                        <lightning-layout-item padding="around-small" size="1">
+                            
+                            {row.autoMerge}
+                                                
+                        </lightning-layout-item>
+                    </lightning-layout>
+                </template>
+
+            
+            </div>
+        </template>
+    </lightning-card>
+</template>

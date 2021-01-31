@@ -82,6 +82,19 @@
                                 options={ruleOptions}
                                 onchange={handleRuleSelect}
                             ></lightning-combobox>
+                            <template if:true={objectType}>
+                                <template if:true={fieldResults}>
+                                    <template if:true={isRelatedField}>
+                                        <lightning-combobox
+                                            name="Field"
+                                            value={mergeRecord.relatedField}
+                                            placeholder="Select Field"
+                                            options={fieldResults}
+                                            onchange={handleRelatedFieldSelect}
+                                        ></lightning-combobox>
+                                    </template>
+                                </template>
+                            </template>
                         </template>
                     </lightning-layout-item>
                     <lightning-layout-item padding="around-small" size="2">

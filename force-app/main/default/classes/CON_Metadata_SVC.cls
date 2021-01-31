@@ -113,7 +113,7 @@ public with sharing class CON_Metadata_SVC {
 	* @param integrationProcessToSave the integration process we're saving
 	* @return the Job Id of the deployment job
 	*/ 		
-	public Metadata.CustomMetadata getMetaDataRecord(ContactMergeField__mdt mergeField) {
+	public Metadata.CustomMetadata getMetaDataRecord(MergeFieldSetting__mdt mergeField) {
 		   	// create metadata container
 		Metadata.CustomMetadata mdRecord = new Metadata.CustomMetadata();
 		List<String> mdRecordNames = new List<String>();
@@ -125,7 +125,7 @@ public with sharing class CON_Metadata_SVC {
 		fieldKeyValues.put('Object__c',mergeField.Object__r.QualifiedAPIName);
 	 	fieldKeyValues.put('PreservationRule__c', mergeField.PreservationRule__c);
 		fieldKeyValues.put('Type__c',mergeField.Type__c);
-		String qualifiedName = !mergeField.QualifiedAPIName.contains('.') ? 'ContactMergeField__mdt.'+mergeField.QualifiedAPIName : mergeField.QualifiedAPIName;	   	
+		String qualifiedName = !mergeField.QualifiedAPIName.contains('.') ? 'MergeFieldSetting__mdt.'+mergeField.QualifiedAPIName : mergeField.QualifiedAPIName;	   	
 		mdRecordNames.add(qualifiedName);
 		
 		// get existing metadata records based on qualified name

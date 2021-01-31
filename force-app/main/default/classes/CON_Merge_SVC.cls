@@ -84,14 +84,14 @@ public with sharing class CON_Merge_SVC {
 	*/	
 	public static String saveMergeFields(List<mergeFieldWrap> mergeFields) {
 		CON_Metadata_SVC mdService = new CON_Metadata_SVC();
-		List<ContactMergeField__mdt> mergeFieldMetadata = new List<ContactMergeField__mdt>();
+		List<MergeFieldSetting__mdt> mergeFieldMetadata = new List<MergeFieldSetting__mdt>();
 		for(mergeFieldWrap mergeField:mergeFields) {
 			mergeFieldMetadata.add(getMergeFieldFromObject(mergeField));
 		}
 			
 		List<Metadata.CustomMetadata> mdRecords = new List<Metadata.CustomMetadata>();
 		// get metadata and add to record list
-		for(ContactMergeField__mdt mergeField:mergeFieldMetadata) {
+		for(MergeFieldSetting__mdt mergeField:mergeFieldMetadata) {
 			Metadata.CustomMetadata mdRecord =  mdService.getMetaDataRecord(mergeField);
 			mdRecords.add(mdRecord);
 		}
@@ -141,9 +141,10 @@ public with sharing class CON_Merge_SVC {
 		@auraEnabled public String fieldName;
 		@auraEnabled public String type;
 		@auraEnabled public String rule;
+		@auraEnabled public String relatedField;
 		@auraEnabled public Boolean disable;
 
-		public mergeFieldWrap(ContactMergeField__mdt mergeField) {
+		public mergeFieldWrap(MergeFieldSetting__mdt mergeField) {
 			this.id = mergeField.Id;
 			this.label = mergeField.Label;
 			this.name = mergeField.QualifiedAPIName;
@@ -151,6 +152,7 @@ public with sharing class CON_Merge_SVC {
 			this.fieldName = mergeField.Field__r.QualifiedAPIName;
 			this.type = mergeField.Type__c != null ? mergeField.Type__c.left(1).toLowerCase() : 't';
 			this.rule = mergeField.PreservationRule__c;
+			this.relatedField = mergeField.RelatedField__r.QualifiedAPIName;
 			this.disable = mergeField.Disable__c;
 		}
 		public Integer compareTo(Object compareTo) {
@@ -162,10 +164,10 @@ public with sharing class CON_Merge_SVC {
 	/*******************************************************************************************************
 	* @description get mergeField metadata from object
 	* @param mfw a mergeFieldWrap
-	* @return ContactMergeField__mdt the merge field metadata record
+	* @return MergeFieldSetting__mdt the merge field metadata record
 	*/	
-	public static ContactMergeField__mdt getMergeFieldFromObject(mergeFieldWrap mfw) {
-		ContactMergeField__mdt mergeField = new ContactMergeField__mdt(
+	public static MergeFieldSetting__mdt getMergeFieldFromObject(mergeFieldWrap mfw) {
+		MergeFieldSetting__mdt mergeField = new MergeFieldSetting__mdt(
 			Label = mfw.label,
 			PreservationRule__c = mfw.rule,
 			Disable__c = mfw.disable
@@ -188,10 +190,19 @@ public with sharing class CON_Merge_SVC {
 			},
 			'QualifiedAPIName' => mfw.objectName
 		};
+		if(String.isNotBlank(mfw.relatedField)){
+			Map<String, Object> rltField = new Map<String, Object> {
+				'attributes' => new Map<String, Object> {
+					'type' => 'EntityParticle'
+				},
+				'QualifiedAPIName' => mfw.relatedField
+			};
+			mergeFieldJSON.put('RelatedField__r',rltField);
+		}
 		mergeFieldJSON.put('Field__r',fldField);
 		mergeFieldJSON.put('Object__r',objField);
 
-		mergeField = (ContactMergeField__mdt) JSON.deserialize(JSON.serialize(mergeFieldJSON),ContactMergeField__mdt.class);
+		mergeField = (MergeFieldSetting__mdt) JSON.deserialize(JSON.serialize(mergeFieldJSON),MergeFieldSetting__mdt.class);
 
 		return mergeField;
 	}
@@ -200,20 +211,21 @@ public with sharing class CON_Merge_SVC {
 	/*******************************************************************************************************
 	* @description merge fields from custom metadata
 	*/	
-	public static List<ContactMergeField__mdt> mergeFields {
+	public static List<MergeFieldSetting__mdt> mergeFields {
 		get {
 			if(mergeFields == null) {
-				return new List<ContactMergeField__mdt>([SELECT
+				return new List<MergeFieldSetting__mdt>([SELECT
 					Id,
 					Label,
 					DeveloperName,
 					QualifiedAPIName,
 					Object__r.QualifiedAPIName,
 					Field__r.QualifiedAPIName,
+					RelatedField__r.QualifiedAPIName,
 					Type__c,
 					Disable__c,
 					PreservationRule__c
-					FROM ContactMergeField__mdt
+					FROM MergeFieldSetting__mdt
 				]);
 			}
 			return mergeFields;
@@ -222,7 +234,7 @@ public with sharing class CON_Merge_SVC {
 	}
 	/*******************************************************************************************************
 	* @description a list of fields to track in MergeFieldHistory__c
-	* @return List<ContactMergeField__mdt>
+	* @return List<MergeFieldSetting__mdt>
 	*/
 	public static void processMergesFromBatch(List<MergeCandidate__c> records, String objectType) {
 		CON_Duplicate_SVC.triggerDisabled=true;
@@ -269,11 +281,11 @@ public with sharing class CON_Merge_SVC {
 	}
 	/*******************************************************************************************************
 	* @description a list of fields to track in MergeFieldHistory__c
-	* @return List<ContactMergeField__mdt>
+	* @return List<MergeFieldSetting__mdt>
 	*/	
 	public static List<mergeFieldWrap> getTrackMergeFields() {
 		List<mergeFieldWrap> trackMergeFields = new List<mergeFieldWrap>();
-		for(ContactMergeField__mdt mergeField:mergeFields) {
+		for(MergeFieldSetting__mdt mergeField:mergeFields) {
 			if(mergeField.Type__c != null
 				&& mergeField.Type__c.equalsIgnoreCase('Track'))
 				trackMergeFields.add(new mergeFieldWrap(mergeField));
@@ -283,11 +295,11 @@ public with sharing class CON_Merge_SVC {
 
 	/*******************************************************************************************************
 	* @description a list of fields to preserve based on preservation rule
-	* @return List<ContactMergeField__mdt>
+	* @return List<MergeFieldSetting__mdt>
 	*/	
 	public static List<mergeFieldWrap> getPreserveMergeFields() {
 		List<mergeFieldWrap> preserveMergeFields = new List<mergeFieldWrap>();
-		for(ContactMergeField__mdt mergeField:mergeFields) {
+		for(MergeFieldSetting__mdt mergeField:mergeFields) {
 			if(mergeField.Type__c != null
 				&& mergeField.Type__c.equalsIgnoreCase('Preserve'))
 				preserveMergeFields.add(new mergeFieldWrap(mergeField));
@@ -497,7 +509,7 @@ public with sharing class CON_Merge_SVC {
 	/*******************************************************************************************************
 	* @description get a map of contact merge fields keyed by field name lowercase
 	* @param mergeFields
-	* @return Map<String, ContactMergeField__mdt>
+	* @return Map<String, MergeFieldSetting__mdt>
 	*/
 	public static Map<String, mergeFieldWrap> getMergeFieldMap(List<mergeFieldWrap> mergeFields) {
 		Map<String, mergeFieldWrap> mergeFieldMap = new Map<String, mergeFieldWrap>();

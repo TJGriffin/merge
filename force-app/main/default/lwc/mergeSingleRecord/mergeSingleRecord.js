@@ -31,7 +31,7 @@ export default class mergeSingleRecord extends LightningElement {
         return type;
     }
     trackOptions = [{label:'Track Fields',value:'t'},{label:'Preserve Fields',value:'p'}];
-    ruleOptions = [{label:'Oldest Record',value:'Oldest'},{label:'Newest Record',value:'Newest'},{label:'Largest Value',value:'Largest'},{label:'Smallest Value',value:'Smallest'}];
+    ruleOptions = [{label:'Oldest Record',value:'Oldest'},{label:'Newest Record',value:'Newest'},{label:'Largest Field Value',value:'Largest'},{label:'Smallest Field Value',value:'Smallest'},{label:'Related Field Value',value:'Related Field'}];
     objectOptions = [{label:'Account',value:'Account'},{label:'Contact',value:'Contact'}];
     notificationBody;
     notificationStyle;
@@ -51,6 +51,10 @@ export default class mergeSingleRecord extends LightningElement {
         return this.fieldOptions;
     }
     @track fieldOptions;
+
+    get isRelatedField(){
+        return this.mergeRecord !== undefined && this.mergeRecord != null && this.preserve && this.mergeRecord.rule == 'Related Field';
+    }
 
     connectedCallback(){
         this.objectType = this.objectType===undefined || this.objectType == null ? 'Contact' : this.objectType;
@@ -85,6 +89,9 @@ export default class mergeSingleRecord extends LightningElement {
     }
     handleFieldSelect(event) {
         this.mergeRecord.fieldName = event.detail.value;
+    }
+    handleRelatedFieldSelect(event){
+        this.mergeRecord.relatedField = event.detail.value;
     }
     handleTypeSelect(event) {
         this.mergeRecord.type = event.detail.value;

@@ -154,7 +154,7 @@ public class CON_Merge_TEST {
 	@testvisible private static void createMergeFields() {
 
 
-		List<ContactMergeField__mdt> mergeFields = new List<ContactMergeField__mdt>();
+		List<MergeFieldSetting__mdt> mergeFields = new List<MergeFieldSetting__mdt>();
 		mergeFields.add(createTestMergeField('Contact','FirstName','Track','Oldest'));
 		mergeFields.add(createTestMergeField('Contact','LastName','Preserve','Oldest'));
 		mergeFields.add(createTestMergeField('Contact','Email','Track','Oldest'));
@@ -165,13 +165,13 @@ public class CON_Merge_TEST {
 		CON_Merge_SVC.mergeFields = mergeFields;
 	}
 
-	private static ContactMergeField__mdt createTestMergeField(String objectName, String fieldName, String type, String rule) {
-		ContactMergeField__mdt mergeField = new ContactMergeField__mdt();
+	private static MergeFieldSetting__mdt createTestMergeField(String objectName, String fieldName, String type, String rule) {
+		MergeFieldSetting__mdt mergeField = new MergeFieldSetting__mdt();
 		Map<String, Object> mergeFieldFields = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(mergeField));
-		mergeFieldFields.put(ContactMergeField__mdt.Label.getDescribe().getName(),'test'+fieldName);
-		mergeFieldFields.put(ContactMergeField__mdt.DeveloperName.getDescribe().getName(),'test'+fieldName);
-		mergeFieldFields.put(ContactMergeField__mdt.Type__c.getDescribe().getName(),type);
-		mergeFieldFields.put(ContactMergeField__mdt.PreservationRule__c.getDescribe().getName(),rule);
+		mergeFieldFields.put(MergeFieldSetting__mdt.Label.getDescribe().getName(),'test'+fieldName);
+		mergeFieldFields.put(MergeFieldSetting__mdt.DeveloperName.getDescribe().getName(),'test'+fieldName);
+		mergeFieldFields.put(MergeFieldSetting__mdt.Type__c.getDescribe().getName(),type);
+		mergeFieldFields.put(MergeFieldSetting__mdt.PreservationRule__c.getDescribe().getName(),rule);
 		mergeFieldFields.put('Object__r',new Map<String, Object>{
 			'attributes' => new Map<String, Object>{
 				'type' => 'EntityDefinition'
@@ -184,7 +184,7 @@ public class CON_Merge_TEST {
 			},
 			'QualifiedAPIName'=>fieldName
 		});
-		mergeField = (ContactMergeField__mdt) JSON.deserialize(JSON.serialize(mergeFieldFields),ContactMergeField__mdt.class);
+		mergeField = (MergeFieldSetting__mdt) JSON.deserialize(JSON.serialize(mergeFieldFields),MergeFieldSetting__mdt.class);
 		return mergeField;
 
 	}

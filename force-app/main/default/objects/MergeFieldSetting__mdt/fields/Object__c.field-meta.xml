@@ -5,8 +5,8 @@
     <fieldManageability>SubscriberControlled</fieldManageability>
     <label>Object</label>
     <referenceTo>EntityDefinition</referenceTo>
-    <relationshipLabel>Contact_Merge_Fields</relationshipLabel>
-    <relationshipName>Contact_Merge_Fields</relationshipName>
+    <relationshipLabel>Merge_Field_Setting</relationshipLabel>
+    <relationshipName>Merge_Field_Setting</relationshipName>
     <required>true</required>
     <type>MetadataRelationship</type>
     <unique>false</unique>

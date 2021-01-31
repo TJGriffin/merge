@@ -50,7 +50,7 @@ public with sharing class CON_DuplicateScan_BATCH implements Database.Batchable<
 	*/ 
 	public void execute(Database.BatchableContext BC, List<sObject> scope) {
         Map<Id, SObject> recordMap = new Map<Id, SObject>(scope);
-        List<MergeCandidate__c> mergeCandidates = CON_Duplicate_SVC.processRecords(recordMap.keyset(),objectType);
+        List<MergeCandidate__c> mergeCandidates = CON_Duplicate_SVC.processRecords(recordMap,objectType);
         if(mergeCandidates.size()>0)
             upsert mergeCandidates KeepRecordId__c;
     }

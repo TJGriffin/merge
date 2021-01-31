@@ -8,7 +8,7 @@ private class CON_DupeSettings_TEST {
         dupeRule.objectType='Contact';
         dupeRule.autoMerge = true;
 
-        CON_Duplicate_SVC.duplicateRuleSettings = new List<CON_Dupicate_SVC.dupeRule>();
+        CON_Duplicate_SVC.duplicateRuleSettings = new List<CON_Duplicate_SVC.dupeRule>();
         CON_Duplicate_SVC.duplicateRuleSettings.add(dupeRule);
         List<CON_Duplicate_SVC.dupeRule> dupeRulesFromCon =  CON_DupeSettings_CTRL.getActiveDuplicateRules();
         dupeRulesFromCon =  CON_DupeSettings_CTRL.getDuplicateRuleSettings();

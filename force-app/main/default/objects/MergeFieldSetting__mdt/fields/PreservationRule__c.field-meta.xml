@@ -30,6 +30,11 @@
                 <default>false</default>
                 <label>Smallest</label>
             </value>
+            <value>
+                <fullName>Related Field</fullName>
+                <default>false</default>
+                <label>Related Field</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

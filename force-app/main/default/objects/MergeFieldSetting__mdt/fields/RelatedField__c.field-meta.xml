@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RelatedField__c</fullName>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <label>Field</label>
+    <referenceTo>EntityParticle</referenceTo>
+    <relationshipLabel>Related_Field</relationshipLabel>
+    <relationshipName>Related_Field</relationshipName>
+    <required>true</required>
+    <type>MetadataRelationship</type>
+    <metadataRelationshipControllingField>Object__c</metadataRelationshipControllingField> 
+    <unique>false</unique>
+</CustomField>

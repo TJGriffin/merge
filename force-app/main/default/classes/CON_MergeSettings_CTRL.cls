@@ -91,7 +91,7 @@ public with sharing class CON_MergeSettings_CTRL {
 	@auraEnabled(cacheable=true) public static List<CON_Merge_SVC.mergeFieldWrap> getAllMergeFields() {
 		List<CON_Merge_SVC.mergeFieldWrap> mergeFieldWraps = new List<CON_Merge_SVC.mergeFieldWrap>();
 
-		for(ContactMergeField__mdt mergeField:CON_Merge_SVC.mergeFields) {
+		for(MergeFieldSetting__mdt mergeField:CON_Merge_SVC.mergeFields) {
 			mergeFieldWraps.add(new CON_Merge_SVC.mergeFieldWrap(mergeField));
 		}
 		if(mergeFieldWraps.size()>0)
