@@ -425,7 +425,22 @@ public with sharing class CON_Merge_SVC {
 		
 		return soqlQuery;
 	}
-	
+	/*******************************************************************************************************
+	* @description returns a list of Merge records for saving
+	* @param preserveFieldmap the preservation rules
+	* @return  Map<String, Set<String>> map of master child fields
+	*/
+	public static Map<String, String> getMasterChildFields(Map<String, mergeFieldWrap> preserveFieldMap){
+		Map<String, String> masterChildFields = new Map<String, String>();
+		for(mergeFieldWrap mfw:preserveFieldMap.values()){
+			if(mfw.rule=='Related Field'
+				&& String.isNotBlank(mfw.relatedField)){
+					masterChildFields.put(mfw.fieldName,mfw.relatedField);
+				}
+		}
+		return masterChildFields;
+	}
+
 	/*******************************************************************************************************
 	* @description returns a list of Merge records for saving
 	* @param List<SObject> deleted contacts
@@ -436,19 +451,34 @@ public with sharing class CON_Merge_SVC {
 		Map<Id,Id> keepIdMap = getKeepIdMap(mergeKeyMap);
 		Map<String, mergeFieldWrap> trackfieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(trackMergeFields));
 		Map<String, mergeFieldWrap> preserveFieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(preserveMergeFields));
+		Map<String, String> masterChildFields = new Map<String, String>(getMasterChildFields(preserveFieldMap));
+		Map<Id, Boolean> preserveRelatedField = new Map<Id, Boolean>();
 		Set<String> writeableFields = getWriteableFields(objectType);
+		for(String masterField:masterChildFields.values()){
+			if(writeableFields.contains(masterField))
+				writeablefields.remove(masterField);
+		}
+		Set<String> masterFields = new Set<String>();
+		masterFields.addAll(masterChildFields.values());
+		// test master fields first
+		List<String> fieldsToCheck = new List<String>();
+		fieldsToCheck.addAll(masterChildFields.keyset());
+		fieldsToCheck.addAll(writeableFields);
 		List<MergeFieldHistory__c> mergeRecords = new List<MergeFieldHistory__c>();
 		Map<Id, SObject> updateRecordMap = new Map<Id, SObject>();
 		for(Sobject obj:mergedRecords) {
 			String mergedRecordId = (String) obj.get('Id'); 
 			String masterRecordId = keepIdMap.containsKey(Id.valueOf(mergedRecordId)) ? keepIdMap.get(Id.valueOf(mergedRecordId)) : null;
+			Map<String, Boolean> keptMasterFields = new Map<String, Boolean>();
 			if(String.isNotBlank(masterRecordId)
 				&& keptRecordMap.containsKey(masterRecordId)) {
 				SObject keptRecOld = keptRecordMap.get(masterRecordId);
 				SObject keptRec = keptRecordMap.get(masterRecordId);
 				Boolean keptRecordIsOlder = (Datetime) keptRec.get('CreatedDate') < (Datetime) obj.get('CreatedDate');
 				Boolean hasChange = false;
-				for(String fieldName:writeableFields) {
+				for(String fieldName:fieldsToCheck) {
+					Boolean isMaster = masterFields.contains(fieldName);
+					Boolean masterFieldIsKept = keptMasterFields.containsKey(fieldName) && keptMasterFields.get(fieldName);
 					Boolean mergedFieldIsKept = false;
 					mergeFieldWrap trackField = trackfieldMap.containsKey(fieldName) ? trackfieldMap.get(fieldName) : null;
 					mergeFieldWrap preserveField = preserveFieldMap.containsKey(fieldName) ? preserveFieldMap.get(fieldName) : null;
@@ -459,7 +489,13 @@ public with sharing class CON_Merge_SVC {
 					if(mergeRecordFieldValue!= null) {
 						// if we should preserve thie value then preserve it
 						if(preserveField != null) {
-							if(testValue(mergeRecordFieldValue, keptRecordfieldValue, preserveField.rule, keptRecordIsOlder)) {
+							if(masterFieldIsKept){
+								keepValue = mergeRecordFieldValue;
+								mergeValue = keptRecordfieldValue;
+								keptRec.put(fieldName,keepValue);
+								hasChange=true;
+								mergedFieldIsKept=true;								
+							} else if(testValue(mergeRecordFieldValue, keptRecordfieldValue, preserveField.rule, keptRecordIsOlder)) {
 								keepValue = mergeRecordFieldValue;
 								mergeValue = keptRecordfieldValue;
 								keptRec.put(fieldName,keepValue);
@@ -473,16 +509,22 @@ public with sharing class CON_Merge_SVC {
 								mergeValue = keptRecordfieldValue;
 								keptRec.put(fieldName,keepValue);
 								hasChange = true;
+								mergedFieldIsKept=true;
 							}
 							// if it is a boolean field and the old value is true then preserve it
 							if(getObjectType(mergeRecordFieldValue) == 'Boolean'
-								&& (Boolean) mergeRecordFieldValue) {
+								&& (Boolean) mergeRecordFieldValue
+								&& !(Boolean) keptRecordFieldValue) {
 								keepValue = mergeRecordFieldValue;
 								mergeValue = keptRecordfieldValue;
 								keptRec.put(fieldname,keepValue);
 								hasChange=true;
+								mergedFieldIsKept=true;
 							}
 						}
+						// if this is a master field and the merged value is kept, keep track
+						if(mergedFieldIsKept && isMaster)
+							keptMasterFields.put(fieldName,true);
 						// if we should track this field then track it
 						if(trackField != null
 							|| (preserveField != null 
@@ -558,7 +600,6 @@ public with sharing class CON_Merge_SVC {
 		Boolean isSmallest = preservationRule.equalsIgnoreCase('Smallest');
 		Boolean isOldest = preservationRule.equalsIgnoreCase('Oldest');
 		Boolean isNewest = preservationRule.equalsIgnorecase('Newest');
-
 		Boolean result = false;
 		if(isOldest || isNewest) {
 			result = (isOldest && !keptContactIsOlder) || (isNewest && keptContactIsOlder);
