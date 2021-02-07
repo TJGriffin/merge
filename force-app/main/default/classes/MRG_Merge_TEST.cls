@@ -1,5 +1,5 @@
 @isTest
-public class CON_Merge_TEST {
+public class MRG_Merge_TEST {
 	@testSetup static void setup() {
 		List<Account> accs = new List<Account>();
 		accs.add(
@@ -162,7 +162,7 @@ public class CON_Merge_TEST {
 		mergeFields.add(createTestMergeField('Contact','MailingPostalCode','Preserve','Largest'));
 		mergeFields.add(createTestMergeField('Contact','Birthdate','Preserve','Smallest'));
 		mergeFields.add(createTestMergeField('Account','Name','Track','Smallest'));
-		CON_Merge_SVC.mergeFields = mergeFields;
+		MRG_Merge_SVC.mergeFields = mergeFields;
 	}
 
 	private static MergeFieldSetting__mdt createTestMergeField(String objectName, String fieldName, String type, String rule) {

@@ -51,6 +51,9 @@
                     <lightning-layout-item padding="around-small" size="1">
                         Auto Merge?
                     </lightning-layout-item>
+                    <lightning-layout-item padding="around-small" size="1">
+                        Actions
+                    </lightning-layout-item>
                 </lightning-layout>
                 <template for:each={rows} for:item="row">
                     <lightning-layout key={row.id}>
@@ -94,6 +97,12 @@
                             
                             {row.autoMerge}
                                                 
+                        </lightning-layout-item>
+                        <lightning-layout-item padding="around-small" size="2">
+                            
+                           <lightning-button variant="neutral" label="Preview" onclick={handlePreview} class="slds-m-right_x-small" data-record={row.id}></lightning-button>
+                           <lightning-button variant="destructive" label="Remove" onclick={handleRemove} class="slds-m-right_x-small" data-record={row.id}></lightning-button>
+                           <lightning-button variant="success" label="Merge" onclick={handleMerge} class="slds-m-right_x-small" data-record={row.id}></lightning-button>                     
                         </lightning-layout-item>
                     </lightning-layout>
                 </template>

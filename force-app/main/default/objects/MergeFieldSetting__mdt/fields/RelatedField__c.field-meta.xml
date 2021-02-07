@@ -3,11 +3,11 @@
     <fullName>RelatedField__c</fullName>
     <externalId>false</externalId>
     <fieldManageability>SubscriberControlled</fieldManageability>
-    <label>Field</label>
+    <label>Related Field</label>
     <referenceTo>EntityParticle</referenceTo>
     <relationshipLabel>Related_Field</relationshipLabel>
     <relationshipName>Related_Field</relationshipName>
-    <required>true</required>
+    <required>false</required>
     <type>MetadataRelationship</type>
     <metadataRelationshipControllingField>Object__c</metadataRelationshipControllingField> 
     <unique>false</unique>

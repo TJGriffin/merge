@@ -1,8 +1,8 @@
 import { LightningElement, api, track, wire } from 'lwc';
 import { subscribe, unsubscribe, onError, setDebugFlag, isEmpEnabled } from 'lightning/empApi';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import getDuplicateRules from '@salesforce/apex/CON_DupeSettings_CTRL.getDuplicateRuleSettings';
-import saveDuplicateRules from '@salesforce/apex/CON_DupeSettings_CTRL.saveDuplicateRuleSettings';
+import getDuplicateRules from '@salesforce/apex/MRG_DupeSettings_CTRL.getDuplicateRuleSettings';
+import saveDuplicateRules from '@salesforce/apex/MRG_DupeSettings_CTRL.saveDuplicateRuleSettings';
 
 export default class dupeRuleList extends LightningElement {
     @track cols;

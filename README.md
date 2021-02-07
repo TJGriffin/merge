@@ -54,22 +54,22 @@ Platform Event for tracking metadata save completion
 3) Message: error message if metadata deploy fails
 
 ### Classes
-#### CON_Merge_SVC.cls
+#### MRG_Merge_SVC.cls
 Service class for handling merges for records
 
-#### CON_Merge_QUEUE.cls
+#### MRG_Merge_QUEUE.cls
 Queuable for processing merge rules asynchronously after delete
 
-#### CON_Merge_TEST.cls
+#### MRG_Merge_TEST.cls
 Test class for merge service and queuable
 
-#### CON_MergeSettings_CTRL.cls
+#### MRG_MergeSettings_CTRL.cls
 Page controller for the merge settings lightning component
 
-#### CON_MergeSettings_TEST.cls
+#### MRG_MergeSettings_TEST.cls
 Test class for merge settings
 
-#### CON_Metadata_SVC.cls
+#### MRG_Metadata_SVC.cls
 Service class for handling metadata retreival and saving
 
 ### Triggers

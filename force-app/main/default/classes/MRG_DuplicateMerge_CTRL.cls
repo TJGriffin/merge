@@ -4,7 +4,7 @@
 * @group Merge
 * @description Service for dealing with duplicate identification and merging
 */
-public with sharing class CON_DuplicateMerge_CTRL {
+public with sharing class MRG_DuplicateMerge_CTRL {
 	/*******************************************************************************************************
 	* @description Returns the merge fields
 	* @param List<mergeGroup> the mergeGroup wrapper list
@@ -13,7 +13,7 @@ public with sharing class CON_DuplicateMerge_CTRL {
     @AuraEnabled(cacheable=TRUE)
     public static Integer getCount(String objectType, String ruleName){
         String soqlQuery= 'SELECT Count() FROM MergeCandidate__c ';
-        soqlQuery+=CON_Duplicate_SVC.getWhereClause(objectType, ruleName);
+        soqlQuery+=MRG_Duplicate_SVC.getWhereClause(objectType, ruleName);
         Integer result = (Integer) Database.countQuery(soqlQuery);
         return result;
     }
@@ -27,8 +27,8 @@ public with sharing class CON_DuplicateMerge_CTRL {
     public static List<mergeGroup> getMergeGroups(String objectType, String ruleName, Integer limitAmt, Integer offsetAmt){
         system.debug('object: '+objectType+' / ruleName: '+ruleName+' / limitAmt: '+limitAmt+' / offsetAmt: '+offsetAmt);
         limitAmt = limitAmt == null ? 200 : limitAmt;
-        String soqlQuery= CON_Duplicate_SVC.getMergeCandidateFieldSOQL();
-        soqlQuery+=CON_Duplicate_SVC.getWhereClause(objectType,ruleName);
+        String soqlQuery= MRG_Duplicate_SVC.getMergeCandidateFieldSOQL();
+        soqlQuery+=MRG_Duplicate_SVC.getWhereClause(objectType,ruleName);
         soqlQuery+=' ORDER BY CreatedDate DESC, Id ASC';
         soqlQuery+=' LIMIT '+limitAmt;
         if(offsetAmt != null
@@ -44,10 +44,64 @@ public with sharing class CON_DuplicateMerge_CTRL {
 	* @return  List<mergeGroup> 
 	*/
     @AuraEnabled(cacheable=TRUE)
-    public static List<CON_Duplicate_SVC.dupeRule> getRules(String objectType){
-        return CON_Duplicate_SVC.getActiveDuplicateRules(objectType);
+    public static List<MRG_Duplicate_SVC.dupeRule> getRules(String objectType){
+        return MRG_Duplicate_SVC.getActiveDuplicateRules(objectType);
+    }
+	/*******************************************************************************************************
+	* @description Returns the merge fields
+	* @param recordId recordId to merge
+	* @return String response
+	*/
+    @AuraEnabled
+    public static String mergeRecord(String recordId){
+        String response;
+        String soqlQuery  = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL();
+        soqlQuery+=' WHERE Id=:recordId';
+        List<MergeCandidate__c> mergeCandidates = (List<MergeCandidate__c>) database.query(soqlQuery);
+        if(mergeCandidates.size()>0) {
+            try {
+                MRG_Merge_SVC.processMergesFromBatch(mergeCandidates, mergeCandidates[0].Object__c);
+                response = 'Records merged';
+            } catch(Exception e){
+                response = e.getMessage();
+            }
+        } else {
+            response = 'an error occurred';
+        }
+        return response;
     }
 
+	/*******************************************************************************************************
+	* @description returns the records for preview
+	* @param recordId recordId to merge
+	* @return String response
+	*/
+    @AuraEnabled
+    public static String previewRecord(String recordId){
+        String response;
+
+        return response;
+    }
+	/*******************************************************************************************************
+	* @description sets the merge candidate to ignore
+	* @param recordId recordId to merge
+	* @return String response
+	*/
+    @AuraEnabled
+    public static String removeRecord(String recordId){
+        String response;
+        MergeCandidate__c mc = new MergeCandidate__c(
+            Id=recordId,
+            NotADuplicate__c=true
+        );
+        try {
+            update mc;
+            response = 'Record set to not a duplicate';
+        } catch(Exception e){
+            response = e.getMessage();
+        }
+        return response;
+    }
 	/*******************************************************************************************************
 	* @description Returns the merge fields
 	* @param  List<MergeCandidate__c> merge candidates
@@ -69,7 +123,7 @@ public with sharing class CON_DuplicateMerge_CTRL {
         mergeGroup mergeGroup = (mergeGroup) JSON.deserialize(mergeGroupJSON, mergeGroup.class);
         List<String> recordIds = mergeGroup.recordIds;
         String objectType = mergeGroup.objectType;
-        String soqlQuery = CON_Merge_SVC.getSOQLQuery(objectType);
+        String soqlQuery = MRG_Merge_SVC.getSOQLQuery(objectType);
         soqlQuery+=' WHERE Id IN:recordIds';
         return database.query(soqlQuery);
     }

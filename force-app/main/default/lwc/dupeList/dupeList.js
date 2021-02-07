@@ -1,8 +1,11 @@
 import { LightningElement, api, track, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import getMergeGroups from '@salesforce/apex/CON_DuplicateMerge_CTRL.getMergeGroups';
-import getDuplicateRules from '@salesforce/apex/CON_DuplicateMerge_CTRL.getRules';
-import getCount from '@salesforce/apex/CON_DuplicateMerge_CTRL.getCount';
+import getMergeGroups from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getMergeGroups';
+import getDuplicateRules from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getRules';
+import getCount from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getCount';
+import doMergeRecord from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeRecord';
+import doRemoveRecord from '@salesforce/apex/MRG_DuplicateMerge_CTRL.removeRecord';
+import doPreviewRecord from '@salesforce/apex/MRG_DuplicateMerge_CTRL.previewRecord';
 
 export default class DupeList extends LightningElement {
     @track objectType;
@@ -115,6 +118,7 @@ export default class DupeList extends LightningElement {
         console.log('handleSuccess called');
         this.notificationTitle = 'Record Saved';
         this.notificationStyle='success';
+        this.notificationBody = typeof this.notificationBody === undefined || this.notificationBody == null ? 'Success' : this.notificationBody;
         this.showNotification();
         this.refresh();
     }
@@ -123,9 +127,15 @@ export default class DupeList extends LightningElement {
         this.notificationTitle = 'An error has occurred';
         this.notificationBody = 'Unknown error';
         this.notificationStyle = 'error';
+        if(typeof this.error === undefined || this.error == null)
+            this.error = {};
+        if(!this.error.hasOwnProperty('body'))
+            this.error.body ={'message':this.notificationBody};
         if(Array.isArray(this.error.body)) {
             this.notificationBody = this.error.body.map(e => e.message).join(', ');
-        } else if(typeof this.error.body.message === 'string') {
+        } else if(this.error.hasOwnProperty('body')
+            && this.error.body.hasOwnProperty('message')
+            && typeof this.error.body.message === 'string') {
             this.notificationBody = this.error.body.message;
         }
         this.showNotification();
@@ -159,6 +169,38 @@ export default class DupeList extends LightningElement {
                 variant: this.notificationStyle
             })
         );
+    }
+    handlePreview(event){
+        var mcId = event.currentTarget.dataset.record;
+        console.log('preview: '+mcId);
+    }
+    handleMerge(event){
+        var mcId = event.currentTarget.dataset.record;
+        console.log('merge: '+mcId);
+        doMergeRecord({recordId:mcId})
+        .then(response=>{
+            console.log(JSON.stringify(response));
+            this.notificationBody = response;
+            this.handleSuccess();
+        })
+        .catch(error => {
+            this.error = error;
+            this.handleError();
+        })
+    }
+    handleRemove(event){
+        var mcId = event.currentTarget.dataset.record;
+        console.log('remove: '+mcId);
+        doRemoveRecord({recordId:mcId})
+        .then(response=>{
+            console.log(JSON.stringify(response));
+            this.notificationBody = response;
+            this.handleSuccess();
+        })
+        .catch(error => {
+            this.error = error;
+            this.handleError();
+        })
     }
 
 }

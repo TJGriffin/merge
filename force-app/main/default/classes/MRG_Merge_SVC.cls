@@ -4,7 +4,7 @@
 * @group Merge
 * @description Service for dealing with contact merges
 */
-public with sharing class CON_Merge_SVC {
+public with sharing class MRG_Merge_SVC {
 	/*******************************************************************************************************
 	* @description get the custom settings
 	* @return MergeControlSettings__c settings
@@ -83,7 +83,7 @@ public with sharing class CON_Merge_SVC {
 	* @return  String metaData deploy job Id
 	*/	
 	public static String saveMergeFields(List<mergeFieldWrap> mergeFields) {
-		CON_Metadata_SVC mdService = new CON_Metadata_SVC();
+		MRG_Metadata_SVC mdService = new MRG_Metadata_SVC();
 		List<MergeFieldSetting__mdt> mergeFieldMetadata = new List<MergeFieldSetting__mdt>();
 		for(mergeFieldWrap mergeField:mergeFields) {
 			mergeFieldMetadata.add(getMergeFieldFromObject(mergeField));
@@ -176,7 +176,7 @@ public with sharing class CON_Merge_SVC {
 		mergeField.Type__c = mfw.type == 't' ? 'Track' : 'Preserve';
 		if(String.isNotBlank(mfw.id))
 			mergeField.Id = mfw.id;
-		mergeField.QualifiedAPIName = String.isBlank(mfw.name) || mfw.name.contains('__c') ? mfw.fieldName.replace('__c','') + mfw.objectName.left(1) : mfw.name;
+		mergeField.QualifiedAPIName = String.isBlank(mfw.name) || mfw.name.contains('__') ? mfw.fieldName.replace('__','') + mfw.objectName.left(1) : mfw.name;
 		Map<String, Object> mergeFieldJSON = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(mergeField));
 		Map<String, Object> fldField = new Map<String, Object> {
 			'attributes' => new Map<String, Object> {
@@ -237,12 +237,12 @@ public with sharing class CON_Merge_SVC {
 	* @return List<MergeFieldSetting__mdt>
 	*/
 	public static void processMergesFromBatch(List<MergeCandidate__c> records, String objectType) {
-		CON_Duplicate_SVC.triggerDisabled=true;
-		Map<Id,Id> mergeCandidateIdByKeepId = CON_Duplicate_SVC.getMergeCandidateIdByKeepId(records);
+		MRG_Duplicate_SVC.triggerDisabled=true;
+		Map<Id,Id> mergeCandidateIdByKeepId = MRG_Duplicate_SVC.getMergeCandidateIdByKeepId(records);
 		Map<Id, MergeCandidate__c> mergeCandidateMap = new Map<Id, MergeCandidate__c>(records);
-		Map<Id, Set<Id>> mergeKeyMap = CON_Duplicate_SVC.getMergeKeyMap(records);
-		Set<Id> allIds = CON_Duplicate_SVC.getAllIds(mergeKeyMap);
-		String soqlQuery = CON_Duplicate_SVC.getMergeSOQLQuery(objectType);
+		Map<Id, Set<Id>> mergeKeyMap = MRG_Duplicate_SVC.getMergeKeyMap(records);
+		Set<Id> allIds = MRG_Duplicate_SVC.getAllIds(mergeKeyMap);
+		String soqlQuery = MRG_Duplicate_SVC.getMergeSOQLQuery(objectType);
 		soqlQuery+=' WHERE Id in:allIds';
 		Map<Id, SObject> objMap = new Map<Id, SObject>(Database.query(soqlQuery));
 		mergeHistoryResult mergeResult = createMergeRecords(objMap, mergeKeyMap, objectType);
@@ -271,14 +271,35 @@ public with sharing class CON_Merge_SVC {
 
 			}
 		}
-		for(Id keepId:keepIdsMerged){
+		updateMergeCandidateStatus(keepIdsMerged, mergeCandidateMap, mergeCandidateIdByKeepId);
+		MRG_Duplicate_SVC.triggerDisabled=false;
+	}
+	/*******************************************************************************************************
+	* @description updates the status of merged records with corresponding merge candidates
+	* @param keepIds the Ids of the kept records
+	* @param mergeCandidateMap the map of merge candidates
+	* @param mergeCandidateByKeepId the map of merged candidate id by keep id
+	*/
+	public static void updateMergeCandidateStatus(Set<Id> keepIds, Map<Id, MergeCandidate__c> mergeCandidateMap, Map<Id,Id> mergeCandidateIdByKeepId){
+		for(Id keepId:keepIds){
 			Id mergeCandidateId = mergeCandidateIdByKeepId.get(keepId);
 			MergeCandidateMap.get(mergeCandidateId).Status__c='Processed';
 		}
 		if(mergeCandidateMap.size()>0)
 			update mergeCandidateMap.values();
-		CON_Duplicate_SVC.triggerDisabled=false;
 	}
+
+	/*******************************************************************************************************
+	* @description updates the status of merged records with corresponding merge candidates
+	* @param keepIds the Ids of the kept records
+	*/
+	public static void updateMergeCandidateStatus(Set<Id> keepIds){
+		List<MergeCandidate__c> records = MRG_Duplicate_SVC.getMergeCandidatesFromKeptIds(keepIds);
+		Map<Id, MergeCandidate__c> mergeCandidateMap = new Map<Id, MergeCandidate__c>(records);
+		Map<Id,Id> mergeCandidateIdByKeepId = MRG_Duplicate_SVC.getMergeCandidateIdByKeepId(records);
+		updateMergeCandidateStatus(keepIds,mergeCandidateMap,mergeCandidateIdByKeepId);
+	}
+
 	/*******************************************************************************************************
 	* @description a list of fields to track in MergeFieldHistory__c
 	* @return List<MergeFieldSetting__mdt>
@@ -383,6 +404,8 @@ public with sharing class CON_Merge_SVC {
 			insert mergeResult.fieldHistory;
 		if(mergeResult.updateRecords.size()>0)
 			update mergeResult.updateRecords;
+		if(keptRecordIds.size()>0)
+			updateMergeCandidateStatus(keptRecordIds);
 		
 	}
 	/*******************************************************************************************************
@@ -435,7 +458,7 @@ public with sharing class CON_Merge_SVC {
 		for(mergeFieldWrap mfw:preserveFieldMap.values()){
 			if(mfw.rule=='Related Field'
 				&& String.isNotBlank(mfw.relatedField)){
-					masterChildFields.put(mfw.fieldName,mfw.relatedField);
+					masterChildFields.put(mfw.fieldName.toLowerCase(),mfw.relatedField.toLowerCase());
 				}
 		}
 		return masterChildFields;
@@ -452,17 +475,20 @@ public with sharing class CON_Merge_SVC {
 		Map<String, mergeFieldWrap> trackfieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(trackMergeFields));
 		Map<String, mergeFieldWrap> preserveFieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(preserveMergeFields));
 		Map<String, String> masterChildFields = new Map<String, String>(getMasterChildFields(preserveFieldMap));
+		system.debug('master fields values');
+		Set<String> masterFields = new Set<String>();
+		masterFields.addAll(masterChildFields.values());
+		system.debug(masterFields);
 		Map<Id, Boolean> preserveRelatedField = new Map<Id, Boolean>();
 		Set<String> writeableFields = getWriteableFields(objectType);
 		for(String masterField:masterChildFields.values()){
 			if(writeableFields.contains(masterField))
 				writeablefields.remove(masterField);
 		}
-		Set<String> masterFields = new Set<String>();
-		masterFields.addAll(masterChildFields.values());
+
 		// test master fields first
 		List<String> fieldsToCheck = new List<String>();
-		fieldsToCheck.addAll(masterChildFields.keyset());
+		fieldsToCheck.addAll(masterFields);
 		fieldsToCheck.addAll(writeableFields);
 		List<MergeFieldHistory__c> mergeRecords = new List<MergeFieldHistory__c>();
 		Map<Id, SObject> updateRecordMap = new Map<Id, SObject>();
@@ -477,8 +503,11 @@ public with sharing class CON_Merge_SVC {
 				Boolean keptRecordIsOlder = (Datetime) keptRec.get('CreatedDate') < (Datetime) obj.get('CreatedDate');
 				Boolean hasChange = false;
 				for(String fieldName:fieldsToCheck) {
+					system.debug(JSON.serializePretty(fieldsToCheck));
 					Boolean isMaster = masterFields.contains(fieldName);
-					Boolean masterFieldIsKept = keptMasterFields.containsKey(fieldName) && keptMasterFields.get(fieldName);
+					Boolean isChild = masterChildFields.containsKey(fieldName);
+					String masterFieldName = isChild ? masterChildFields.get(fieldName) : null;
+					Boolean masterFieldIsKept = masterFieldName != null && keptMasterFields.containsKey(masterFieldName) && keptMasterFields.get(masterFieldName);
 					Boolean mergedFieldIsKept = false;
 					mergeFieldWrap trackField = trackfieldMap.containsKey(fieldName) ? trackfieldMap.get(fieldName) : null;
 					mergeFieldWrap preserveField = preserveFieldMap.containsKey(fieldName) ? preserveFieldMap.get(fieldName) : null;
@@ -486,10 +515,14 @@ public with sharing class CON_Merge_SVC {
 					Object keptRecordfieldValue = keptRec.get(fieldName);
 					Object keepValue = keptRecordfieldValue;
 					Object mergeValue = mergeRecordFieldValue;
+					
 					if(mergeRecordFieldValue!= null) {
 						// if we should preserve thie value then preserve it
+						system.debug('field: '+fieldName);
+						system.debug('master field: '+masterFieldName);
+						system.debug('master field kept: '+masterFieldIsKept);
 						if(preserveField != null) {
-							if(masterFieldIsKept){
+							if(isChild && masterFieldIsKept){
 								keepValue = mergeRecordFieldValue;
 								mergeValue = keptRecordfieldValue;
 								keptRec.put(fieldName,keepValue);

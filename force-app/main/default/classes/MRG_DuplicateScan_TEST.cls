@@ -1,5 +1,5 @@
 @isTest
-private class CON_DuplicateScan_TEST {
+private class MRG_DuplicateScan_TEST {
     @testSetup static void setup() {
         
     }

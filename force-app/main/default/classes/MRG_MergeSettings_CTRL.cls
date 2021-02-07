@@ -4,7 +4,7 @@
 * @group Merge
 * @description controller for merge settings lwc
 */
-public with sharing class CON_MergeSettings_CTRL {
+public with sharing class MRG_MergeSettings_CTRL {
 	/*******************************************************************************************************
 	* @description a set of fields to always ignore
 	*/
@@ -88,11 +88,11 @@ public with sharing class CON_MergeSettings_CTRL {
 	* @description get all merge fields
 	* @return List<mergeFieldWrap>
 	*/	
-	@auraEnabled(cacheable=true) public static List<CON_Merge_SVC.mergeFieldWrap> getAllMergeFields() {
-		List<CON_Merge_SVC.mergeFieldWrap> mergeFieldWraps = new List<CON_Merge_SVC.mergeFieldWrap>();
+	@auraEnabled(cacheable=true) public static List<MRG_Merge_SVC.mergeFieldWrap> getAllMergeFields() {
+		List<MRG_Merge_SVC.mergeFieldWrap> mergeFieldWraps = new List<MRG_Merge_SVC.mergeFieldWrap>();
 
-		for(MergeFieldSetting__mdt mergeField:CON_Merge_SVC.mergeFields) {
-			mergeFieldWraps.add(new CON_Merge_SVC.mergeFieldWrap(mergeField));
+		for(MergeFieldSetting__mdt mergeField:MRG_Merge_SVC.mergeFields) {
+			mergeFieldWraps.add(new MRG_Merge_SVC.mergeFieldWrap(mergeField));
 		}
 		if(mergeFieldWraps.size()>0)
 			mergeFieldWraps.sort();
@@ -100,49 +100,49 @@ public with sharing class CON_MergeSettings_CTRL {
 	}
 	/*******************************************************************************************************
 	* @description get all merge fields
-    * @param type the type of merge field to return
-	* @return List<mergeFieldWrap>
+	* @return MRG_Merge_SVC.mergeSetting
 	*/
 	@auraEnabled(cacheable=true)
-	public static CON_Merge_SVC.mergeSetting getMergeSetting(){
-		MergeControlSettings__c settings = CON_Merge_SVC.getSettings();
+	public static MRG_Merge_SVC.mergeSetting getMergeSetting(){
+		MergeControlSettings__c settings = MRG_Merge_SVC.getSettings();
 		if(settings==null)
 			settings = new MergeControlSettings__c();
-		return new CON_Merge_SVC.mergeSetting(settings);
+		return new MRG_Merge_SVC.mergeSetting(settings);
 	}
 	/*******************************************************************************************************
 	* @description get all merge fields
-    * @param type the type of merge field to return
-	* @return List<mergeFieldWrap>
+    * @param mergeSettingJSON the json representation of the setting
+	* @return MRG_Merge_SVC.mergeSetting
 	*/
 	@auraEnabled
-	public static CON_Merge_SVC.mergeSetting saveMergeSettings(String mergeSettingJSON){
-		CON_Merge_SVC.mergeSetting settingsObj = (CON_Merge_SVC.mergeSetting) JSON.deserialize(mergeSettingJSON,CON_Merge_SVC.mergeSetting.class);
-		MergeControlSettings__c setting = CON_Merge_SVC.getSettingsFromObject(settingsObj);
-		MergeControlSettings__c defaultSettings = CON_Merge_SVC.getSettings();
+	public static MRG_Merge_SVC.mergeSetting saveMergeSettings(String mergeSettingJSON){
+		MRG_Merge_SVC.mergeSetting settingsObj = (MRG_Merge_SVC.mergeSetting) JSON.deserialize(mergeSettingJSON,MRG_Merge_SVC.mergeSetting.class);
+		MergeControlSettings__c setting = MRG_Merge_SVC.getSettingsFromObject(settingsObj);
+		MergeControlSettings__c defaultSettings = MRG_Merge_SVC.getSettings();
 		setting.Id = String.isNotBlank(defaultSettings.Id) ? defaultSettings.Id : null;
 
 		upsert setting;
 
-		return new CON_Merge_SVC.mergeSetting(setting);
+		return new MRG_Merge_SVC.mergeSetting(setting);
 
 	}	
 	/*******************************************************************************************************
 	* @description get all merge fields
     * @param type the type of merge field to return
-	* @return List<mergeFieldWrap>
+    * @param objectType the type of object to filter on
+	* @return List<MRG_Merge_SVC.mergeFieldWrap>
 	*/
     @auraEnabled(cacheable=true) 
-	public static List<CON_Merge_SVC.mergeFieldWrap> getAllMergeFields(String type, String objectType) {
-		List<CON_Merge_SVC.mergeFieldWrap> mergeFieldWraps = new List<CON_Merge_SVC.mergeFieldWrap>();
-		List<CON_Merge_SVC.mergeFieldWrap> mergeFields = new List<CON_Merge_SVC.mergeFieldWrap>();
+	public static List<MRG_Merge_SVC.mergeFieldWrap> getAllMergeFields(String type, String objectType) {
+		List<MRG_Merge_SVC.mergeFieldWrap> mergeFieldWraps = new List<MRG_Merge_SVC.mergeFieldWrap>();
+		List<MRG_Merge_SVC.mergeFieldWrap> mergeFields = new List<MRG_Merge_SVC.mergeFieldWrap>();
 		if(String.isBlank(type)) {
-			mergeFields.addAll(CON_Merge_SVC.getTrackMergeFields());
-			mergeFields.addAll(CON_Merge_SVC.getPreserveMergeFields());
+			mergeFields.addAll(MRG_Merge_SVC.getTrackMergeFields());
+			mergeFields.addAll(MRG_Merge_SVC.getPreserveMergeFields());
 		} else {
-        	mergeFields = type.equalsIgnoreCase('t') ? CON_Merge_SVC.getTrackMergeFields() : CON_Merge_SVC.getPreserveMergeFields();
+        	mergeFields = type.equalsIgnoreCase('t') ? MRG_Merge_SVC.getTrackMergeFields() : MRG_Merge_SVC.getPreserveMergeFields();
 		} 
-		for(CON_Merge_SVC.mergeFieldWrap mergeField:mergeFields){
+		for(MRG_Merge_SVC.mergeFieldWrap mergeField:mergeFields){
 			if(String.isNotBlank(objectType)) {
 				if(mergeField.objectName.equalsIgnoreCase(objectType))
 				mergeFieldWraps.add(mergeField);
@@ -155,12 +155,13 @@ public with sharing class CON_MergeSettings_CTRL {
 		return mergeFieldWraps;
     }
 	/*******************************************************************************************************
-	* @description get all merge fields
-	* @return List<mergeFieldWrap>
+	* @description gets fields for a specific object
+	* @param objectType the type of object
+	* @return List<MRG_Merge_SVC.objectField>
 	*/
 	@auraEnabled(cacheable=true)
-	public static List<CON_Merge_SVC.objectField> getObjectFields(String objectType) {
-		List<CON_Merge_SVC.objectField> fields = new List<CON_Merge_SVC.objectField>();
+	public static List<MRG_Merge_SVC.objectField> getObjectFields(String objectType) {
+		List<MRG_Merge_SVC.objectField> fields = new List<MRG_Merge_SVC.objectField>();
 		if(String.isBlank(objectType))
 			return fields;
 		SObjectType objType = Schema.getGlobalDescribe().get(objectType);
@@ -168,7 +169,7 @@ public with sharing class CON_MergeSettings_CTRL {
 			if(objField.getDescribe().isAccessible() 
 			&& objField.getDescribe().isUpdateable()
 			&& !ignoreFields.contains(objField.getDescribe().getName().toLowerCase())) {
-				fields.add(new CON_Merge_SVC.objectField(objField));
+				fields.add(new MRG_Merge_SVC.objectField(objField));
 			}
 		}
 		if(fields.size()>0)
@@ -183,9 +184,10 @@ public with sharing class CON_MergeSettings_CTRL {
 	*/
 	@AuraEnabled(cacheable=TRUE)
 	public static String saveMergeFields(String jsonData) {
-		List<CON_Merge_SVC.mergeFieldWrap> mergeFields = (List<CON_Merge_SVC.mergeFieldWrap>) JSON.deserialize(jsonData, List<CON_Merge_SVC.mergeFieldWrap>.class);
-		return CON_Merge_SVC.saveMergeFields(mergeFields);
+		List<MRG_Merge_SVC.mergeFieldWrap> mergeFields = (List<MRG_Merge_SVC.mergeFieldWrap>) JSON.deserialize(jsonData, List<MRG_Merge_SVC.mergeFieldWrap>.class);
+		return MRG_Merge_SVC.saveMergeFields(mergeFields);
 	}
+
 	/*******************************************************************************************************
 	* @description user wrapper
 	*/

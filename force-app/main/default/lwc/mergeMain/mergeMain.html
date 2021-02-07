@@ -1,16 +1,18 @@
 <template>
-    <lightning-tabset>
-        <lightning-tab label="Merge Candidates">
-            <c-dupe-list></c-dupe-list>
-        </lightning-tab>
-        <lightning-tab label="Field Settings">
-            <c-merge-record-list></c-merge-record-list>
-        </lightning-tab>
-        <lightning-tab label="Auto Merge Settings">
-            <c-dupe-rule-list></c-dupe-rule-list>
-        </lightning-tab>
-        <lightning-tab label="Global Settings">
-            <c-merge-settings></c-merge-settings>
-        </lightning-tab>
-    </lightning-tabset>
+    <div class="slds-tabs_default slds-tabs_card slds-m-bottom_xx-large">
+        <lightning-tabset>
+            <lightning-tab label="Merge Candidates">
+                <c-dupe-list></c-dupe-list>
+            </lightning-tab>
+            <lightning-tab label="Field Settings">
+                <c-merge-record-list></c-merge-record-list>
+            </lightning-tab>
+            <lightning-tab label="Auto Merge Settings">
+                <c-dupe-rule-list></c-dupe-rule-list>
+            </lightning-tab>
+            <lightning-tab label="Global Settings">
+                <c-merge-settings></c-merge-settings>
+            </lightning-tab>
+        </lightning-tabset>
+    </div>
 </template>

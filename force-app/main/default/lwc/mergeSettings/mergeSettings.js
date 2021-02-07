@@ -1,9 +1,9 @@
 import { LightningElement, api, track, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import getUsers from '@salesforce/apex/CON_MergeSettings_CTRL.getUsers';
-import getProfiles from '@salesforce/apex/CON_MergeSettings_CTRL.getProfiles';
-import getSettings from '@salesforce/apex/CON_MergeSettings_CTRL.getMergeSetting';
-import saveSettings from '@salesforce/apex/CON_MergeSettings_CTRL.saveMergeSettings';
+import getUsers from '@salesforce/apex/MRG_MergeSettings_CTRL.getUsers';
+import getProfiles from '@salesforce/apex/MRG_MergeSettings_CTRL.getProfiles';
+import getSettings from '@salesforce/apex/MRG_MergeSettings_CTRL.getMergeSetting';
+import saveSettings from '@salesforce/apex/MRG_MergeSettings_CTRL.saveMergeSettings';
 
 export default class MergeSettings extends LightningElement {
 

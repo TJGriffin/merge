@@ -4,7 +4,7 @@
 * @group Merge
 * @description batch class to scan for duplicates
 */
-public with sharing class CON_DuplicateScan_BATCH implements Database.Batchable<sObject>, Schedulable, Database.stateful {
+public with sharing class MRG_DuplicateScan_BATCH implements Database.Batchable<sObject>, Schedulable, Database.stateful {
 	
 	/*******************************************************************************************************
 	* @description set of objects to scan
@@ -19,14 +19,14 @@ public with sharing class CON_DuplicateScan_BATCH implements Database.Batchable<
 	/*******************************************************************************************************
 	* @description constructor
 	*/
-    public CON_DuplicateScan_Batch() {
+    public MRG_DuplicateScan_Batch() {
         this.objects = new Set<String>{'Account','Contact'};
     }
 
 	/*******************************************************************************************************
 	* @description constructor
 	*/
-    public CON_DuplicateScan_Batch(Set<String> objects) {
+    public MRG_DuplicateScan_Batch(Set<String> objects) {
         this.objects = objects;
     }
 
@@ -39,7 +39,7 @@ public with sharing class CON_DuplicateScan_BATCH implements Database.Batchable<
         List<String> objectList = new List<String>();
         objectList.addAll(objects);
         objectType = objectList[0];
-        String soqlQuery = CON_Duplicate_SVC.getScanSOQLQuery(objectType);
+        String soqlQuery = MRG_Duplicate_SVC.getScanSOQLQuery(objectType);
         return Database.getQueryLocator(SOQLQuery);	
 
     }
@@ -50,7 +50,7 @@ public with sharing class CON_DuplicateScan_BATCH implements Database.Batchable<
 	*/ 
 	public void execute(Database.BatchableContext BC, List<sObject> scope) {
         Map<Id, SObject> recordMap = new Map<Id, SObject>(scope);
-        List<MergeCandidate__c> mergeCandidates = CON_Duplicate_SVC.processRecords(recordMap,objectType);
+        List<MergeCandidate__c> mergeCandidates = MRG_Duplicate_SVC.processRecords(recordMap,objectType);
         if(mergeCandidates.size()>0)
             upsert mergeCandidates KeepRecordId__c;
     }
@@ -61,7 +61,7 @@ public with sharing class CON_DuplicateScan_BATCH implements Database.Batchable<
 	public void finish(Database.BatchableContext BC) {
 		if(objects.size()>1){
             objects.remove(objectType);
-            Database.executeBatch(new CON_DuplicateScan_BATCH(objects),50);
+            Database.executeBatch(new MRG_DuplicateScan_BATCH(objects),50);
         }
 
 	}

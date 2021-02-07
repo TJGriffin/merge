@@ -1,8 +1,8 @@
 import { LightningElement, api, track, wire } from 'lwc';
 import { subscribe, unsubscribe, onError, setDebugFlag, isEmpEnabled } from 'lightning/empApi';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import getFieldSettings from '@salesforce/apex/CON_MergeSettings_CTRL.getAllMergeFields';
-import saveMergeFields from '@salesforce/apex/CON_MergeSettings_CTRL.saveMergeFields';
+import getFieldSettings from '@salesforce/apex/MRG_MergeSettings_CTRL.getAllMergeFields';
+import saveMergeFields from '@salesforce/apex/MRG_MergeSettings_CTRL.saveMergeFields';
 
 export default class mergeRecordList extends LightningElement {
     @track cols;

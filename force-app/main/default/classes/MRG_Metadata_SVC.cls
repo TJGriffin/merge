@@ -1,4 +1,4 @@
-public with sharing class CON_Metadata_SVC {
+public with sharing class MRG_Metadata_SVC {
 	/*******************************************************************************************************
 	* @description retrieves metadata records based on list of APIQualifiedNames
 	* @param QualifiedAPINames
@@ -122,6 +122,7 @@ public with sharing class CON_Metadata_SVC {
 		// populate fieldkeyvalue map with the current record's values
 		fieldKeyValues.put('Disable__c', mergeField.Disable__c);
 		fieldKeyValues.put('Field__c', mergeField.Field__r.QualifiedAPIName);
+		fieldKeyValues.put('RelatedField__c', mergeField.RelatedField__r.QualifiedAPIName);
 		fieldKeyValues.put('Object__c',mergeField.Object__r.QualifiedAPIName);
 	 	fieldKeyValues.put('PreservationRule__c', mergeField.PreservationRule__c);
 		fieldKeyValues.put('Type__c',mergeField.Type__c);

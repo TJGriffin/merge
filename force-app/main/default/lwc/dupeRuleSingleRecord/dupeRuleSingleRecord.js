@@ -1,6 +1,6 @@
 import { LightningElement, api, track, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import getActiveRules from '@salesforce/apex/CON_DupeSettings_CTRL.getActiveDuplicateRules';
+import getActiveRules from '@salesforce/apex/MRG_DupeSettings_CTRL.getActiveDuplicateRules';
 
 export default class DupeRuleSingleRecord extends LightningElement {
     @api set record(value) {

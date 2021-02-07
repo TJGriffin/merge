@@ -1,6 +1,6 @@
 import { LightningElement, api, track, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import getObjectFields from '@salesforce/apex/CON_MergeSettings_CTRL.getObjectFields';
+import getObjectFields from '@salesforce/apex/MRG_MergeSettings_CTRL.getObjectFields';
 
 export default class mergeSingleRecord extends LightningElement {
     @api set record(value) {

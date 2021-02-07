@@ -4,7 +4,7 @@
 * @group Merge
 * @description Service for dealing with duplicate identification and merging
 */
-public with sharing class CON_Duplicate_SVC {
+public with sharing class MRG_Duplicate_SVC {
 	/*******************************************************************************************************
 	* @description get field soql for merge candidate
 	* @return String fieldSoql for merge candidate
@@ -31,14 +31,26 @@ public with sharing class CON_Duplicate_SVC {
 	* @return String where clause for merge candidate
 	********************************************************************************************************/
     public static String getWhereClause(String objectType, String ruleName){
+        return getWhereClause(objectType,ruleName,false);
+    }
+	/*******************************************************************************************************
+	* @description get where clause
+	* @return String where clause for merge candidate
+	********************************************************************************************************/
+    public static String getWhereClause(String objectType, String ruleName, Boolean showIgnored){
+
         String whereClause = getWhereClause();
+        
         if(String.isNotBlank(objectType))
             whereClause+=' AND Object__c=:objectType';
+        
         if(String.isNotBlank(ruleName))
             whereClause+=' AND Rule__c=:ruleName';
+        
+        whereClause += showIgnored ? '' : ' AND NotADuplicate__c=false';
+        
         return whereClause;
     }
-
 	/*******************************************************************************************************
 	* @description get active duplicate rules for Object type
 	* @param objectType
@@ -148,7 +160,7 @@ public with sharing class CON_Duplicate_SVC {
         recordIds.addAll(recordMap.keyset());
         List<Datacloud.DuplicateResult> duplicateResults = getDuplicateResults(recordIds, objectType);
         if(duplicateResults.size()>0)
-            mergeCandidates.addAll(getMergeCandidates(recordIds,duplicateResults,duplicateRules));
+            mergeCandidates.addAll(getMergeCandidates(recordMap,duplicateResults,duplicateRules));
         for(MergeCandidate__c mergeCandidate:mergeCandidates){
             Id keepId = String.isNotBlank(mergeCandidate.KeepRecordId__c) ? Id.valueOf(mergeCandidate.KeepRecordId__c) : null;
             if(String.isNotBlank(keepId)
@@ -194,7 +206,7 @@ public with sharing class CON_Duplicate_SVC {
 	* @param List<Datacloud.DuplicateResult>
 	* @return Boolean
 	*/ 
-    public static List<MergeCandidate__c> getMergeCandidates(List<Id> recordIds, List<Datacloud.DuplicateResult> duplicateResults, List<dupeRule> duplicateRules){
+    public static List<MergeCandidate__c> getMergeCandidates(Map<Id,SObject> recordMap, List<Datacloud.DuplicateResult> duplicateResults, List<dupeRule> duplicateRules){
         Map<String, dupeRule> duplicateRuleMap = new Map<String, dupeRule>();
         for(dupeRule duplicateRule:duplicateRules) {
             duplicateRuleMap.put(duplicateRule.ruleName, duplicateRule);
@@ -202,16 +214,14 @@ public with sharing class CON_Duplicate_SVC {
         Map<String, MergeCandidate__c> mergeCandidates = new Map<String, MergeCandidate__c>();
         Set<String> mergedIds = new Set<String>();
         Integer i=0;
-        for(Id recordId:recordIds) {
+        for(Id recordId:recordMap.keyset()) {
+            SObject sObj = recordMap.get(recordId);
             for(Integer d=0;d<duplicateRules.size();d++) {
 
                 DataCloud.DuplicateResult duplicateResult = duplicateResults[i];
                 String ruleName = duplicateResult.getDuplicateRule();
                 dupeRule duplicateRule = duplicateRuleMap.containsKey(ruleName) ? duplicateRuleMap.get(ruleName) : null;
-                MergeCandidate__c mergeCandidate = getMergeCandidate(recordId, duplicateResult,duplicateRule);
-                system.debug('merge candidate');
-                system.debug(JSON.serialize(duplicateRule));
-                system.debug(JSON.serialize(mergeCandidate));
+                MergeCandidate__c mergeCandidate = getMergeCandidate(sObj, duplicateResult,duplicateRule);
                 if(mergeCandidate != null) {
                     String keepId = mergeCandidate.KeepRecordId__c;
                     String mergeId = mergeCandidate.MergeRecordId__c;
@@ -233,6 +243,16 @@ public with sharing class CON_Duplicate_SVC {
 	* @description determines if duplicate rules are active for this object
     *
     */
+    public static List<MergeCandidate__c> getMergeCandidatesFromKeptIds(Set<Id> keepIds){
+        String soqlQuery = getMergeCandidateFieldSOQL();
+        soqlQuery+=' WHERE KeepRecordId__c in:keepIds';
+        return (List<MergeCandidate__c>) database.query(soqlQuery);
+
+    }
+	/*******************************************************************************************************
+	* @description determines if duplicate rules are active for this object
+    *
+    */
     public static Map<Id,Id> getMergeCandidateIdByKeepId(List<MergeCandidate__c> mergeRecords){
         Map<Id,Id> mergecandidateIdByKeepId = new Map<Id,Id>();
         for(MergeCandidate__c record:mergeRecords){
@@ -248,11 +268,15 @@ public with sharing class CON_Duplicate_SVC {
 	* @param dupeRule
 	* @return MergeCandidate__c
 	*/ 
-    public static MergeCandidate__c getMergeCandidate(Id recordId, Datacloud.DuplicateResult duplicateResult, dupeRule duplicateRule){
+    public static MergeCandidate__c getMergeCandidate(SObject sObj, Datacloud.DuplicateResult duplicateResult, dupeRule duplicateRule){
+        Id recordId = Id.valueOf((String) sObj.get('Id'));
+        String recordName = (String) sObj.get('Name');
         Map<String,String> matchNames = new Map<String, String>();
+        matchNames.put(recordId,recordName);
         MergeCandidate__c mergeCandidate = new MergeCandidate__c();
         mergeCandidate.Rule__c = duplicateResult.getDuplicateRule();
         Set<String> matchIds = new Set<String>();
+        Set<String> allIds = new Set<String>();
         String objectType = recordId.getSObjectType().getDescribe().getName();
         Boolean hasMatch = false;
         for(DataCloud.MatchResult matchResult : duplicateResult.getMatchResults()) {
@@ -266,12 +290,16 @@ public with sharing class CON_Duplicate_SVC {
         }
         if(hasMatch
             && matchIds.size()>0) {
+            AllIds.add(recordId);
+            AllIds.addAll(matchIds);
             List<String> matchIdList = new List<String>();
-            matchIdList.addAll(matchIds);
-            mergeCandidate.KeepRecordId__c = recordId;
-            mergeCandidate.MergeRecordId__c = matchIdList.size()>0 ? matchIdList[0] : null;
+            matchIdList.addAll(allIds);
+            matchIdList.sort();
+            mergeCandidate.KeepRecordId__c = matchIdList[0];
+            mergeCandidate.KeepName__c = String.isNotBlank(mergeCandidate.KeepRecordId__c) ? matchNames.get(mergeCandidate.KeepRecordId__c) : null;
+            mergeCandidate.MergeRecordId__c = matchIdList.size()>1 ? matchIdList[1] : null;
             mergeCandidate.MergeName__c = String.isNotBlank(mergeCandidate.MergeRecordId__c) ? matchNames.get(mergeCandidate.MergeRecordId__c) : null;
-            mergeCandidate.Merge2RecordId__c = matchIdList.size()>1 ? matchIdList[1] : null;
+            mergeCandidate.Merge2RecordId__c = matchIdList.size()>2 ? matchIdList[2] : null;
             mergeCandidate.Merge2Name__c = String.isNotBlank(mergeCandidate.Merge2RecordId__c) ? matchNames.get(mergeCandidate.Merge2RecordId__c) : null;
             mergeCandidate.Object__c = objectType;
             mergeCandidate.Status__c = 'New';
@@ -380,7 +408,7 @@ public with sharing class CON_Duplicate_SVC {
 	* @return  String metaData deploy job Id
 	*/	
 	public static String saveDuplicateRules(List<dupeRule> dupeRules) {
-		CON_Metadata_SVC mdService = new CON_Metadata_SVC();
+		MRG_Metadata_SVC mdService = new MRG_Metadata_SVC();
 		List<DuplicateRuleSettings__mdt> dupeRuleSettings = new List<DuplicateRuleSettings__mdt>();
 		for(dupeRule dupeRule:dupeRules) {
 			dupeRuleSettings.add(getDuplicateRuleSettingFromObject(dupeRule));

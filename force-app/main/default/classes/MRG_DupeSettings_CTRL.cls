@@ -4,22 +4,22 @@
 * @group Duplicate
 * @description controller for dupe settings lwc
 */
-public with sharing class CON_DupeSettings_CTRL {
+public with sharing class MRG_DupeSettings_CTRL {
 	/*******************************************************************************************************
 	* @description gets profiles with delete permissions to account or contact
 	* @return List<dupeRule>
 	*/	
 	@auraEnabled(cacheable=true)
-    public static List<CON_Duplicate_SVC.dupeRule> getDuplicateRuleSettings(){
-        return CON_Duplicate_SVC.duplicateRuleSettings;
+    public static List<MRG_Duplicate_SVC.dupeRule> getDuplicateRuleSettings(){
+        return MRG_Duplicate_SVC.duplicateRuleSettings;
     }
 	/*******************************************************************************************************
 	* @description gets profiles with delete permissions to account or contact
 	* @return List<dupeRule>
 	*/	
 	@auraEnabled(cacheable=true)
-    public static List<CON_Duplicate_SVC.dupeRule> getActiveDuplicateRules(){
-        return CON_Duplicate_SVC.getActiveDuplicateRules();
+    public static List<MRG_Duplicate_SVC.dupeRule> getActiveDuplicateRules(){
+        return MRG_Duplicate_SVC.getActiveDuplicateRules();
     }
 
 	/*******************************************************************************************************
@@ -29,7 +29,7 @@ public with sharing class CON_DupeSettings_CTRL {
 	*/
 	@AuraEnabled
 	public static String saveDuplicateRuleSettings(String jsonData) {
-		List<CON_Duplicate_SVC.dupeRule> dupeRules = (List<CON_Duplicate_SVC.dupeRule>) JSON.deserialize(jsonData, List<CON_Duplicate_SVC.dupeRule>.class);
-		return CON_Duplicate_SVC.saveDuplicateRules(dupeRules);
+		List<MRG_Duplicate_SVC.dupeRule> dupeRules = (List<MRG_Duplicate_SVC.dupeRule>) JSON.deserialize(jsonData, List<MRG_Duplicate_SVC.dupeRule>.class);
+		return MRG_Duplicate_SVC.saveDuplicateRules(dupeRules);
 	}
 }
