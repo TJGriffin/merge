@@ -1,5 +1,5 @@
 <template>
-    <lightning-card title="Merge Preview" icon-name="standard:task">
+    <lightning-card title="Field Tracking" icon-name="standard:task">
         <div class="slds-m-around_medium">
             <template if:false={hasData}>
                 <div class="slds-is-relative">
@@ -11,14 +11,17 @@
                 </div>
             </template>
             <template if:true={hasData}>
-                <template if:false={processed}>
+                <template if:true={hasRows}>
                     <lightning-datatable
-                            key-field="fieldname"
-                            data={data}
-                            columns={tablecols}
+                            key-field="Merge_Value_Type__c"
+                            data={rows}
+                            columns={cols}
                             hide-checkbox-column
                             class="slds-table_striped"
                     ></lightning-datatable>
+                </template>
+                <template if:false={hasRows}>
+                    <p>No fields will be tracked for this merge.</p>
                 </template>
             </template>
         </div>

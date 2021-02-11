@@ -361,17 +361,27 @@ public with sharing class MRG_Duplicate_SVC {
 	* @param List<MergeCandidate__c> merge candidates
 	* @return Map<String, Set<String>> a map of merge Ids keyed by keep Id
 	********************************************************************************************************/ 
+    public static Map<Id, Set<Id>> getMergeKeyMap(MergeCandidate__c candidate) {
+        Map<Id, Set<Id>> mergeKeyMap = new Map<Id, Set<Id>>();        
+        Id keepId = Id.valueOf(candidate.KeepRecordId__c);
+        ID mergeId = Id.valueOf(candidate.MergeRecordId__c);
+        Id mergeId2 = String.isNotBlank(candidate.Merge2RecordId__c) ? Id.valueOf(candidate.Merge2RecordId__c) : null;
+        mergeKeyMap.put(keepId, new Set<Id>());
+        mergeKeyMap.get(keepId).add(mergeId);
+        if(String.isNotBlank(mergeId2)) {
+            mergeKeyMap.get(keepId).add(mergeId2);
+        }
+        return mergeKeyMap;
+    }
+	/*******************************************************************************************************
+	* @description gets the SOQL query for the duplicate scan batch
+	* @param List<MergeCandidate__c> merge candidates
+	* @return Map<String, Set<String>> a map of merge Ids keyed by keep Id
+	********************************************************************************************************/ 
     public static Map<Id, Set<Id>> getMergeKeyMap(List<MergeCandidate__c> mergeCandidates) {
         Map<Id, Set<Id>> mergeKeyMap = new Map<Id, Set<Id>>();
         for(MergeCandidate__c candidate:mergeCandidates) {
-            Id keepId = Id.valueOf(candidate.KeepRecordId__c);
-            ID mergeId = Id.valueOf(candidate.MergeRecordId__c);
-            Id mergeId2 = String.isNotBlank(candidate.Merge2RecordId__c) ? Id.valueOf(candidate.Merge2RecordId__c) : null;
-            mergeKeyMap.put(keepId, new Set<Id>());
-            mergeKeyMap.get(keepId).add(mergeId);
-            if(String.isNotBlank(mergeId2)) {
-                mergeKeyMap.get(keepId).add(mergeId2);
-            }
+            mergeKeyMap.putAll(getMergeKeyMap(candidate));
         }
         return mergeKeyMap;
     }

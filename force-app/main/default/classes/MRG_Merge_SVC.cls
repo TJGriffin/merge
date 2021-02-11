@@ -233,19 +233,41 @@ public with sharing class MRG_Merge_SVC {
 		set;
 	}
 	/*******************************************************************************************************
-	* @description a list of fields to track in MergeFieldHistory__c
-	* @return List<MergeFieldSetting__mdt>
+	* @description get merge History result from merge candidates
+	* @param List<MergeCandidate__c> records
+	* @param String objectType
+	* @return mergeHistoryResult
 	*/
-	public static void processMergesFromBatch(List<MergeCandidate__c> records, String objectType) {
-		MRG_Duplicate_SVC.triggerDisabled=true;
-		Map<Id,Id> mergeCandidateIdByKeepId = MRG_Duplicate_SVC.getMergeCandidateIdByKeepId(records);
-		Map<Id, MergeCandidate__c> mergeCandidateMap = new Map<Id, MergeCandidate__c>(records);
+	public static mergeHistoryResult getMergeHistoryResult(List<MergeCandidate__c> records,String objectType){
 		Map<Id, Set<Id>> mergeKeyMap = MRG_Duplicate_SVC.getMergeKeyMap(records);
 		Set<Id> allIds = MRG_Duplicate_SVC.getAllIds(mergeKeyMap);
 		String soqlQuery = MRG_Duplicate_SVC.getMergeSOQLQuery(objectType);
 		soqlQuery+=' WHERE Id in:allIds';
 		Map<Id, SObject> objMap = new Map<Id, SObject>(Database.query(soqlQuery));
 		mergeHistoryResult mergeResult = createMergeRecords(objMap, mergeKeyMap, objectType);
+		mergeResult.objectMap = objMap;
+		return mergeResult;
+	}
+	/*******************************************************************************************************
+	* @description a list of fields to track in MergeFieldHistory__c
+	* @return List<MergeFieldSetting__mdt>
+	*/
+	public static void processMergesFromBatch(List<MergeCandidate__c> records, String objectType) {
+		Boolean disableTriggers = true;
+		processMergesFromBatch(records, objectType, disableTriggers);
+	}
+	/*******************************************************************************************************
+	* @description a list of fields to track in MergeFieldHistory__c
+	* @return List<MergeFieldSetting__mdt>
+	*/
+	public static void processMergesFromBatch(List<MergeCandidate__c> records, String objectType, Boolean disableTriggers) {
+		if(disableTriggers)
+			MRG_Duplicate_SVC.triggerDisabled=true;
+		Map<Id,Id> mergeCandidateIdByKeepId = MRG_Duplicate_SVC.getMergeCandidateIdByKeepId(records);
+		Map<Id, MergeCandidate__c> mergeCandidateMap = new Map<Id, MergeCandidate__c>(records);
+		mergeHistoryResult mergeResult = getMergeHistoryResult(records, objectType);
+		Map<Id, SObject> objMap = mergeResult.objectMap;
+		Map<Id, Set<Id>> mergeKeyMap = MRG_Duplicate_SVC.getMergeKeyMap(records);
 		if(mergeResult.fieldHistory.size()>0)
 			insert mergeResult.fieldHistory;
 		Map<Id, Sobject> keptRecordMap = new Map<Id, SObject>(mergeResult.updateRecords);
@@ -272,7 +294,8 @@ public with sharing class MRG_Merge_SVC {
 			}
 		}
 		updateMergeCandidateStatus(keepIdsMerged, mergeCandidateMap, mergeCandidateIdByKeepId);
-		MRG_Duplicate_SVC.triggerDisabled=false;
+		if(disableTriggers)
+			MRG_Duplicate_SVC.triggerDisabled=false;
 	}
 	/*******************************************************************************************************
 	* @description updates the status of merged records with corresponding merge candidates
@@ -712,8 +735,9 @@ public with sharing class MRG_Merge_SVC {
 	* @description creates a new SObject
 	*/
 	public class mergeHistoryResult {
-		public List<SObject> updateRecords {get;set;}
-		public List<MergeFieldHistory__c> fieldHistory {get;set;}
+		@auraEnabled public List<SObject> updateRecords {get;set;}
+		@auraEnabled public List<MergeFieldHistory__c> fieldHistory {get;set;}
+		@auraEnabled public Map<Id, SObject> objectMap {get;set;}
 
 		public mergeHistoryResult(){
 
@@ -722,6 +746,11 @@ public with sharing class MRG_Merge_SVC {
 		public mergeHistoryResult(List<Sobject> updateRecords, List<MergeFieldHistory__c> fieldHistory){
 			this.updateRecords = updateRecords;
 			this.fieldHistory = fieldHistory;
+		}
+		public mergeHistoryResult(List<Sobject> updateRecords, List<MergeFieldHistory__c> fieldHistory, Map<Id,SObject> objectMap){
+			this.updateRecords = updateRecords;
+			this.fieldHistory = fieldHistory;
+			this.objectMap = objectMap;
 		}
 	}
 	/*******************************************************************************************************

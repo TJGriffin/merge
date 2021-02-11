@@ -17,6 +17,10 @@ export default class DupeList extends LightningElement {
     @track totalRows
     @track totalPages;
     @track currentPage;
+    @track selectedRecord;
+    @track selectedRecordId;
+    @track isModalOpen = false;
+    @track showSpinner = false;
 
     get hasPager(){
         return this.totalPages != null && this.totalPages !== undefined;
@@ -85,7 +89,9 @@ export default class DupeList extends LightningElement {
             if(data){
                 this.results = data;
                 this.rows = JSON.parse(JSON.stringify(data));
+                this.showSpinner=false;
             } else if(error){
+                this.showSpinner=false;
                 this.rows=undefined;
                 this.results = undefined;
                 this.error=error;
@@ -115,15 +121,19 @@ export default class DupeList extends LightningElement {
             })
     }   
     handleSuccess() {
+        this.showSpinner=false;
         console.log('handleSuccess called');
         this.notificationTitle = 'Record Saved';
         this.notificationStyle='success';
         this.notificationBody = typeof this.notificationBody === undefined || this.notificationBody == null ? 'Success' : this.notificationBody;
         this.showNotification();
-        this.refresh();
     }
-
+    closeModal(event){
+        this.isModalOpen=false;
+        this.selectedRecordId = null;
+    }
     handleError() {
+        this.showSpinner=false;
         this.notificationTitle = 'An error has occurred';
         this.notificationBody = 'Unknown error';
         this.notificationStyle = 'error';
@@ -171,36 +181,79 @@ export default class DupeList extends LightningElement {
         );
     }
     handlePreview(event){
-        var mcId = event.currentTarget.dataset.record;
-        console.log('preview: '+mcId);
+        this.selectedRecordId = event.currentTarget.dataset.record;
+        this.isModalOpen = true;
+    }
+    handlePreviewNotify(event){
+        this.isModalOpen=false;
+        switch(event.detail.actionType){
+            case 'cancel':
+                this.selectedRecordId = null;
+                break;
+            case 'merge':
+                this.selectedRecordId = event.detail.recordId;
+                this.showSpinner=true;
+                this.mergeRecord();
+                break;
+        }
+    }
+    handleModalMerge(event){
+        this.isModalOpen=false;
+        this.showSpinner=true;
+        this.selectedRecordId = event.currentTarget.dataset.record;
+        this.mergeRecord();
+
     }
     handleMerge(event){
-        var mcId = event.currentTarget.dataset.record;
-        console.log('merge: '+mcId);
-        doMergeRecord({recordId:mcId})
+        this.showSpinner=true;
+        this.selectedRecordId = event.currentTarget.dataset.record;
+        this.mergeRecord();
+
+    }
+    mergeRecord() {
+        console.log('merge: '+this.selectedRecordId);
+        doMergeRecord({recordId:this.selectedRecordId})
         .then(response=>{
             console.log(JSON.stringify(response));
+            this.removeSelectedRecordFromRows();
             this.notificationBody = response;
             this.handleSuccess();
+            this.showSpinner=false;
         })
         .catch(error => {
             this.error = error;
             this.handleError();
+            this.showSpinner=false;
+        })
+    }
+    removeSelectedRecordFromRows(){
+        var newRows = [];
+        this.rows.forEach(row=>{
+            if(row.id != this.selectedRecordId)
+                newRows.push(row);
+        })
+        this.rows = newRows;
+        this.selectedRecordId = null;   
+    }
+    removeRecord(){
+        doRemoveRecord({recordId:this.selectedRecordId})
+        .then(response=>{
+            this.removeSelectedRecordFromRows();
+            this.notificationBody = response;
+            this.handleSuccess();
+            this.showSpinner=false;
+        })
+        .catch(error => {
+            this.error = error;
+            this.handleError();
+            this.showSpinner=false;
         })
     }
     handleRemove(event){
-        var mcId = event.currentTarget.dataset.record;
-        console.log('remove: '+mcId);
-        doRemoveRecord({recordId:mcId})
-        .then(response=>{
-            console.log(JSON.stringify(response));
-            this.notificationBody = response;
-            this.handleSuccess();
-        })
-        .catch(error => {
-            this.error = error;
-            this.handleError();
-        })
+        this.showSpinner=true;
+        this.selectedRecordId = event.currentTarget.dataset.record;
+        this.removeRecord();
+
     }
 
 }

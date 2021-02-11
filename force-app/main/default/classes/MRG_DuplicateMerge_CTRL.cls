@@ -54,17 +54,14 @@ public with sharing class MRG_DuplicateMerge_CTRL {
 	*/
     @AuraEnabled
     public static String mergeRecord(String recordId){
+        system.debug('merge record: '+recordId);
         String response;
         String soqlQuery  = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL();
         soqlQuery+=' WHERE Id=:recordId';
         List<MergeCandidate__c> mergeCandidates = (List<MergeCandidate__c>) database.query(soqlQuery);
         if(mergeCandidates.size()>0) {
-            try {
-                MRG_Merge_SVC.processMergesFromBatch(mergeCandidates, mergeCandidates[0].Object__c);
-                response = 'Records merged';
-            } catch(Exception e){
-                response = e.getMessage();
-            }
+            MRG_Merge_SVC.processMergesFromBatch(mergeCandidates, mergeCandidates[0].Object__c,false);
+            response = 'Records merged';
         } else {
             response = 'an error occurred';
         }
