@@ -28,7 +28,6 @@ public with sharing class MRG_MergeCandidate_TRG {
                     i++;
                 }
             }
-
         }
     }
 }

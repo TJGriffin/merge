@@ -76,6 +76,39 @@ public with sharing class MRG_Metadata_SVC {
 	}
 	/*******************************************************************************************************
 	* @description saves an integration process via metadata deployment
+	* @param previewFields the preview fields we're saving
+	* @return the Job Id of the deployment job
+	*/ 		
+	public Metadata.CustomMetadata getMetaDataRecord(PreviewFields__mdt previewField) {
+		   	// create metadata container
+		Metadata.CustomMetadata mdRecord = new Metadata.CustomMetadata();
+		List<String> mdRecordNames = new List<String>();
+		// map for setting values in meta data record
+		Map<String, Object> fieldKeyValues = new Map<String, Object>();
+		// populate fieldkeyvalue map with the current record's values
+		fieldKeyValues.put('Field__c', previewField.Field__r.QualifiedAPIName);
+		fieldKeyValues.put('Object__c',previewField.Object__r.QualifiedAPIName);
+	 	fieldKeyValues.put('Disable__c', previewField.Disable__c);
+		String qualifiedName = !previewField.QualifiedAPIName.contains('.') ? 'PreviewFields__mdt.'+previewField.QualifiedAPIName : previewField.QualifiedAPIName;	   	
+		mdRecordNames.add(qualifiedName);
+		
+		// get existing metadata records based on qualified name
+		List<Metadata.Metadata> metadataRecords = getMetadataRecords(mdRecordNames);
+		if(metadataRecords.size()>0) {
+			// this is an existing record
+			mdRecord = (Metadata.CustomMetadata) metadataRecords.get(0).clone();
+		} else {
+			mdRecord.fullName = qualifiedName;
+		}
+		mdRecord.Label = previewField.Label;
+		// add new field values to record
+
+		mdRecord= updateMetadataObjectFields(mdRecord, fieldKeyValues);	
+		
+		return mdRecord;
+	}
+	/*******************************************************************************************************
+	* @description saves an integration process via metadata deployment
 	* @param integrationProcessToSave the integration process we're saving
 	* @return the Job Id of the deployment job
 	*/ 		

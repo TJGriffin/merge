@@ -1,15 +1,6 @@
 <template>
-    <div class="slds-m-top_medium slds-m-left_medium slds-m-right_medium slds-m-bottom_xx-large">
+    <div class="slds-m-around_medium slds-size_1-of-1 slds-m-bottom_xx-larg">
         <lightning-layout>
-            <lightning-layout-item padding="around-small" size="2">
-                <lightning-combobox
-                name="settingType"
-                label="Setting Type Filter"
-                value={type}
-                placeholder="Select Type"
-                options={options}
-                onchange={handleFilterChange} ></lightning-combobox>
-            </lightning-layout-item>
             <lightning-layout-item padding="around-small" size="2">
                 <lightning-combobox
                 name="objectType"
@@ -29,26 +20,20 @@
                     <div class="slds-text-title_caps">Field</div>
                 </lightning-layout-item>
                 <lightning-layout-item padding="around-small" size="2">
-                    <div class="slds-text-title_caps">Tracking Type</div>
-                </lightning-layout-item>
-                <lightning-layout-item padding="around-small" size="2">
-                    <div class="slds-text-title_caps">Preservation Rule</div>
-                </lightning-layout-item>
-                <lightning-layout-item padding="around-small" size="2">
-                    <div class="slds-text-title_caps">Status</div>
+                    <div class="slds-text-title_caps">Hidden</div>
                 </lightning-layout-item>
                 <lightning-layout-item padding="around-small" size="2">
                     &nbsp;
                 </lightning-layout-item>
             </lightning-layout> 
             <template for:each={rows} for:item="row" >
-                <c-merge-single-record record={row} key={row.name} onnotify={handleNotify} used-fields={usedFields}></c-merge-single-record>
+                <c-preview-field-single-record record={row} key={row.name} onnotify={handleNotify}></c-preview-field-single-record>
             </template>
         </template>
         <lightning-layout vertical-align="end" pull-to-boundary="small">
             <template if:false={disabled}>
                 <lightning-layout-item padding="around-small" size="4">
-                    <lightning-button onclick={addRow} variant="brand" title="Add New Merge Field" label="Add New Merge Field"></lightning-button> 
+                    <lightning-button onclick={addRow} variant="brand" title="Hide New Field" label="Hide New Field"></lightning-button> 
                 </lightning-layout-item>
                 <lightning-layout-item padding="around-small" size="4">
                     <template if:true={hasChanged}>

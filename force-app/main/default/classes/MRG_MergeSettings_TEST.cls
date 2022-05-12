@@ -3,7 +3,10 @@ private class MRG_MergeSettings_TEST {
     static testMethod void testController() {
         MRG_Merge_TEST.createMergeFields();
         test.startTest();
+        List<MRG_MergeSettings_CTRL.profileWrap> profiles = MRG_MergeSettings_CTRL.getProfiles();
+        List<MRG_MergeSettings_CTRL.userWrap> users = MRG_MergeSettings_CTRL.getUsers();
         List<MRG_Merge_SVC.mergeFieldWrap> mergeFields =  MRG_MergeSettings_CTRL.getAllMergeFields();
+        MRG_Merge_SVC.mergeSetting settings = MRG_MergeSettings_CTRL.getMergeSetting();
         system.assert(mergeFields.size()>0);
         mergeFields.clear();
         mergeFields = MRG_MergeSettings_CTRL.getAllMergeFields('t','Contact');

@@ -2,37 +2,25 @@ import { LightningElement, api, track, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getObjectFields from '@salesforce/apex/MRG_MergeSettings_CTRL.getObjectFields';
 
-export default class mergeSingleRecord extends LightningElement {
+export default class previewFieldSingleRecord extends LightningElement {
     @api set record(value) {
-        console.log('record set');
-        console.log(JSON.stringify(value));
-        this.mergeRecord = JSON.parse(JSON.stringify(value));
-        this.objectType = this.mergeRecord.objectName;
-        this.isEdit = this.mergeRecord !== undefined && this.mergeRecord != null && this.mergeRecord.name.includes('TEMP');
+        this.previewField = JSON.parse(JSON.stringify(value));
+        this.objectType = this.previewField.objectName;
+        this.isEdit = this.previewField !== undefined && this.previewField != null && this.previewField.name.includes('TEMP');
     }   
     get record(){
-        return this.mergeRecord;
+        return this.previewField;
     }
-    @api usedFields;
-    @track mergeRecord;
+    @track previewField;
     @api objectType;
     @api modalLabel;
     @track error;
     @track isEdit = false;
     @track action;
-    get isActive() {
-        return this.record != null && !this.record.disable;
+    get isHidden() {
+        return this.record != null && this.record.hidden;
     }
-    get preserve() {
-        return this.record != null && this.record.type == 'p'; 
-    
-    }
-    get trackingType() {
-        var type = this.record != null && this.record.type == 'p' ? 'Preserve' : 'Track';
-        return type;
-    }
-    trackOptions = [{label:'Track Fields',value:'t'},{label:'Preserve Fields',value:'p'}];
-    ruleOptions = [{label:'Oldest Record',value:'Oldest'},{label:'Newest Record',value:'Newest'},{label:'Largest Field Value',value:'Largest'},{label:'Smallest Field Value',value:'Smallest'},{label:'Related Field Value',value:'Related Field'}];
+
     objectOptions = [{label:'Account',value:'Account'},{label:'Contact',value:'Contact'}];
     notificationBody;
     notificationStyle;
@@ -40,36 +28,18 @@ export default class mergeSingleRecord extends LightningElement {
     set fieldResults(value) {
         value = value === undefined || value == null ? [] : value;
         var options = [];
-        var relatedFieldOptions = [];
         value.forEach(fieldResult=>{
-            
-                var option = {};
-                option.label = fieldResult.label;
-                option.value = fieldResult.name;
-            if(!this.usedFields.includes(fieldResult.name)) {
-                options.push(option);
-            } else {
-                relatedFieldOptions.push(option);
-            }
+            var option = {};
+            option.label = fieldResult.label;
+            option.value = fieldResult.name;
+            options.push(option);
         })
         this.fieldOptions = options;
-        this.relatedFieldOptions = relatedFieldOptions;
     }
     get fieldResults(){
         return this.fieldOptions;
     }
-    set relatedFieldResults(value){
-        
-    }
-    get relatedFieldResults(){
-        return this.relatedFieldOptions;
-    }
-    @track relatedFieldOptions;
     @track fieldOptions;
-
-    get isRelatedField(){
-        return this.mergeRecord !== undefined && this.mergeRecord != null && this.preserve && this.mergeRecord.rule == 'Related Field';
-    }
 
     connectedCallback(){
         this.objectType = this.objectType===undefined || this.objectType == null ? 'Contact' : this.objectType;
@@ -100,32 +70,23 @@ export default class mergeSingleRecord extends LightningElement {
     }
     handleObjectSelect(event) {
         this.objectType = event.detail.value;
-        this.mergeRecord.objectName = this.objectType;
+        this.previewField.objectName = this.objectType;
     }
     handleFieldSelect(event) {
-        this.mergeRecord.fieldName = event.detail.value;
+        this.previewField.fieldName = event.detail.value;
     }
-    handleRelatedFieldSelect(event){
-        this.mergeRecord.relatedField = event.detail.value;
-    }
-    handleTypeSelect(event) {
-        this.mergeRecord.type = event.detail.value;
-        this.mergeRecord.rule = this.mergeRecord.type == 't' ? null : this.mergeRecord.rule;
-    }
-    handleRuleSelect(event) {
-        this.mergeRecord.rule = event.detail.value;
-    }
+
     doEdit(event){
         this.isEdit=true;
     }
-    doDisable(event) {
-        this.record.disable=true;
+    doHide(event) {
+        this.record.hidden=true;
         this.isEdit=false;
         this.action='save';
         this.doNotify();
     }
-    doEnable(event) {
-        this.record.disable=false;
+    doShow(event) {
+        this.record.hidden=false;
         this.isEdit=false;
         this.action='save';
         this.doNotify();

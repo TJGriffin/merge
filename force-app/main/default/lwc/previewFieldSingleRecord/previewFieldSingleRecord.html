@@ -1,0 +1,67 @@
+<template>
+
+    <template if:true={record}>
+        <template if:false={isEdit}>
+            <lightning-layout>
+                <lightning-layout-item padding="around-small" size="2">
+                    {previewField.objectName}
+                </lightning-layout-item>
+                <lightning-layout-item padding="around-small" size="2">
+                    <template if:true={previewField.objectName}>
+                        {previewField.fieldName}
+                    </template>
+                </lightning-layout-item>
+                <lightning-layout-item padding="around-small" size="2">
+                    <template if:true={isHidden}>
+                        <lightning-badge label="Hidden" class="slds-badge_inverse slds-theme_success"></lightning-badge>
+                    </template>
+                    <template if:false={isHidden}>
+                        <lightning-badge label="Visible"></lightning-badge>
+                    </template>
+                </lightning-layout-item>
+                <lightning-layout-item padding="around-small" size="2">
+                    <lightning-button-group>
+                        <template if:true={isHidden}>
+                            <lightning-button label="DisplayField" onclick={doShow}></lightning-button>
+                        </template>
+                        <template if:false={isHidden}>
+                            <lightning-button variant="success" label="Hide Field" onclick={doHide}></lightning-button>
+                        </template>
+                    </lightning-button-group>
+                </lightning-layout-item>
+            </lightning-layout>          
+        </template>
+        <template if:true={isEdit}>
+            <lightning-layout vertical-align="center">
+                <lightning-layout-item padding="around-small" size="2">
+                    <lightning-combobox
+                        name="Object"
+                        value={objectType}
+                        placeholder="Select Object"
+                        options={objectOptions}
+                        onchange={handleObjectSelect}
+                    ></lightning-combobox>
+                </lightning-layout-item>
+                <lightning-layout-item padding="around-small" size="2">
+                    <template if:true={objectType}>
+                        <template if:true={fieldResults}>
+                            <lightning-combobox
+                                name="Field"
+                                value={previewField.fieldName}
+                                placeholder="Select Field"
+                                options={fieldResults}
+                                onchange={handleFieldSelect}
+                            ></lightning-combobox>
+                        </template>
+                    </template>
+                </lightning-layout-item>
+                <lightning-layout-item padding="around-small" size="2">
+                    <lightning-button-group>
+                        <lightning-button onclick={handleCancel} title="Cancel" label="Cancel"></lightning-button>
+                        <lightning-button onclick={handleSave} variant="brand" title="Save" label="Save"></lightning-button>
+                    </lightning-button-group>
+                </lightning-layout-item>
+            </lightning-layout>  
+        </template>
+    </template>
+</template>

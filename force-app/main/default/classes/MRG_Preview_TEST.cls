@@ -1,5 +1,5 @@
 @isTest
-private class MRG_DuplicateMerge_TEST {
+private class MRG_Preview_TEST {
 @testSetup static void setup() {
 		List<Account> accs = new List<Account>();
 		accs.add(
@@ -38,7 +38,6 @@ private class MRG_DuplicateMerge_TEST {
 		);	
 
 		insert cons;
-
         MergeCandidate__c mc = new MergeCandidate__c(
             KeepRecordId__c = cons[0].Id,
             KeepName__c = 'Test',
@@ -51,30 +50,9 @@ private class MRG_DuplicateMerge_TEST {
         );
         insert mc;
 	}
-    static testMethod void testCTLR() {
-        Integer count = MRG_DuplicateMerge_CTRL.getCount('Contact','test');
-        List<MRG_DuplicateMerge_CTRL.mergeGroup> groups = MRG_DuplicateMerge_CTRL.getMergeGroups('Contact','test',100,0);
-        String mergeGroupJSON = JSON.serialize(groups[0]);
-        List<SObject> objs = MRG_DuplicateMerge_CTRL.getSObjectsFromMergeGroup(mergeGroupJSON);
-        List<MergeCandidate__c> candidates = MRG_DuplicateMerge_CTRL.getMergeCandidateFromMergeGroup(groups);
-        String response = MRG_DuplicateMerge_CTRL.removeRecord(candidates[0].Id);
-        test.startTest();
-        response = MRG_DuplicateMerge_CTRL.mergeRecord(candidates[0].Id);
-        test.stopTest();
-    }
 
-    static testMethod void testBatch(){
-
-        test.startTest();
-        database.executeBatch(new MRG_DuplicateMerge_BATCH());
-
-        test.stopTest();
-    }
-    static testMethod void testBatch2(){
-
-        test.startTest();
-        database.executeBatch(new MRG_DuplicateMerge_BATCH(new Set<String>{'Contact'}));
-
-        test.stopTest();
+    static testMethod void testCTRL() {
+        MergeCandidate__c mc = [SELECT Id,KeepRecordId__c,MergeRecordId__c,Status__c FROM MergeCandidate__c LIMIT 1];
+        MRG_MergeCandidate previewRecord = MRG_Preview_CTRL.getPreviewRecord(mc.Id);
     }
 }

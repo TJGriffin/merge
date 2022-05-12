@@ -41,7 +41,7 @@
                 </lightning-layout>          
             </template>
             <template if:true={isEdit}>
-                <lightning-layout vertical-align="center">
+                <lightning-layout vertical-align="center" class="slds-m-bottom_xx-large">
                     <lightning-layout-item padding="around-small" size="2">
                         <lightning-combobox
                             name="Object"
@@ -53,14 +53,19 @@
                     </lightning-layout-item>
                     <lightning-layout-item padding="around-small" size="2">
                         <template if:true={objectType}>
-                            <template if:true={fieldResults}>
-                                <lightning-combobox
-                                    name="Field"
-                                    value={mergeRecord.fieldName}
-                                    placeholder="Select Field"
-                                    options={fieldResults}
-                                    onchange={handleFieldSelect}
-                                ></lightning-combobox>
+                            <template if:true={mergeRecord.fieldName}>
+                                {mergeRecord.fieldName}
+                            </template>
+                            <template if:false={mergeRecord.fieldName}>
+                                <template if:true={fieldResults}>
+                                    <lightning-combobox
+                                        name="Field"
+                                        value={mergeRecord.fieldName}
+                                        placeholder="Select Field"
+                                        options={fieldResults}
+                                        onchange={handleFieldSelect}
+                                    ></lightning-combobox>
+                                </template>
                             </template>
                         </template>
                     </lightning-layout-item>
@@ -89,7 +94,7 @@
                                             name="Field"
                                             value={mergeRecord.relatedField}
                                             placeholder="Select Field"
-                                            options={fieldResults}
+                                            options={relatedFieldResults}
                                             onchange={handleRelatedFieldSelect}
                                         ></lightning-combobox>
                                     </template>

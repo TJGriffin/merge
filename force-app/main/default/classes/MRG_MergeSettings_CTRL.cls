@@ -8,6 +8,21 @@ public with sharing class MRG_MergeSettings_CTRL {
 	/*******************************************************************************************************
 	* @description a set of fields to always ignore
 	*/
+	public static String getPreviewFieldsSOQL(){
+		String soql='SELECT Id,';
+		soql+=' QualifiedAPIName,';
+		soql+=' Label,';
+		soql+=' Object__c,';
+		soql+=' Object__r.QualifiedAPIName,';
+		soql+=' Field__c,';
+		soql+=' Field__r.QualifiedAPIName,';
+		soql+=' Disable__c';
+		soql+=' FROM PreviewFields__mdt';
+		return soql;
+	}	
+	/*******************************************************************************************************
+	* @description a set of fields to always ignore
+	*/
 	private static Set<String> ignoreFields {
 		get {
 			return new Set<String>{
@@ -88,6 +103,33 @@ public with sharing class MRG_MergeSettings_CTRL {
 	* @description get all merge fields
 	* @return List<mergeFieldWrap>
 	*/	
+	@auraEnabled(cacheable=true) public static List<previewField> getAllPreviewFields() {
+		List<previewField> pFields = new List<previewField>();
+
+		for(PreviewFields__mdt pField:MRG_Merge_SVC.previewFields) {
+			 pFields.add(new previewField(pField));
+		}
+		if(pFields.size()>0)
+			pFields.sort();
+		return pFields;
+	}
+	/*******************************************************************************************************
+	* @description get all merge fields
+	* @return List<mergeFieldWrap>
+	*/	
+	@auraEnabled(cacheable=true) public static List<previewField> getAllPreviewFields(String objectType) {
+		List<previewField> previewfields = new List<previewField>();
+		for(previewField pField:getAllPreviewFields()){
+			if(String.isBlank(objectType) ||
+				pField.objectName == objectType)
+				previewFields.add(pField);
+		}
+		return previewfields;
+	}
+	/*******************************************************************************************************
+	* @description get all merge fields
+	* @return List<mergeFieldWrap>
+	*/	
 	@auraEnabled(cacheable=true) public static List<MRG_Merge_SVC.mergeFieldWrap> getAllMergeFields() {
 		List<MRG_Merge_SVC.mergeFieldWrap> mergeFieldWraps = new List<MRG_Merge_SVC.mergeFieldWrap>();
 
@@ -98,34 +140,6 @@ public with sharing class MRG_MergeSettings_CTRL {
 			mergeFieldWraps.sort();
 		return mergeFieldWraps;
 	}
-	/*******************************************************************************************************
-	* @description get all merge fields
-	* @return MRG_Merge_SVC.mergeSetting
-	*/
-	@auraEnabled(cacheable=true)
-	public static MRG_Merge_SVC.mergeSetting getMergeSetting(){
-		MergeControlSettings__c settings = MRG_Merge_SVC.getSettings();
-		if(settings==null)
-			settings = new MergeControlSettings__c();
-		return new MRG_Merge_SVC.mergeSetting(settings);
-	}
-	/*******************************************************************************************************
-	* @description get all merge fields
-    * @param mergeSettingJSON the json representation of the setting
-	* @return MRG_Merge_SVC.mergeSetting
-	*/
-	@auraEnabled
-	public static MRG_Merge_SVC.mergeSetting saveMergeSettings(String mergeSettingJSON){
-		MRG_Merge_SVC.mergeSetting settingsObj = (MRG_Merge_SVC.mergeSetting) JSON.deserialize(mergeSettingJSON,MRG_Merge_SVC.mergeSetting.class);
-		MergeControlSettings__c setting = MRG_Merge_SVC.getSettingsFromObject(settingsObj);
-		MergeControlSettings__c defaultSettings = MRG_Merge_SVC.getSettings();
-		setting.Id = String.isNotBlank(defaultSettings.Id) ? defaultSettings.Id : null;
-
-		upsert setting;
-
-		return new MRG_Merge_SVC.mergeSetting(setting);
-
-	}	
 	/*******************************************************************************************************
 	* @description get all merge fields
     * @param type the type of merge field to return
@@ -155,6 +169,34 @@ public with sharing class MRG_MergeSettings_CTRL {
 		return mergeFieldWraps;
     }
 	/*******************************************************************************************************
+	* @description get all merge fields
+	* @return MRG_Merge_SVC.mergeSetting
+	*/
+	@auraEnabled(cacheable=true)
+	public static MRG_Merge_SVC.mergeSetting getMergeSetting(){
+		MergeControlSettings__c settings = MRG_Merge_SVC.getSettings();
+		if(settings==null)
+			settings = new MergeControlSettings__c();
+		return new MRG_Merge_SVC.mergeSetting(settings);
+	}
+	/*******************************************************************************************************
+	* @description get all merge fields
+    * @param mergeSettingJSON the json representation of the setting
+	* @return MRG_Merge_SVC.mergeSetting
+	*/
+	@auraEnabled
+	public static MRG_Merge_SVC.mergeSetting saveMergeSettings(String mergeSettingJSON){
+		MRG_Merge_SVC.mergeSetting settingsObj = (MRG_Merge_SVC.mergeSetting) JSON.deserialize(mergeSettingJSON,MRG_Merge_SVC.mergeSetting.class);
+		MergeControlSettings__c setting = MRG_Merge_SVC.getSettingsFromObject(settingsObj);
+		MergeControlSettings__c defaultSettings = MRG_Merge_SVC.getSettings();
+		setting.Id = String.isNotBlank(defaultSettings.Id) ? defaultSettings.Id : null;
+
+		upsert setting;
+
+		return new MRG_Merge_SVC.mergeSetting(setting);
+
+	}	
+	/*******************************************************************************************************
 	* @description gets fields for a specific object
 	* @param objectType the type of object
 	* @return List<MRG_Merge_SVC.objectField>
@@ -182,12 +224,45 @@ public with sharing class MRG_MergeSettings_CTRL {
 	* @param String the JSON string to save
 	* @return String jobId
 	*/
+	@AuraEnabled
+	public static String savePreviewFieldsSettings(String jsonData) {
+		List<previewField> pFields= (List<previewField>) JSON.deserialize(jsonData, List<previewField>.class);
+		return MRG_Merge_SVC.savePreviewFields(pFields);
+	}
+	/*******************************************************************************************************
+	* @description handles save
+	* @param String the JSON string to save
+	* @return String 
+	*/
 	@AuraEnabled(cacheable=TRUE)
 	public static String saveMergeFields(String jsonData) {
 		List<MRG_Merge_SVC.mergeFieldWrap> mergeFields = (List<MRG_Merge_SVC.mergeFieldWrap>) JSON.deserialize(jsonData, List<MRG_Merge_SVC.mergeFieldWrap>.class);
 		return MRG_Merge_SVC.saveMergeFields(mergeFields);
 	}
+	/*******************************************************************************************************
+	* @description preview field wrapper
+	*/
+	public class previewField implements Comparable {
+		@AuraEnabled public String id;
+		@AuraEnabled public String label;
+		@AuraEnabled public String name;
+		@AuraEnabled public String objectName;
+		@AuraEnabled public String fieldName;
+		@AuraEnabled public Boolean hidden;
 
+		public previewField(PreviewFields__mdt pField){
+			this.id = pField.Id;
+			this.label = pField.Label;
+			this.name = pField.QualifiedAPIName;
+			this.objectName = pField.Object__r.QualifiedAPIName;
+			this.fieldName = pField.Field__r.QualifiedAPIName;
+			this.hidden = pField.Disable__c;
+		}
+		public Integer compareTo(Object compareTo) {
+			previewField sortObj = (previewField) compareTo;
+			return this.fieldName > sortObj.fieldName ? 1 : -1;
+		}
+	}
 	/*******************************************************************************************************
 	* @description user wrapper
 	*/

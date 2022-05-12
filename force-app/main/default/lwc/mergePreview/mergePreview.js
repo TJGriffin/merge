@@ -23,12 +23,28 @@ export default class mergePreview extends LightningElement {
             _cols.push('mergeRecord2');
         _cols.push('mergeResultRecord');
         this.cols = _cols;
-        var fields = value.fields;
+
+        var fields = value.hasOwnProperty('fields') && value.fields != null ? value.fields : [];
+        this.previewFields = value.hasOwnProperty('previewFields') && value.previewFields != null ? value.previewFields : [];
         this.mergeCandidate = value.mergeCandidate;
-        fields.sort();
+        if(fields.length > 0)
+            fields.sort();
         this.rows = fields;
     }
-
+    ignoreFields;
+    set previewFields(value){
+        var ignoreFields = [];
+        if(typeof value === undefined
+            || value == null)
+            return;
+        if(Array.isArray(value)) {
+            value.forEach(field=>{
+                if(field.hidden)
+                    ignoreFields.push(field.fieldName);
+            });
+        } 
+        this.ignoreFields = ignoreFields; 
+    }
     _record;
     tablecols;
     notificationBody;
@@ -151,30 +167,32 @@ export default class mergePreview extends LightningElement {
         var mergeResultRecord = this._record.hasOwnProperty('mergeResultRecord') ? this._record.mergeResultRecord : {};
         
         this.rows.forEach(field=>{
-            var dataRow = {};
-            columns.forEach(col=>{
-                var fieldValue = null;
-                var recordObj = {};
-                switch(col) {
-                    case 'fieldname':
-                        fieldValue = field;
-                        break;
-                    case 'keepRecord':
-                        fieldValue = keepRecord.hasOwnProperty(field) ? keepRecord[field] : null;
-                        break;
-                    case 'mergeRecord1':
-                        fieldValue = mergeRecord1.hasOwnProperty(field) ? mergeRecord1[field] : null;
-                        break;
-                    case 'mergeRecord2':
-                        fieldValue = mergeRecord2.hasOwnProperty(field) ? mergeRecord2[field] : null;
-                        break;
-                    case 'mergeResultRecord':
-                        fieldValue = mergeResultRecord.hasOwnProperty(field) ? mergeResultRecord[field] : null;
-                        break;
-                }               
-                dataRow[col] = fieldValue;
-            });
-            dataRows.push(dataRow);
+            if(!this.ignoreFields.includes(field)){
+                var dataRow = {};
+                columns.forEach(col=>{
+                    var fieldValue = null;
+                    var recordObj = {};
+                    switch(col) {
+                        case 'fieldname':
+                            fieldValue = field;
+                            break;
+                        case 'keepRecord':
+                            fieldValue = keepRecord.hasOwnProperty(field) ? keepRecord[field] : null;
+                            break;
+                        case 'mergeRecord1':
+                            fieldValue = mergeRecord1.hasOwnProperty(field) ? mergeRecord1[field] : null;
+                            break;
+                        case 'mergeRecord2':
+                            fieldValue = mergeRecord2.hasOwnProperty(field) ? mergeRecord2[field] : null;
+                            break;
+                        case 'mergeResultRecord':
+                            fieldValue = mergeResultRecord.hasOwnProperty(field) ? mergeResultRecord[field] : null;
+                            break;
+                    }               
+                    dataRow[col] = fieldValue;
+                });
+                dataRows.push(dataRow);
+            }
         });
         this.data = dataRows;
         this.hasData=true;
