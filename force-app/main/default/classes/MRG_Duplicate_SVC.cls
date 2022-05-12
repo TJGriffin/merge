@@ -5,6 +5,7 @@
 * @description Service for dealing with duplicate identification and merging
 */
 public with sharing class MRG_Duplicate_SVC {
+
 	/*******************************************************************************************************
 	* @description get field soql for merge candidate
 	* @return String fieldSoql for merge candidate
@@ -68,6 +69,25 @@ public with sharing class MRG_Duplicate_SVC {
         return triggerDisabled;
     }
 
+	/*******************************************************************************************************
+	* @description duplicate rules
+	********************************************************************************************************/ 
+    @testvisible private static List<DuplicateRule> duplicateRules {
+        get {
+            if(duplicateRules == null){
+                duplicateRules = new List<DuplicateRule>([
+                    SELECT 
+                    Id,
+                    DeveloperName,
+                    SObjectType,
+                    IsActive
+                    FROM DuplicateRule
+                ]);
+            }
+            return duplicateRules;
+        }
+        set;
+    }
 
 	/*******************************************************************************************************
 	* @description get active duplicate rules for Object type
@@ -84,22 +104,18 @@ public with sharing class MRG_Duplicate_SVC {
         }
         return duplicateRules;
     }
+
 	/*******************************************************************************************************
 	* @description get active duplicate rules for Object type
 	* @return List<dupeRule> a list of duplicate rule wrappers
 	********************************************************************************************************/ 
     public Static List<dupeRule> getActiveDuplicateRules(){
         Map<String, dupeRule> dupeRulesByName = new Map<String, dupeRule>();
-        for(DuplicateRule duplicateRule:[
-            SELECT 
-            Id,
-            DeveloperName,
-            SObjectType
-            FROM DuplicateRule
-            WHERE IsActive=true
-        ]){
-            dupeRule dr = new dupeRule(duplicateRule);
-            dupeRulesByName.put(dr.ruleName,dr);
+        for(DuplicateRule duplicateRule:duplicateRules){
+            if(duplicateRule.IsActive){
+                dupeRule dr = new dupeRule(duplicateRule);
+                dupeRulesByName.put(dr.ruleName,dr);
+            }
         }
         for(dupeRule drSetting:duplicateRuleSettings){
             if(dupeRulesByName.containsKey(drSetting.ruleName))
@@ -202,9 +218,11 @@ public with sharing class MRG_Duplicate_SVC {
 		return duplicateResults;
 	}
 	/*******************************************************************************************************
-	* @description determines if duplicate rules are active for this object
-	* @param List<Datacloud.DuplicateResult>
-	* @return Boolean
+	* @description returns a list of merge candidates given duplcates and duplicate rules
+    * @param recordMap a map of SObjects keyed by Id
+	* @param duplicateResults a list of duplicate results
+    * @param dupeRules a list of duplicate rules
+	* @return List<MergeCandidate__c> a list of merge candidate records
 	*/ 
     public static List<MergeCandidate__c> getMergeCandidates(Map<Id,SObject> recordMap, List<Datacloud.DuplicateResult> duplicateResults, List<dupeRule> duplicateRules){
         Map<String, dupeRule> duplicateRuleMap = new Map<String, dupeRule>();
@@ -387,7 +405,6 @@ public with sharing class MRG_Duplicate_SVC {
     }
 	/*******************************************************************************************************
 	* @description gets the SOQL query for the duplicate scan batch
-	* @return List<dupeRule>
 	********************************************************************************************************/ 
     public static List<dupeRule> duplicateRuleSettings {
         get {

@@ -30,6 +30,8 @@ public with sharing class MRG_MergeCandidate {
 
     @AuraEnabled public List<MergeFieldHistory__c> fieldHistory;
 
+    @AuraEnabled public List<MRG_MergeSettings_CTRL.previewField> previewFields;
+
     /*******************************************************************************************************
     * @description No parameter constructor to enable use as virtual class.
     */      
@@ -47,15 +49,33 @@ public with sharing class MRG_MergeCandidate {
     * @description No parameter constructor to enable use as virtual class.
     */      
     public MRG_MergeCandidate(MergeCandidate__c mergeCandidate, SObject keepRecord, List<SObject> mergeRecords, MRG_Merge_SVC.mergeHistoryResult mergeResult, Set<String> fields) {
+        if(mergeCandidate.Status__c == 'Processed'
+            && String.isNotBlank(mergeCandidate.Data__c)){
+            mergeResult = (MRG_Merge_SVC.mergeHistoryResult) JSON.deserialize(mergeCandidate.Data__c, MRG_Merge_SVC.mergeHistoryResult.class);
+            Set<Id> mergeRecordIds = new Set<Id>();
+            if(String.isNotBlank(mergeCandidate.mergeRecordId__c))
+                mergeRecordIds.add(Id.valueOf(mergeCandidate.mergeRecordId__c));
+            if(String.isNotBlank(mergeCandidate.merge2RecordId__c))
+                mergeRecordIds.add(Id.valueOf(mergeCandidate.merge2RecordId__c));
+            if(String.isNotBlank(mergeCandidate.keepRecordId__c))
+                keepRecord = mergeResult.objectMap.containsKey(Id.valueOf(mergeCandidate.keepRecordId__c)) ? mergeResult.objectMap.get(Id.valueOf(mergeCandidate.keepRecordId__c)) : keepRecord;
+            for(Id mergeId:mergeRecordIds){
+                if(mergeResult.objectMap.containsKey(mergeId))
+                    mergeRecords.add(mergeResult.objectMap.get(mergeId));
+            }
+
+        }
         this.recordID = mergeCandidate.Id;
         this.keepRecord = keepRecord;
-        this.mergeRecord1 = mergeRecords[0];
-        if(mergeRecords.size()>1)
-            this.mergeRecord2 = mergeRecords[1];
+        String objectType = keepRecord.getSObjectType().getDescribe().getName();
+        this.previewFields = new List<MRG_MergeSettings_CTRL.previewField>(MRG_MergeSettings_CTRL.getAllPreviewFields(objectType));
+        this.mergeRecord1 = mergeRecords != null && mergeRecords.size() > 0 ? mergeRecords[0] : null;
+        this.mergeRecord2 = mergeRecords != null && mergeRecords.size() > 1 ? mergeRecords[1] : null;
         this.mergeResultRecord =  mergeResult.updateRecords != null && mergeResult.updateRecords.size()>0 ? mergeResult.updateRecords[0] : keepRecord;
         this.fieldHistory = mergeResult.fieldHistory;
         this.fields = new List<String>();
-        this.fields.addAll(fields);
+        if(fields != null)
+            this.fields.addAll(fields);
         this.status = mergeCandidate.Status__c;
         this.mergeCandidate = mergeCandidate;
     }

@@ -8,6 +8,7 @@ public with sharing class MRG_MergeCandidate_SVC {
         MergeCandidate__c candidate = [
             SELECT Id,
             AutoMerge__c,
+            Data__c,
             KeepName__c,
             KeepRecordId__c,
             Merge2Name__c,
@@ -22,11 +23,19 @@ public with sharing class MRG_MergeCandidate_SVC {
             WHERE Id=:recordId
         ];
         
-        List<MergeCandidate__c> candidates = new List<MergeCandidate__c>{candidate};
-        String objectType = candidate.Object__c;
+        return getMergeCandidate(candidate, candidate.Object__c);
+    }
+
+    /*******************************************************************************************************
+    * @description gets a merge candidate given a merge candidate recordId
+    * @param recordId the merge candidate recordId
+    * @return MRG_MergeCandidate the mergecandidate record
+    */  
+    public static MRG_MergeCandidate getMergeCandidate(MergeCandidate__c candidate, String objectType) {
+
         Map<Id, Set<Id>> mergeKeyMap = MRG_Duplicate_SVC.getMergeKeyMap(candidate);
         Set<Id> recordIds = MRG_Duplicate_SVC.getAllIds(mergeKeyMap);
-        MRG_Merge_SVC.mergeHistoryResult mergeResult = MRG_Merge_SVC.getMergeHistoryResult(candidates,objectType);
+        MRG_Merge_SVC.mergeHistoryResult mergeResult = MRG_Merge_SVC.getMergeHistoryResult(new List<MergeCandidate__c>{candidate},objectType);
         Map<String, Schema.SObjectField> fieldmap = Schema.getGlobalDescribe().get(objectType).getDescribe().fields.getMap();
         Set<String> fieldDifferences = new Set<String>();
         Set<String> writeableFields = MRG_Merge_SVC.getWriteableFields(objectType);
@@ -56,13 +65,7 @@ public with sharing class MRG_MergeCandidate_SVC {
                 }
             }
         }
-        Set<String> casedFieldDifferences = new Set<String>();
-
-        for(String fieldDifference:fieldDifferences){
-
-        }
 
         return new MRG_MergeCandidate(candidate,keepRecord,mergeRecords,mergeResult,fieldDifferences);
     }
-
 }

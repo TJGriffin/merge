@@ -55,7 +55,7 @@ public with sharing class MRG_DuplicateMerge_BATCH implements Database.Batchable
         objectList.addAll(objects);
         objectType = objectList[0];
 		String soqlQuery  = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL();
-        soqlQuery += ' WHERE Status__c=\'New\' AND Object__c =:objectType AND AutoMerge__c = true';
+        soqlQuery += ' WHERE Status__c=\'New\' AND Object__c =:objectType AND AutoMerge__c = true AND NotADuplicate__c = false';
         return Database.getQueryLocator(SOQLQuery);	
     }
 	/*******************************************************************************************************
@@ -73,7 +73,7 @@ public with sharing class MRG_DuplicateMerge_BATCH implements Database.Batchable
 	public void finish(Database.BatchableContext BC) {
 		if(objects.size()>1){
             objects.remove(objectType);
-            Database.executeBatch(new MRG_DuplicateMerge_BATCH(objects),50);
+            Database.executeBatch(new MRG_DuplicateMerge_BATCH(objects),1);
         }
     }
 	/*******************************************************************************************************
@@ -81,7 +81,7 @@ public with sharing class MRG_DuplicateMerge_BATCH implements Database.Batchable
 	* @param SC Schedulable Context
 	*/
 	public void execute(SchedulableContext SC) {
-		database.executeBatch(this, 50);
+		database.executeBatch(this,1);
 	}
 
 }

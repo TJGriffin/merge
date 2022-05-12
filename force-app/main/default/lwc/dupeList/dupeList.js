@@ -197,6 +197,12 @@ export default class DupeList extends LightningElement {
                 break;
         }
     }
+    handleModalRemove(event){
+        this.isModalOpen=false;
+        this.showSpinner=true;
+        this.selectedRecordId = this.selectedRecordId = event.currentTarget.dataset.record;
+        this.removeRecord();
+    }
     handleModalMerge(event){
         this.isModalOpen=false;
         this.showSpinner=true;

@@ -116,7 +116,7 @@ public class MRG_Merge_TEST {
 		system.assertEquals(keptCon.MailingState,newestCon.MailingState);
 		system.assert(String.isNotBlank(keptCon.MailingStreet));
 		system.assert(String.isNotBlank(keptCon.MailingCity));
-		system.assert(keptCon.HasOptedOutOfEmail);
+
 	}
 
 

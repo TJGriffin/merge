@@ -1,41 +1,33 @@
 import { LightningElement, api, track, wire } from 'lwc';
 import { subscribe, unsubscribe, onError, setDebugFlag, isEmpEnabled } from 'lightning/empApi';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import getFieldSettings from '@salesforce/apex/MRG_MergeSettings_CTRL.getAllMergeFields';
-import saveMergeFields from '@salesforce/apex/MRG_MergeSettings_CTRL.saveMergeFields';
+import getFieldSettings from '@salesforce/apex/MRG_MergeSettings_CTRL.getAllPreviewFields';
+import savePreviewFields from '@salesforce/apex/MRG_MergeSettings_CTRL.savePreviewFieldsSettings';
 
-export default class mergeRecordList extends LightningElement {
+export default class previewFields extends LightningElement {
     @track cols;
     set results(value) {
         value = value === undefined || value == null ? [] : value;
         this.rows = [];
         this.rows = JSON.parse(JSON.stringify(value));
-        var usedFields = [];
-        this.rows.forEach(row=>{
-            usedFields.push(row.fieldName);
-        });
-        this.usedFields = usedFields;
     }
     get results(){
         return this.rows;
     }
     @track rows;
     @track hasFields = false;
-    @track disabled;
+    @track hidden;
     @track draftValues;
-    @track type;
     @track objectType;
     @track wireComplete=false;
     @track hasChanged = false;
     @track isNew =false;
-    @track usedFields;
     resultValue;
-    options = [{label:'Filter by Type', value:''},{label:'Track Fields',value:'t'},{label:'Preserve Fields',value:'p'}];
     objectOptions = [{label:'Filter by Object', value:''},{label:'Account',value:'Account'},{label:'Contact', value:'Contact'}];
     notificationBody;
     notificationStyle;
     notificationTitle;
-    modalLabel='Edit Tracking Field';
+    modalLabel='Edit Preview Field';
     // platform event
     channelName = '/event/MergeRecordSave__e';
     isSubscribeDisabled = false;
@@ -46,7 +38,6 @@ export default class mergeRecordList extends LightningElement {
     }
     
     connectedCallback() {
-        this.type = this.type == null ? '' : this.type;
         this.objectType = this.objectType == null ? '' : this.objectType;
         this.disabled = false;
         this.registerErrorListener();
@@ -58,9 +49,8 @@ export default class mergeRecordList extends LightningElement {
     }
     fetchData(){
 
-        getFieldSettings({type:this.type,objectType:this.objectType})
+        getFieldSettings({objectType:this.objectType})
             .then(result=>{
-                console.log(JSON.stringify(result));
                 this.results=JSON.parse(JSON.stringify(result));
             })
             .catch(error=>{
@@ -100,7 +90,7 @@ export default class mergeRecordList extends LightningElement {
             this.handleError();
         });
     }
-    @wire(getFieldSettings, {type:'$type',objectType:'$objectType'})
+    @wire(getFieldSettings, {objectType:'$objectType'})
         getRowData(result) {
             this.results = [];
             this.resultValue = result;
@@ -122,7 +112,6 @@ export default class mergeRecordList extends LightningElement {
         if(action!='cancel'
             && event.detail != null) {
             this.hasChanged=true;
-
             this.selectedRecord = JSON.parse(JSON.stringify(event.detail.recordValue));
             this.selectedRecord.name = this.selectedRecord.name == null || this.selectedRecord.name.includes('TEMP') ? this.selectedRecord.fieldName+''+this.selectedRecord.objectName : this.selectedRecord.name;
             var rows = [];
@@ -145,9 +134,8 @@ export default class mergeRecordList extends LightningElement {
         this.isNew=true;
         this.selectedRecord = {};
         this.selectedRecord.name='TEMP';
-        this.selectedRecord.type = this.type; 
         this.selectedRecord.objectName = this.objectType;
-        this.selectedRecord.disable = false;
+        this.selectedRecord.hidden = true;
         this.results = [...this.rows,this.selectedRecord];
     }
 
@@ -155,7 +143,7 @@ export default class mergeRecordList extends LightningElement {
         this.hasChanged=false;
         console.log('handle save');
         console.log(JSON.stringify(this.rows));
-        saveMergeFields({
+        savePreviewFields({
             jsonData:JSON.stringify(this.rows)
         })
         .then(()=>{
@@ -184,9 +172,6 @@ export default class mergeRecordList extends LightningElement {
             this.notificationBody = this.error.body.message;
         }
         this.showNotification();
-    }
-    handleFilterChange(event){
-        this.type = event.detail.value;
     }
     handleObjectFilterChange(event){
         this.objectType = event.detail.value;
