@@ -124,6 +124,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>MergeCandidate__c.Override__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>MergeCandidate__c.Merge2Name__c</field>
         <readable>true</readable>
     </fieldPermissions>

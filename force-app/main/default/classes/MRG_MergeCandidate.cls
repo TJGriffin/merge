@@ -19,6 +19,12 @@ public with sharing class MRG_MergeCandidate {
     * @description result of merge
     */
     @AuraEnabled public SObject mergeResultRecord;
+
+    /***
+    * @description result of merge
+    */
+    @AuraEnabled public List<fieldOverride> manualOverrides;
+
     /***
     * @description collection of fields that have different values
     */
@@ -62,6 +68,7 @@ public with sharing class MRG_MergeCandidate {
             for(Id mergeId:mergeRecordIds){
                 if(mergeResult.objectMap.containsKey(mergeId))
                     mergeRecords.add(mergeResult.objectMap.get(mergeId));
+
             }
 
         }
@@ -73,11 +80,34 @@ public with sharing class MRG_MergeCandidate {
         this.mergeRecord2 = mergeRecords != null && mergeRecords.size() > 1 ? mergeRecords[1] : null;
         this.mergeResultRecord =  mergeResult.updateRecords != null && mergeResult.updateRecords.size()>0 ? mergeResult.updateRecords[0] : keepRecord;
         this.fieldHistory = mergeResult.fieldHistory;
+        if(String.isNotBlank(mergeCandidate.Override__c)){
+            Map<String, Schema.SObjectField> objFieldMap = Schema.getGlobalDescribe().get(objectType).getDescribe().fields.getMap();
+            List<fieldOverride> overrides = new List<fieldOverride>();
+            Map<String, Object> overrideMap = (Map<String, Object>) JSON.deserializeUntyped(mergeCandidate.Override__c);
+            for(String fieldName:overrideMap.keyset()){
+                fieldOverride override = new fieldOverride();
+                override.fieldName = fieldName;
+                if(objFieldMap.containsKey(fieldName)){
+                    override.fieldType = objFieldMap.get(fieldName).getDescribe().getSOAPType().name();
+                }
+                override.fieldValue = overrideMap.get(fieldName);
+                override.keepId = this.keepRecord.Id;
+            }
+
+        }
         this.fields = new List<String>();
         if(fields != null)
             this.fields.addAll(fields);
         this.status = mergeCandidate.Status__c;
         this.mergeCandidate = mergeCandidate;
+    }
+
+
+    public class fieldOverride {
+        @auraEnabled public String fieldName {get;set;}
+        @auraEnabled public Object fieldValue {get;set;}
+        @auraEnabled public String fieldType {get;set;}
+        @auraEnabled public Id keepId {get;set;}
     }
 
 }
