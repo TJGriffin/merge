@@ -53,6 +53,7 @@ export default class mergePreview extends LightningElement {
     mergeCandidate;
     @track error;
     @track actionType;
+    @track overrideMap = new Map();
     
     set rows(value){
         console.log('set rows');
@@ -106,6 +107,14 @@ export default class mergePreview extends LightningElement {
     }
     @track hasData;
 
+
+    renderedCallback(){
+        if(typeof this.data === undefined || this.data == null)
+            return;
+
+       this.populatePicklistValues(); 
+    }
+
     showNotification(){
         this.dispatchEvent(
             new ShowToastEvent({
@@ -114,6 +123,27 @@ export default class mergePreview extends LightningElement {
                 variant: this.notificationStyle
             })
         );
+    }
+    populatePicklistValues(){
+        var table = this.template.querySelector('c-custom-datatable');
+        if(typeof table === undefined || table == null)
+            return;
+
+        var rows = table.data;
+        rows.forEach(row=>{
+            if(typeof row.mergeResultRecord === "object"){
+                var fieldName = row.fieldname;
+                var options = row.mergeResultRecord.picklistOptions;
+                var defaultValue = row.mergeResultRecord.picklistValue;
+            }
+        })
+
+        this.template.querySelector('c-custom-datatable').querySelectorAll('tr').forEach(row=>{
+            console.log('row: ');
+            console.log(JSON.stringify(row));
+            console.log(row.dataset.dataRowKeyValue);
+        })
+
     }
     createTableColums(){
         var columns = [];
@@ -126,6 +156,7 @@ export default class mergePreview extends LightningElement {
         var merge2Name = this.mergeCandidate.hasOwnProperty('Merge2Name__c') ? this.mergeCandidate.Merge2Name__c : 'Merge Record 2';
         columns.forEach(col=>{
             var label;
+
             switch(col) {
                 case 'fieldname':
                     label = 'Field';
@@ -143,11 +174,25 @@ export default class mergePreview extends LightningElement {
                     label = 'Merge Result';
                     break;
             }
-            var tablecol = {
-                label : label,
-                fieldName : col,
-                type: 'text' 
-            };
+            var tablecol;
+            if(col == 'mergeResultRecord'){
+                tablecol = {
+                    label : label,
+                    fieldName : col,
+                    type: 'picklistColumn', 
+                    editable: true, 
+                    typeAttributes: {
+                        placeholder: 'Choose value to keep', options: { fieldName: 'mergeResultRecord[\'picklistOptions\']' }, 
+                        value: { fieldName: 'mergeResultRecord[\'picklistValue\']' }
+                    }
+                };
+            } else {
+                tablecol = {
+                    label : label,
+                    fieldName : col,
+                    type: 'text' 
+                };
+            }
             _tablecols.push(tablecol);
         });
         this.tablecols = _tablecols;
@@ -159,16 +204,20 @@ export default class mergePreview extends LightningElement {
 
         var columns = [];
         columns = this.cols;
-        columns.unshift('fieldname');
+        //columns.unshift('fieldname');
 
         var keepRecord = this._record.hasOwnProperty('keepRecord') ? this._record.keepRecord : {};
         var mergeRecord1 = this._record.hasOwnProperty('mergeRecord1') ? this._record.mergeRecord1 : {};
         var mergeRecord2 = this._record.hasOwnProperty('mergeRecord2') ? this._record.mergeRecord2 : {};
         var mergeResultRecord = this._record.hasOwnProperty('mergeResultRecord') ? this._record.mergeResultRecord : {};
+        var orMap = new Map();
         
         this.rows.forEach(field=>{
             if(!this.ignoreFields.includes(field)){
                 var dataRow = {};
+                var picklistOptions = [];
+                var picklistValue;
+
                 columns.forEach(col=>{
                     var fieldValue = null;
                     var recordObj = {};
@@ -188,7 +237,19 @@ export default class mergePreview extends LightningElement {
                         case 'mergeResultRecord':
                             fieldValue = mergeResultRecord.hasOwnProperty(field) ? mergeResultRecord[field] : null;
                             break;
-                    }               
+                    }
+                    if(col != 'mergeResultRecord'){
+                        if(fieldValue != null && !picklistOptions.includes(fieldValue) && col !='fieldname')
+                            picklistOptions.push(fieldValue);
+                    } else if(col = 'mergeResultRecord') {
+                        if(picklistOptions.length > 1){
+                            var picklistFieldValue = {};
+                            picklistFieldValue.picklistValue = fieldValue;
+                            picklistFieldValue.picklistOptions = picklistOptions;
+                            fieldValue = picklistFieldValue;
+                            orMap.set(field,picklistFieldValue);
+                        }
+                    }            
                     dataRow[col] = fieldValue;
                 });
                 dataRows.push(dataRow);
@@ -196,6 +257,7 @@ export default class mergePreview extends LightningElement {
         });
         this.data = dataRows;
         this.hasData=true;
+        this.overrideMap = orMap;
     }
 
     mergeRecord(event){

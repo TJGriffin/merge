@@ -85,15 +85,16 @@ public with sharing class MRG_MergeCandidate {
             List<fieldOverride> overrides = new List<fieldOverride>();
             Map<String, Object> overrideMap = (Map<String, Object>) JSON.deserializeUntyped(mergeCandidate.Override__c);
             for(String fieldName:overrideMap.keyset()){
-                fieldOverride override = new fieldOverride();
-                override.fieldName = fieldName;
+                fieldOverride fOrd = new fieldOverride();
+                fOrd.fieldName = fieldName;
                 if(objFieldMap.containsKey(fieldName)){
-                    override.fieldType = objFieldMap.get(fieldName).getDescribe().getSOAPType().name();
+                    fOrd.fieldType = objFieldMap.get(fieldName).getDescribe().getSOAPType().name();
                 }
-                override.fieldValue = overrideMap.get(fieldName);
-                override.keepId = this.keepRecord.Id;
+                fOrd.fieldValue = overrideMap.get(fieldName);
+                fOrd.keepId = this.keepRecord.Id;
+                overrides.add(fOrd);
             }
-
+            this.manualOverrides = overrides;
         }
         this.fields = new List<String>();
         if(fields != null)
