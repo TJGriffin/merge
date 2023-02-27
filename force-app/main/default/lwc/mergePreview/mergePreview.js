@@ -2,6 +2,9 @@ import { LightningElement,api,wire,track } from 'lwc';
 import { subscribe, unsubscribe, onError, setDebugFlag, isEmpEnabled } from 'lightning/empApi';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getPreviewRecord from '@salesforce/apex/MRG_Preview_CTRL.getPreviewRecord';
+import { updateRecord } from 'lightning/uiRecordApi';
+import OVERRIDE_FIELD from '@salesforce/schema/MergeCandidate__c.Override__c';
+import ID_FIELD from '@salesforce/schema/MergeCandidate__c.Id';
 
 export default class mergePreview extends LightningElement {
     @api recordId;
@@ -10,8 +13,6 @@ export default class mergePreview extends LightningElement {
         return this._record;
     }
     set recordValue(value){
-        console.log('set record');
-        console.log(JSON.stringify(value));
         this._record = value;
         if(typeof value === undefined
             || value == null)
@@ -27,6 +28,13 @@ export default class mergePreview extends LightningElement {
         var fields = value.hasOwnProperty('fields') && value.fields != null ? value.fields : [];
         this.previewFields = value.hasOwnProperty('previewFields') && value.previewFields != null ? value.previewFields : [];
         this.mergeCandidate = value.mergeCandidate;
+        if(value.hasOwnProperty('manualOverrides') && typeof value.manualOverrides !== undefined && value.manualOverrides != null){
+            var orMap = new Map();
+            value.manualOverrides.forEach(override=>{
+                orMap.set(override.fieldName,override.fieldValue);
+            })
+            this.overrideMap = orMap;
+        }
         if(fields.length > 0)
             fields.sort();
         this.rows = fields;
@@ -56,7 +64,6 @@ export default class mergePreview extends LightningElement {
     @track overrideMap = new Map();
     
     set rows(value){
-        console.log('set rows');
         this._rows = value;
         this.createTableColums();
     }
@@ -138,12 +145,6 @@ export default class mergePreview extends LightningElement {
             }
         })
 
-        this.template.querySelector('c-custom-datatable').querySelectorAll('tr').forEach(row=>{
-            console.log('row: ');
-            console.log(JSON.stringify(row));
-            console.log(row.dataset.dataRowKeyValue);
-        })
-
     }
     createTableColums(){
         var columns = [];
@@ -180,10 +181,11 @@ export default class mergePreview extends LightningElement {
                     label : label,
                     fieldName : col,
                     type: 'picklistColumn', 
-                    editable: true, 
+                    editable: {fieldName: 'editable'}, 
                     typeAttributes: {
-                        placeholder: 'Choose value to keep', options: { fieldName: 'mergeResultRecord[\'picklistOptions\']' }, 
-                        value: { fieldName: 'mergeResultRecord[\'picklistValue\']' }
+                        placeholder: 'Choose value to keep', 
+                        options: { fieldName: 'picklistOptions' }, 
+                        value: { fieldName: 'picklistValue' }
                     }
                 };
             } else {
@@ -210,7 +212,7 @@ export default class mergePreview extends LightningElement {
         var mergeRecord1 = this._record.hasOwnProperty('mergeRecord1') ? this._record.mergeRecord1 : {};
         var mergeRecord2 = this._record.hasOwnProperty('mergeRecord2') ? this._record.mergeRecord2 : {};
         var mergeResultRecord = this._record.hasOwnProperty('mergeResultRecord') ? this._record.mergeResultRecord : {};
-        var orMap = new Map();
+        var orMap = typeof this.overrideMap === undefined || this.overrideMap == null ?  new Map() : this.overrideMap;
         
         this.rows.forEach(field=>{
             if(!this.ignoreFields.includes(field)){
@@ -239,16 +241,34 @@ export default class mergePreview extends LightningElement {
                             break;
                     }
                     if(col != 'mergeResultRecord'){
-                        if(fieldValue != null && !picklistOptions.includes(fieldValue) && col !='fieldname')
-                            picklistOptions.push(fieldValue);
+                        if(fieldValue != null && !picklistOptions.includes(fieldValue) && col !='fieldname'){
+                            var opt = {};
+                            opt.label = fieldValue;
+                            opt.value = fieldValue;
+                            picklistOptions.push(opt);
+                        }
                     } else if(col = 'mergeResultRecord') {
+                        var editable = picklistOptions.length > 1;
+                        dataRow['editable'] = editable;
                         if(picklistOptions.length > 1){
                             var picklistFieldValue = {};
-                            picklistFieldValue.picklistValue = fieldValue;
-                            picklistFieldValue.picklistOptions = picklistOptions;
-                            fieldValue = picklistFieldValue;
-                            orMap.set(field,picklistFieldValue);
+                            picklistFieldValue.value = fieldValue;
+                            picklistFieldValue.options = picklistOptions;
+                            picklistFieldValue.placeholder = fieldValue;
+                            
+                            if(!orMap.has(field)){
+                                orMap.set(field,fieldValue);
+                            } else {
+                                var val = orMap.get(field);
+                                picklistFieldValue.value = val;
+                                fieldValue = val;
+                            }
+
+                            dataRow['picklistOptions'] = picklistFieldValue.options;
+                            dataRow['picklistValue'] = picklistFieldValue.value;
+                            
                         }
+                        
                     }            
                     dataRow[col] = fieldValue;
                 });
@@ -256,13 +276,60 @@ export default class mergePreview extends LightningElement {
             }
         });
         this.data = dataRows;
+        console.log('data');
+        console.log(JSON.stringify(dataRows));
         this.hasData=true;
         this.overrideMap = orMap;
     }
-
+    handleSave(event){
+        var orMap = new Map();
+        var vals = event.detail.draftValues;
+        if(typeof vals !== undefined && vals != null){
+            vals.forEach(val=>{
+                orMap.set(val.fieldname, val.mergeResultRecord);
+            })
+            this.overrideMap = orMap;
+        }
+        this.doSave();
+    }
     mergeRecord(event){
         this.actionType = 'merge';
         this.doNotify();
+    }
+    doSave(){
+        console.log('doSave called');
+        const fields = {};
+        var overrideData = [];
+        for (let [key, value] of this.overrideMap.entries()) {
+            var override = {};
+            override.fieldName = key;
+            override.fieldValue = value;
+            overrideData.push(override);
+        }
+        fields[ID_FIELD.fieldApiName] = this.recordId;
+        fields[OVERRIDE_FIELD.fieldApiName] = overrideData;
+        const recordInput = { fields };
+        
+        updateRecord(recordInput)
+            .then(() => {
+                console.log(JSON.stringify(recordInput));
+                this.dispatchEvent(
+                    new ShowToastEvent({
+                        title: 'Success',
+                        message: 'Merge field overrides saved',
+                        variant: 'success'
+                    })
+                );
+            })
+            .catch(error => {
+                this.dispatchEvent(
+                    new ShowToastEvent({
+                        title: 'Error saving record',
+                        message: JSON.stringify(error),
+                        variant: 'error'
+                    })
+                );
+            });
     }
     doNotify(){
         const notify = new CustomEvent('notify', {
