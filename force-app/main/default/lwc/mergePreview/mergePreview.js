@@ -307,7 +307,7 @@ export default class mergePreview extends LightningElement {
             overrideData.push(override);
         }
         fields[ID_FIELD.fieldApiName] = this.recordId;
-        fields[OVERRIDE_FIELD.fieldApiName] = overrideData;
+        fields[OVERRIDE_FIELD.fieldApiName] = JSON.stringify(overrideData);
         const recordInput = { fields };
         
         updateRecord(recordInput)

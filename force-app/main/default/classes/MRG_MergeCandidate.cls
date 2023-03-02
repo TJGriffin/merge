@@ -83,14 +83,11 @@ public with sharing class MRG_MergeCandidate {
         if(String.isNotBlank(mergeCandidate.Override__c)){
             Map<String, Schema.SObjectField> objFieldMap = Schema.getGlobalDescribe().get(objectType).getDescribe().fields.getMap();
             List<fieldOverride> overrides = new List<fieldOverride>();
-            Map<String, Object> overrideMap = (Map<String, Object>) JSON.deserializeUntyped(mergeCandidate.Override__c);
-            for(String fieldName:overrideMap.keyset()){
-                fieldOverride fOrd = new fieldOverride();
-                fOrd.fieldName = fieldName;
-                if(objFieldMap.containsKey(fieldName)){
-                    fOrd.fieldType = objFieldMap.get(fieldName).getDescribe().getSOAPType().name();
+            List<fieldOverride> orList = (List<fieldOverride>) JSON.deserialize(mergeCandidate.Override__c, List<fieldOverride>.class);
+            for(fieldOverride fOrd:orList){
+                if(objFieldMap.containsKey(fOrd.fieldName)){
+                    fOrd.fieldType = objFieldMap.get(fOrd.fieldName).getDescribe().getSOAPType().name();
                 }
-                fOrd.fieldValue = overrideMap.get(fieldName);
                 fOrd.keepId = this.keepRecord.Id;
                 overrides.add(fOrd);
             }
@@ -106,7 +103,7 @@ public with sharing class MRG_MergeCandidate {
 
     public class fieldOverride {
         @auraEnabled public String fieldName {get;set;}
-        @auraEnabled public Object fieldValue {get;set;}
+        @auraEnabled public String fieldValue {get;set;}
         @auraEnabled public String fieldType {get;set;}
         @auraEnabled public Id keepId {get;set;}
     }

@@ -50,6 +50,15 @@ private class MRG_DuplicateMerge_TEST {
             AutoMerge__c = true
         );
         insert mc;
+
+		MRG_MergeCandidate.fieldOverride fldOr = new MRG_MergeCandidate.fieldOverride();
+		fldOr.fieldName = 'MailingPostalCode';
+		fldOr.fieldValue = '78754';
+		fldOr.fieldType = 'STRING';
+		fldOr.keepId = cons[0].Id;
+
+		mc.Override__c = JSON.serialize(new List<MRG_MergeCandidate.fieldOverride>{fldOr});
+		update mc;
 	}
     static testMethod void testCTLR() {
         Integer count = MRG_DuplicateMerge_CTRL.getCount('Contact','test');
