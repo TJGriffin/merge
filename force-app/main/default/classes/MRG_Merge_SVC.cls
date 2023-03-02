@@ -312,7 +312,8 @@ public with sharing class MRG_Merge_SVC {
 		String soqlQuery = MRG_Duplicate_SVC.getMergeSOQLQuery(objectType);
 		soqlQuery+=' WHERE Id in:allIds';
 		Map<Id, SObject> objMap = new Map<Id, SObject>(Database.query(soqlQuery));
-		mergeHistoryResult mergeResult = createMergeRecords(objMap, mergeKeyMap, objectType);
+		Map<Id, Map<String, Object>> manualOverrides = getManualOverridesByKeepId(records);
+		mergeHistoryResult mergeResult = createMergeRecords(objMap, mergeKeyMap, objectType, manualOverrides);
 		mergeResult.objectMap = objMap;
 		return mergeResult;
 	}
@@ -324,6 +325,53 @@ public with sharing class MRG_Merge_SVC {
 		Boolean disableTriggers = true;
 		processMergesFromBatch(records, objectType, disableTriggers);
 	}
+
+	/*******************************************************************************************************
+	* @description gets a map of field overrides by the Kept record Id from a list of Merge Candidates
+	* @param records the list of merge candidates
+	* @return Map<Id, Map<String, Object>> a map of field api name and value, keyed by the kept object id
+	*/
+	public static Map<Id, Map<String, Object>> getManualOverridesByKeepId(List<MergeCandidate__c> records){
+		map<Id, Map<String, Object>> manualOverridesByKeepId = new Map<Id, Map<String, Object>>();
+		for(MergeCandidate__c record:records){
+			if(String.isNotBlank(record.Override__c)){
+				Id keepId = record.KeepRecordId__c;
+				if(!manualOverridesByKeepId.containsKey(keepId))
+					manualOverridesByKeepId.put(keepId,new Map<String, Object>());
+
+				List<MRG_MergeCandidate.fieldOverride> overrides = (List<MRG_MergeCandidate.fieldOverride>) JSON.deserialize(record.Override__c, List<MRG_MergeCandidate.fieldOverride>.class);
+				for(MRG_MergeCandidate.fieldOVerride ovrride:overrides){
+					Object fieldVal;
+					String fieldName = ovrride.fieldName;
+					switch on ovrride.fieldType {
+						when 'BOOLEAN' {
+							fieldVal = Boolean.valueOf(ovrride.fieldValue);
+						}
+						when 'DATE' {
+							fieldVal = (Date) JSON.deserialize(ovrride.fieldValue, Date.class);
+						}	
+						when 'DATETIME' {
+							fieldVal = (Datetime) JSON.deserialize(ovrride.fieldValue, Datetime.class);
+						}
+						when 'DOUBLE' {
+							fieldVal = Double.valueOf(ovrride.fieldValue);
+						}
+						when 'INTEGER' {
+							fieldVal = Integer.valueOf(ovrride.fieldValue);
+						}
+						when else {
+							fieldVal = ovrride.fieldValue;
+						}
+					}
+					if(fieldVal != null)
+						manualOverridesByKeepId.get(keepId).put(fieldName,fieldVal);
+				}
+
+			}
+		}
+		return manualOverridesByKeepId;
+	}
+
 	/*******************************************************************************************************
 	* @description a list of fields to track in MergeFieldHistory__c
 	* @return List<MergeFieldSetting__mdt>
@@ -428,7 +476,7 @@ public with sharing class MRG_Merge_SVC {
 	* @param List<Contact> oldlist a list of records from trigger.old
 	* @return List<MergeFieldHistory__c> the resulting sync record import list
 	*/
-	public static mergeHistoryResult createMergeRecords(Map<Id, SObject> objMap, Map<Id, Set<Id>> mergeKeyMap, String objectType) {
+	public static mergeHistoryResult createMergeRecords(Map<Id, SObject> objMap, Map<Id, Set<Id>> mergeKeyMap, String objectType, Map<Id, Map<String, Object>> manualOverrides) {
 		List<mergeFieldWrap> trackMergeFields = new List<mergeFieldWrap>();
 		for(mergefieldWrap mergeField:getTrackMergeFields()) {
 			if(mergeField.objectName.equalsIgnorecase(objectType))
@@ -444,6 +492,7 @@ public with sharing class MRG_Merge_SVC {
 		Map<Id,SObject> keptRecordMap = new Map<Id, SObject>();
 
 		for(Id keepId:mergeKeyMap.keyset()){
+			
 			if(objMap.containsKey(keepId))
 				keptRecordMap.put(keepId, objMap.get(keepId));
 			for(Id mergeId:mergeKeyMap.get(keepId)){
@@ -451,7 +500,7 @@ public with sharing class MRG_Merge_SVC {
 					mergedRecords.add(objMap.get(mergeId));
 			}
 		}
-		mergeHistoryResult mergeResult = getMergesFromDeletedRecords(mergedRecords,mergeKeyMap, keptRecordMap,trackMergeFields,preserveMergeFields, objectType);
+		mergeHistoryResult mergeResult = getMergesFromDeletedRecords(mergedRecords,mergeKeyMap, keptRecordMap,trackMergeFields,preserveMergeFields, objectType, manualOverrides);
 		return mergeResult;
 	}
 	/*******************************************************************************************************
@@ -559,14 +608,39 @@ public with sharing class MRG_Merge_SVC {
 		}
 		return masterChildFields;
 	}
-
 	/*******************************************************************************************************
-	* @description returns a list of Merge records for saving
-	* @param List<SObject> deleted contacts
-	* @param Map<Id,SObject> kept contacts
+	* @description process the merge and create the history result
+	* @param mergedRecords the records that are to be
+	* @param mergeKeyMap a map of merge rcords keyed by the kept record
+	* @param keptRecordMap the map of the kept record object
+	* @param trackMergeFields wrapper of the fields to track
+	* @param preserveMergeFields wrapper of the fields to preserve
+	* @param objectType the type of sobject
 	* @return mergeHistoryResult the resulting sync record import list
 	*/
 	public static mergeHistoryResult getMergesFromDeletedRecords(List<SObject> mergedRecords, Map<Id, Set<Id>> mergeKeyMap, Map<Id,Sobject> keptRecordMap, List<mergeFieldWrap> trackMergeFields, List<mergeFieldWrap> preserveMergeFields, String objectType) {
+		return getMergesFromDeletedRecords(
+			mergedRecords,
+			mergeKeyMap,
+			keptRecordMap,
+			trackMergeFields,
+			preserveMergeFields,
+			objectType,
+			new Map<Id, Map<String, Object>>()
+		);
+	}
+
+	/*******************************************************************************************************
+	* @description process the merge and create the history result
+	* @param mergedRecords the records that are to be
+	* @param mergeKeyMap a map of merge rcords keyed by the kept record
+	* @param keptRecordMap the map of the kept record object
+	* @param trackMergeFields wrapper of the fields to track
+	* @param preserveMergeFields wrapper of the fields to preserve
+	* @param objectType the type of sobject
+	* @return mergeHistoryResult the resulting sync record import list
+	*/
+	public static mergeHistoryResult getMergesFromDeletedRecords(List<SObject> mergedRecords, Map<Id, Set<Id>> mergeKeyMap, Map<Id,Sobject> keptRecordMap, List<mergeFieldWrap> trackMergeFields, List<mergeFieldWrap> preserveMergeFields, String objectType, Map<Id, Map<String, Object>> manualOverrides) {
 		Map<Id,Id> keepIdMap = getKeepIdMap(mergeKeyMap);
 		Map<String, mergeFieldWrap> trackfieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(trackMergeFields));
 		Map<String, mergeFieldWrap> preserveFieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(preserveMergeFields));
@@ -669,6 +743,13 @@ public with sharing class MRG_Merge_SVC {
 							}
 						}
 
+					}
+				}
+				if(manualOverrides.containsKey(keptRec.Id)){
+					hasChange = true;
+					for(String fieldName:manualOverrides.get(keptRec.Id).keyset()){
+						Object fieldVal = manualOverrides.get(keptRec.Id).get(fieldName);
+						keptRec.put(fieldName,fieldVal);
 					}
 				}
 				if(hasChange)

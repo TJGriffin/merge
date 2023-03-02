@@ -17,6 +17,7 @@ public with sharing class MRG_MergeCandidate_SVC {
             MergeRecordId__c,
             NotADuplicate__c,
             Object__c,
+            Override__c,
             Rule__c,
             Status__c
             FROM MergeCandidate__c
