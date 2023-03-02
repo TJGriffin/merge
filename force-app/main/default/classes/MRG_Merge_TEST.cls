@@ -163,8 +163,34 @@ public class MRG_Merge_TEST {
 		mergeFields.add(createTestMergeField('Contact','Birthdate','Preserve','Smallest'));
 		mergeFields.add(createTestMergeField('Account','Name','Track','Smallest'));
 		MRG_Merge_SVC.mergeFields = mergeFields;
-	}
 
+
+		LList<PreviewFields__mdt> previewFields = new List<PreviewFields__mdt>();
+		previewFields.add(createTestPrevieField('Contact','Email'));
+		MRG_Merge_SVC.previewFields = previewFields;
+	}
+	private static PreviewFields__mdt createTestPrevieField(String objectName, String fieldName){
+		PreviewFields__mdt previewField = new PreviewFields__mdt();
+		Map<String, Object> previewFieldFields = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(previewField));
+		previewFieldFields.put(PreviewFields__mdt.Label.getDescribe().getName(),'test'+fieldName);
+		previewFieldFields.put(PreviewFields__mdt.DeveloperName.getDescribe().getName(),'test'+fieldName);
+		previewFieldFields.put(PreviewFields__mdt.Disable__c.getDescribe().getName(),true);
+		previewFieldFields.put('Object__r',new Map<String, Object>{
+			'attributes' => new Map<String, Object>{
+				'type' => 'EntityDefinition'
+			},
+			'QualifiedAPIName'=>objectName
+		});
+		previewFieldFields.put('Field__r',new Map<String, Object>{
+			'attributes' => new Map<String, Object>{
+				'type' => 'EntityParticle'
+			},
+			'QualifiedAPIName'=>fieldName
+		});
+		previewField = (PreviewFields__mdt) JSON.deserialize(JSON.serialize(previewFieldFields),PreviewFields__mdt.class);
+		return previewField;
+
+	}
 	private static MergeFieldSetting__mdt createTestMergeField(String objectName, String fieldName, String type, String rule) {
 		MergeFieldSetting__mdt mergeField = new MergeFieldSetting__mdt();
 		Map<String, Object> mergeFieldFields = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(mergeField));
