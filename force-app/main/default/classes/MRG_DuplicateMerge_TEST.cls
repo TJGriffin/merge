@@ -86,4 +86,43 @@ private class MRG_DuplicateMerge_TEST {
 
         test.stopTest();
     }
+
+	static testMethod void testMergeCandidate(){
+		MRG_MergeCandidate mergeCandidate1 = new MRG_MergeCandidate();
+		MRG_Merge_TEST.createMergeFields();
+		MergeCandidate__c can = [SELECT Id FROM MergeCandidate__c LIMIT 1];
+		test.startTest();
+		MRG_MergeCandidate mergeCandidate = MRG_MergeCandidate_SVC.getMergeCandidate(can.Id);
+		test.stopTest();
+
+	}
+	static testMethod void testMergeCandidate2(){
+		MRG_Merge_TEST.createMergeFields();
+        MergeCandidate__c can = [
+            SELECT Id,
+            AutoMerge__c,
+            Data__c,
+            KeepName__c,
+            KeepRecordId__c,
+            Merge2Name__c,
+            Merge2RecordId__c,
+            MergeName__c,
+            MergeRecordId__c,
+            NotADuplicate__c,
+            Object__c,
+            Override__c,
+            Rule__c,
+            Status__c
+            FROM MergeCandidate__c
+            LIMIT 1
+        ];
+		can.Status__c = 'Processed';
+		MRG_Merge_SVC.MergeHistoryResult mrgResult = MRG_Merge_SVC.getMergeHistoryResult(new List<MergeCandidate__c>{can},'Contact');
+		can.Data__c = JSON.serialize(mrgResult);
+		update can;
+		test.startTest();
+		MRG_MergeCandidate mergeCandidate = MRG_MergeCandidate_SVC.getMergeCandidate(can.Id);
+		test.stopTest();
+
+	}
 }

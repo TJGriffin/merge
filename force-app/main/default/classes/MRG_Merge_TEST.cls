@@ -165,7 +165,7 @@ public class MRG_Merge_TEST {
 		MRG_Merge_SVC.mergeFields = mergeFields;
 
 
-		LList<PreviewFields__mdt> previewFields = new List<PreviewFields__mdt>();
+		List<PreviewFields__mdt> previewFields = new List<PreviewFields__mdt>();
 		previewFields.add(createTestPrevieField('Contact','Email'));
 		MRG_Merge_SVC.previewFields = previewFields;
 	}

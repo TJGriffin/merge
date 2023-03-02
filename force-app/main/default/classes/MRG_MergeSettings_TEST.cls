@@ -18,4 +18,13 @@ private class MRG_MergeSettings_TEST {
         test.stopTest();
 
     }
+    static testMethod void testController2() {
+        MRG_Merge_TEST.createMergeFields();
+        test.startTest();
+        List<MRG_MergeSettings_CTRL.previewField> previewFields = MRG_MergeSettings_CTRL.getAllPreviewFields('Contact');
+        
+        String jobId = MRG_MergeSettings_CTRL.savePreviewFieldsSettings(JSON.serialize(previewFields));
+        test.stopTest();
+
+    }
 }
