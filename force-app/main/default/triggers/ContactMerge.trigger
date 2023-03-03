@@ -10,12 +10,12 @@ trigger ContactMerge on Contact (after delete) {
 	if(MRG_Duplicate_SVC.getTriggerDisabled())
 		return;
 	if(trigger.isAfter) {
+		List<SObject> mergeRecords = new List<SOBJECT>((List<SObject>) JSON.deserialize(JSON.serialize(trigger.old),List<SObject>.class));
+		String deletedContactJSON = JSON.serialize(Trigger.old);
 		if(System.isBatch() 
 			|| System.isQueueable()) {
-				List<SObject> mergeRecords = new List<SOBJECT>((List<SObject>) JSON.deserialize(JSON.serialize(trigger.old),List<SObject>.class));
 				MRG_Merge_SVC.createMergeRecords((List<SObject>)mergeRecords,'Contact');
 		} else {
-			String deletedContactJSON = JSON.serialize(Trigger.old);
 			system.enqueueJob(new MRG_Merge_QUEUE(deletedContactJSON,'Contact'));
 		}
 	}

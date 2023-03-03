@@ -151,6 +151,19 @@ public class MRG_Merge_TEST {
 		test.stopTest();
 
 	}
+	static testMethod void testTriggers(){
+		MergeControlSettings__c settings = MRG_Merge_SVC.getSettings();
+		settings.DisableAccountTrigger__c = true;
+		settings.DisableContactTrigger__c = true;
+		upsert settings;
+
+		test.startTest();
+		List<Account> acc = [SELECT Id FROM Account LIMIT 1];
+		List<Contact> con = [SELECT Id FROM Contact LIMIT 1];
+		delete acc;
+		delete con;
+		test.stopTest();
+	}
 	@testvisible private static void createMergeFields() {
 
 
@@ -214,5 +227,7 @@ public class MRG_Merge_TEST {
 		return mergeField;
 
 	}
+
+	
 	
 }
