@@ -141,8 +141,7 @@ export default class previewFields extends LightningElement {
 
     handleSave() {
         this.hasChanged=false;
-        console.log('handle save');
-        console.log(JSON.stringify(this.rows));
+
         savePreviewFields({
             jsonData:JSON.stringify(this.rows)
         })

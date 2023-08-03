@@ -190,7 +190,8 @@ public with sharing class MRG_Merge_SVC {
 		
 		PreviewFields__mdt pField = new PreviewFields__mdt (
 			Label = previewField.label,
-			Disable__c = previewField.hidden
+			Disable__c = previewField.hidden,
+			ReadOnly__c = previewField.readOnly
 		);
 		pField.Label = String.isBlank(pField.Label) ? previewField.name : pField.Label;
 		if(String.isNotBlank(previewField.id))
@@ -876,11 +877,13 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public String label;
 		@auraEnabled public String name;
 		@auraEnabled public String type;
+		@auraEnabled public Boolean readOnly;
 
 		public objectField(Schema.sObjectField field){
 			this.label = field.getDescribe().getLabel();
 			this.name = field.getDescribe().getName();
 			this.type = field.getDescribe().getType().name();
+			this.readOnly = !field.getDescribe().isUpdateable();
 		}
 
 

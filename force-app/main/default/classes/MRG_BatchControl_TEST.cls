@@ -50,7 +50,7 @@ private class MRG_BatchControl_TEST {
     @isTest
     static void testCTRLRunMerge() {
         test.startTest();
-        MRG_BatchControl_CTRL.autoMerge();
+        MRG_BatchControl_CTRL.runAutoMerge();
         test.stopTest();
     }
 

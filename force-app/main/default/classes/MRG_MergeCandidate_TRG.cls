@@ -29,5 +29,21 @@ public with sharing class MRG_MergeCandidate_TRG {
                 }
             }
         }
+        if(isInsert){
+            if(isBefore){
+                for(SObject obj:newRecords){
+                    String keepId = (String) obj.get('KeepRecordId__c');
+
+                    if(String.isNotBlank(keepId)){
+                        if(keepId.left(3) == '001'){
+                            obj.put('KeepAccount__c',keepId);
+                        }
+                        if(keepId.left(3) == '003'){
+                            obj.put('KeepContact__c',keepId);
+                        }
+                    }
+                }
+            }
+        }
     }
 }

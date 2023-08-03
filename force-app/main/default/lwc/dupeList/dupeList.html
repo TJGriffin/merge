@@ -22,6 +22,12 @@
                         onchange={handleRuleFilterChange} ></lightning-combobox>
                     </lightning-layout-item>
                 </template>
+                <lightning-layout-item size="4">
+
+                </lightning-layout-item>
+                <lightning-layout-item size="4">
+                    <c-dupe-list-controls></c-dupe-list-controls>
+                </lightning-layout-item>
             </lightning-layout>
         </div>
         <template if:true={showSpinner}>

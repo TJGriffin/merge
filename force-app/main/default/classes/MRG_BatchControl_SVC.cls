@@ -9,7 +9,7 @@ public with sharing class MRG_BatchControl_SVC {
 	/***
 	* @description cron frequencies
 	*/	
-    public Map<String, String> jobScheduleFrequencies {
+    public static Map<String, String> jobScheduleFrequencies {
         get {
             return new Map<String, String>{
                 'hourly' => '0 0 * * * ?',
@@ -53,18 +53,18 @@ public with sharing class MRG_BatchControl_SVC {
 	* @description gets the list of jobs currently scheduled
 	* @return List<dupeRule>
 	*/	
-    public List<scheduledJob> getScheduledJobs() {
+    public static List<scheduledJob> getScheduledJobs() {
         Map<String, scheduledJob> scheduledJobsByName = new Map<String, scheduledJob>();
         Set<String> scheduledJobNames = new Set<String>{duplicateScanJobName,duplicateMergeJobName};
 
         for(CronTrigger ct:
             [SELECT 
                 Id,
-                CronDetail.Name,
+                CronJobDetail.Name,
                 NextFireTime
                 FROM
                 CronTrigger
-                WHERE CronDetail.Name IN:scheduledJobNames]){
+                WHERE CronJobDetail.Name IN:scheduledJobNames]){
                     scheduledJob sj = new scheduledJob(ct);
                     scheduledJobsByName.put(sj.jobName,sj);
         }
@@ -103,7 +103,7 @@ public with sharing class MRG_BatchControl_SVC {
 
 		public scheduledJob(CronTrigger ct){
 			this.jobId = ct.Id;
-			this.jobName = ct.CronDetail.Name;
+			this.jobName = ct.CronJobDetail.Name;
 			this.nextRunTime = ct.NextFireTime;
 			this.isActive = true;
 		}

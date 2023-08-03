@@ -16,7 +16,8 @@ public with sharing class MRG_MergeSettings_CTRL {
 		soql+=' Object__r.QualifiedAPIName,';
 		soql+=' Field__c,';
 		soql+=' Field__r.QualifiedAPIName,';
-		soql+=' Disable__c';
+		soql+=' Disable__c,';
+		soql+=' ReadOnly__c';
 		soql+=' FROM PreviewFields__mdt';
 		return soql;
 	}	
@@ -209,7 +210,6 @@ public with sharing class MRG_MergeSettings_CTRL {
 		SObjectType objType = Schema.getGlobalDescribe().get(objectType);
 		for(SObjectfield objField : objType.getDescribe().fields.getMap().values()) {
 			if(objField.getDescribe().isAccessible() 
-			&& objField.getDescribe().isUpdateable()
 			&& !ignoreFields.contains(objField.getDescribe().getName().toLowerCase())) {
 				fields.add(new MRG_Merge_SVC.objectField(objField));
 			}
@@ -249,6 +249,7 @@ public with sharing class MRG_MergeSettings_CTRL {
 		@AuraEnabled public String objectName;
 		@AuraEnabled public String fieldName;
 		@AuraEnabled public Boolean hidden;
+		@AuraEnabled public Boolean readOnly;
 
 		public previewField(PreviewFields__mdt pField){
 			this.id = pField.Id;
@@ -257,6 +258,7 @@ public with sharing class MRG_MergeSettings_CTRL {
 			this.objectName = pField.Object__r.QualifiedAPIName;
 			this.fieldName = pField.Field__r.QualifiedAPIName;
 			this.hidden = pField.Disable__c;
+			this.readOnly = pField.ReadOnly__c;
 		}
 		public Integer compareTo(Object compareTo) {
 			previewField sortObj = (previewField) compareTo;

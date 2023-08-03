@@ -39,6 +39,8 @@ export default class mergePreview extends LightningElement {
             fields.sort();
         this.rows = fields;
     }
+    readonlyFields;
+
     ignoreFields;
     set previewFields(value){
         var ignoreFields = [];

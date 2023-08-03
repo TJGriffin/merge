@@ -36,6 +36,12 @@ public with sharing class MRG_BatchControl_CTRL {
 		} else {
 			System.schedule(jobName,cronString, new MRG_DuplicateMerge_BATCH());
 		}
+
+		MRG_BatchControl_SVC.scheduledJob schedJob = new MRG_BatchControl_SVC.scheduledJob();
+		schedJob.jobName = jobName;
+		schedJob.isActive = true;
+
+		return schedJob;
 	}
 
 
@@ -44,7 +50,7 @@ public with sharing class MRG_BatchControl_CTRL {
 	* @return List<dupeRule>
 	*/	
     @AuraEnabled(cacheable=true)
-    public List<MRG_BatchControl_SVC.scheduledJob> getScheduledJobs() {
+    public static List<MRG_BatchControl_SVC.scheduledJob> getScheduledJobs() {
         return MRG_BatchControl_SVC.getScheduledJobs();
 
     }

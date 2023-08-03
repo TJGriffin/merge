@@ -124,6 +124,16 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>MergeCandidate__c.KeepContact__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>MergeCandidate__c.KeepAccount__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>MergeCandidate__c.Override__c</field>
         <readable>true</readable>
     </fieldPermissions>

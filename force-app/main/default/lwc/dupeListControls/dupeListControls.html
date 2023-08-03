@@ -1,15 +1,12 @@
 <template>
     <lightning-layout>
-        <lightning-layout-item size="6">
+        <lightning-layout-item size="12">
             <lightning-button-group>
-                <lightning-button label="Scan For Duplicates" variant="brand" onclick={handleScanClick}></lightning-button>
-                <lightning-button label="Merge Auto Merge Records" variant="success" onclick={handleMergeClick} disabled={autoMergeDisabld}></lightning-button>
+                <lightning-button label="Run Scan" variant="brand" onclick={handleScanClick}></lightning-button>
+                <lightning-button label="Run Auto Merge" variant="success" onclick={handleMergeClick} disabled={autoMergeDisabld}></lightning-button>
                 <!--<lightning-button label="Merge Selected Records" variant="success" onclick={handleSelectedMergeClick} disabled={selectedMergeDisabled}></lightning-button>
                 <lightning-button label="Scheduled Merge Jobs" variant="success" onclick={handleScheduleClick} disabled={scheduleDisabled}></lightning-button>-->
             </lightning-button-group>
-        </lightning-layout-item>
-        <lightning-layout-item size="6">
-            
         </lightning-layout-item>
     </lightning-layout>
 </template>
