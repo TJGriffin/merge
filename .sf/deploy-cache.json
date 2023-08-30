@@ -1,64 +1,16 @@
 {
-  "0Af4N00001NZNQvSAP": {
-    "target-org": "tj+tac@tjgriffin.com",
+  "0Af8W00001PtRlTSAV": {
+    "target-org": "tj+girltrek@tjgriffin.com",
     "test-level": "RunSpecifiedTests",
     "tests": [
-      "MRG_DupeSettings_TEST,MRG_Duplicate_TEST,MRG_DuplicateMerge_TEST,MRG_DuplicateScan_TEST,MRG_Merge_TEST,MRG_MergeSettings_TEST,MRG_Metadata_TEST,MRG_Preview_TEST,MRG_TriggerHandler_TEST"
+      "MRG_BatchControl_TEST,MRG_Duplicate_TEST,MRG_DuplicateMerge_TEST,MRG_DuplicateScan_TEST,MRG_Merge_TEST,MRG_MergeSettings_TEST,MRG_Metadata_TEST,MRG_Preview_TEST,MRG_TriggerHandler_TEST"
     ],
-    "dry-run": false,
-    "ignore-conflicts": false,
-    "ignore-errors": false,
-    "ignore-warnings": false,
+    "ignore-conflicts": true,
+    "dry-run": true,
     "api": "SOAP",
-    "manifest": "C:\\Users\\tj\\.sf\\manifestCache\\0Af4N00001NZNQvSAP.xml",
+    "manifest": "C:\\Users\\tj\\.sf\\manifestCache\\0Af8W00001PtRlTSAV.xml",
     "wait": 33,
     "isMdapi": false,
-    "timestamp": "2023-05-22T16:10:10.862Z",
-    "status": "Failed"
-  },
-  "0Af4N00001NZNShSAP": {
-    "target-org": "tj+tac@tjgriffin.com",
-    "test-level": "RunSpecifiedTests",
-    "tests": [
-      "MRG_DupeSettings_TEST,MRG_Duplicate_TEST,MRG_DuplicateMerge_TEST,MRG_DuplicateScan_TEST,MRG_Merge_TEST,MRG_MergeSettings_TEST,MRG_Metadata_TEST,MRG_Preview_TEST,MRG_TriggerHandler_TEST"
-    ],
-    "dry-run": false,
-    "ignore-conflicts": false,
-    "ignore-errors": false,
-    "ignore-warnings": false,
-    "api": "SOAP",
-    "manifest": "C:\\Users\\tj\\.sf\\manifestCache\\0Af4N00001NZNShSAP.xml",
-    "wait": 33,
-    "isMdapi": false,
-    "timestamp": "2023-05-22T16:13:26.959Z",
-    "status": "Failed"
-  },
-  "0Af4N00001NZNUTSA5": {
-    "target-org": "tj+tac@tjgriffin.com",
-    "test-level": "RunAllTestsInOrg",
-    "dry-run": false,
-    "ignore-conflicts": false,
-    "ignore-errors": false,
-    "ignore-warnings": false,
-    "api": "SOAP",
-    "manifest": "C:\\Users\\tj\\.sf\\manifestCache\\0Af4N00001NZNUTSA5.xml",
-    "wait": 33,
-    "isMdapi": false,
-    "timestamp": "2023-05-22T16:17:14.530Z",
-    "status": "Canceled"
-  },
-  "0Af4N00001NZNWFSA5": {
-    "target-org": "tj+tac@tjgriffin.com",
-    "test-level": "RunLocalTests",
-    "dry-run": false,
-    "ignore-conflicts": false,
-    "ignore-errors": false,
-    "ignore-warnings": false,
-    "api": "SOAP",
-    "manifest": "C:\\Users\\tj\\.sf\\manifestCache\\0Af4N00001NZNWFSA5.xml",
-    "wait": 33,
-    "isMdapi": false,
-    "timestamp": "2023-05-22T16:20:34.712Z",
-    "status": "Succeeded"
+    "timestamp": "2023-08-24T17:54:51.991Z"
   }
 }
