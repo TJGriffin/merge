@@ -10,6 +10,11 @@ public with sharing class MRG_DuplicateScan_BATCH implements Database.Batchable<
 	* @description set of objects to scan
 	*/  
     @testvisible private Set<String> objects;
+	
+	/*******************************************************************************************************
+	* @description set of objects to scan
+	*/  
+    @testvisible private Set<Id> candidateIds;
 
 	/*******************************************************************************************************
 	* @description set of objects to scan
@@ -36,6 +41,7 @@ public with sharing class MRG_DuplicateScan_BATCH implements Database.Batchable<
 	* @return Querylocator the scope of the batch
 	*/  	 
 	public Database.QueryLocator start(Database.BatchableContext BC) {
+		this.candidateIds = new Set<Id>();
         List<String> objectList = new List<String>();
         objectList.addAll(objects);
         objectType = objectList[0];
@@ -50,9 +56,18 @@ public with sharing class MRG_DuplicateScan_BATCH implements Database.Batchable<
 	*/ 
 	public void execute(Database.BatchableContext BC, List<sObject> scope) {
         Map<Id, SObject> recordMap = new Map<Id, SObject>(scope);
+		// if the record is already in a merge group, then remove it before processing.
+		for(Id recordId:recordMap.keyset()){
+			if(candidateIds.contains(recordId)){
+				recordMap.remove(recordId);
+			}
+		}
         List<MergeCandidate__c> mergeCandidates = MRG_Duplicate_SVC.processRecords(recordMap,objectType);
-        if(mergeCandidates.size()>0)
+		if(mergeCandidates.size()>0){
+			// add the ids of all records in the merge group to the set of candidateids
+			candidateIds.addAll(MRG_Duplicate_SVC.getCandidateIds(mergeCandidates));
             upsert mergeCandidates KeepRecordId__c;
+		}
     }
 	 /*******************************************************************************************************
 	* @description batch finish method, writes out logs and kicks off next process in the chain

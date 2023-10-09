@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Rule_Type__c</fullName>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>Rule Type</label>
+    <required>false</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Is Empty</fullName>
+                <default>true</default>
+                <label>Is Empty</label>
+            </value>
+            <value>
+                <fullName>Is Not Empty</fullName>
+                <default>false</default>
+                <label>Is Not Empty</label>
+            </value>
+            <value>
+                <fullName>Oldest</fullName>
+                <default>false</default>
+                <label>Oldest</label>
+            </value>
+            <value>
+                <fullName>Newest</fullName>
+                <default>false</default>
+                <label>Newest</label>
+            </value>
+            <value>
+                <fullName>Largest</fullName>
+                <default>false</default>
+                <label>Largest</label>
+            </value>
+            <value>
+                <fullName>Smallest</fullName>
+                <default>false</default>
+                <label>Smallest</label>
+            </value>
+            <value>
+                <fullName>Contains</fullName>
+                <default>false</default>
+                <label>Contains</label>
+            </value>
+            <value>
+                <fullName>Greater Than</fullName>
+                <default>false</default>
+                <label>Greater Than</label>
+            </value>
+            <value>
+                <fullName>Less Than</fullName>
+                <default>false</default>
+                <label>Less Than</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

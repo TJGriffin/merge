@@ -162,6 +162,23 @@ public with sharing class MRG_Duplicate_SVC {
 
         return String.join(fields,',');
     }
+	/*******************************************************************************************************
+	* @description processes duplicate rules for records
+    * @param mergeCandidates
+	* @return Set<Id> candidateIds to return
+	*/ 
+    public static Set<Id> getCandidateIds(List<MergeCandidate__c> candidates){
+        Set<Id> candidateIds = new Set<Id>();
+        for(MergeCandidate__c candidate:candidates){
+            candidateIds.add(candidate.KeepRecordId__c);
+            candidateIds.add(candidate.MergeRecordId__c);
+            if(candidate.Merge2RecordId__c != null){
+                candidateIds.add(candidate.Merge2RecordId__c);
+            }
+        }
+
+        return candidateIds;
+    }
 
 	/*******************************************************************************************************
 	* @description processes duplicate rules for records
@@ -472,6 +489,7 @@ public with sharing class MRG_Duplicate_SVC {
         dupeSetting = (DuplicateRuleSettings__mdt) JSON.deserialize(JSON.serialize(dupeSettingJSON),DuplicateRuleSettings__mdt.class);
         return dupeSetting;
     }
+
 	/*******************************************************************************************************
 	* @description duplicate rule
 	*/ 
