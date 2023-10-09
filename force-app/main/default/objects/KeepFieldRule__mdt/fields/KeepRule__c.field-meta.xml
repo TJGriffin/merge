@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
-    <fullName>Master_Rule_Setting__c</fullName>
+    <fullName>KeepRule__c</fullName>
     <externalId>false</externalId>
     <fieldManageability>SubscriberControlled</fieldManageability>
-    <label>Master Rule Setting</label>
+    <label>Keep Rule</label>
     <referenceTo>KeepRuleSetting__mdt</referenceTo>
     <relationshipLabel>Keep Field Rules</relationshipLabel>
     <relationshipName>Keep_Field_Rules</relationshipName>

@@ -11,9 +11,9 @@
         <valueSetDefinition>
             <sorted>false</sorted>
             <value>
-                <fullName>Master</fullName>
+                <fullName>Keep</fullName>
                 <default>true</default>
-                <label>Master Record</label>
+                <label>Keep Record</label>
             </value>
             <value>
                 <fullName>Prevent</fullName>
@@ -23,7 +23,7 @@
             <value>
                 <fullName>Both</fullName>
                 <default>false</default>
-                <label>Master Record and Prevent Auto Merge</label>
+                <label>Keep Record and Prevent Auto Merge</label>
             </value>
         </valueSetDefinition>
     </valueSet>

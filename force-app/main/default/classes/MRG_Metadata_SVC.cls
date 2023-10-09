@@ -89,7 +89,7 @@ public with sharing class MRG_Metadata_SVC {
 		fieldKeyValues.put('Field__c', previewField.Field__r.QualifiedAPIName);
 		fieldKeyValues.put('Object__c',previewField.Object__r.QualifiedAPIName);
 	 	fieldKeyValues.put('Disable__c', previewField.Disable__c);
-		String qualifiedName = !previewField.QualifiedAPIName.contains('.') ? 'PreviewFields__mdt.'+previewField.QualifiedAPIName : previewField.QualifiedAPIName;	   	
+		String qualifiedName = getQualifiedAPIName(previewField.QualifiedAPIName,'PreviewFields__mdt');
 		mdRecordNames.add(qualifiedName);
 		
 		// get existing metadata records based on qualified name
@@ -100,7 +100,7 @@ public with sharing class MRG_Metadata_SVC {
 		} else {
 			mdRecord.fullName = qualifiedName;
 		}
-		mdRecord.Label = previewField.Label;
+		mdRecord.Label = shortenLabel(previewField.Label);
 		// add new field values to record
 
 		mdRecord= updateMetadataObjectFields(mdRecord, fieldKeyValues);	
@@ -122,7 +122,7 @@ public with sharing class MRG_Metadata_SVC {
 		fieldKeyValues.put('RuleName__c', dupeRuleSetting.RuleName__c);
 		fieldKeyValues.put('Object__c',dupeRuleSetting.Object__r.QualifiedAPIName);
 	 	fieldKeyValues.put('AutoMerge__c', dupeRuleSetting.AutoMerge__c);
-		String qualifiedName = !dupeRuleSetting.QualifiedAPIName.contains('.') ? 'DuplicateRuleSettings__mdt.'+dupeRuleSetting.QualifiedAPIName : dupeRuleSetting.QualifiedAPIName;	   	
+		String qualifiedName = getQualifiedAPIName(dupeRuleSetting.QualifiedAPIName,'DuplicateRuleSettings__mdt');
 		mdRecordNames.add(qualifiedName);
 		
 		// get existing metadata records based on qualified name
@@ -133,7 +133,7 @@ public with sharing class MRG_Metadata_SVC {
 		} else {
 			mdRecord.fullName = qualifiedName;
 		}
-		mdRecord.Label = dupeRuleSetting.Label;
+		mdRecord.Label = shortenLabel(dupeRuleSetting.Label);
 		// add new field values to record
 
 		mdRecord= updateMetadataObjectFields(mdRecord, fieldKeyValues);	
@@ -159,7 +159,7 @@ public with sharing class MRG_Metadata_SVC {
 		fieldKeyValues.put('Object__c',mergeField.Object__r.QualifiedAPIName);
 	 	fieldKeyValues.put('PreservationRule__c', mergeField.PreservationRule__c);
 		fieldKeyValues.put('Type__c',mergeField.Type__c);
-		String qualifiedName = !mergeField.QualifiedAPIName.contains('.') ? 'MergeFieldSetting__mdt.'+mergeField.QualifiedAPIName : mergeField.QualifiedAPIName;	   	
+		String qualifiedName = getQualifiedAPIName(mergeField.QualifiedAPIName,'MergeFieldSetting__mdt'); 
 		mdRecordNames.add(qualifiedName);
 		
 		// get existing metadata records based on qualified name
@@ -171,12 +171,95 @@ public with sharing class MRG_Metadata_SVC {
 			
 			mdRecord.fullName =qualifiedName;
 		}
-
-		mdRecord.Label = mergeField.Field__r.QualifiedAPIName;
+		String label = mergeField.Field__r.QualifiedAPIName;
+		label = shortenLabel(label);
+		mdRecord.Label = label;
 		// add new field values to record
 
 		mdRecord= updateMetadataObjectFields(mdRecord, fieldKeyValues);	
 		
 		return mdRecord;
 	}
+	/*******************************************************************************************************
+	* @description saves an integration process via metadata deployment
+	* @param integrationProcessToSave the integration process we're saving
+	* @return the Job Id of the deployment job
+	*/ 		
+	public Metadata.CustomMetadata getMetaDataRecord(KeepRuleSetting__mdt keepRule) {
+				// create metadata container
+		Metadata.CustomMetadata mdRecord = new Metadata.CustomMetadata();
+		List<String> mdRecordNames = new List<String>();
+		// map for setting values in meta data record
+		Map<String, Object> fieldKeyValues = new Map<String, Object>();
+		// populate fieldkeyvalue map with the current record's values
+		fieldKeyValues.put('Object__c',keepRule.Object__r.QualifiedAPIName);
+		fieldKeyValues.put('Type__c',keepRule.Type__c);
+		String qualifiedName = getQualifiedAPIName(keepRule.QualifiedAPIName,'KeepRuleSetting__mdt');
+		mdRecordNames.add(qualifiedName);
+		
+		// get existing metadata records based on qualified name
+		List<Metadata.Metadata> metadataRecords = getMetadataRecords(mdRecordNames);
+		if(metadataRecords.size()>0) {
+			// this is an existing record
+			mdRecord = (Metadata.CustomMetadata) metadataRecords.get(0).clone();
+		} else {
+			
+			mdRecord.fullName =qualifiedName;
+		}
+		String label = keepRule.Type__c == 'Both' ? keepRule.Object__r.QualifiedAPIName + ' Primary Rule' : keepRule.Object__r.QualifiedAPIName + ' ' + keepRule.Type__c;
+		label = shortenLabel(label);
+
+		mdRecord.Label = label;
+		// add new field values to record
+
+		mdRecord= updateMetadataObjectFields(mdRecord, fieldKeyValues);	
+		
+		return mdRecord;
+	
+	}
+	/*******************************************************************************************************
+	* @description utility for shortening md labal
+	* @param label the 
+	* @return String
+	*/ 
+	private static String getQualifiedAPIName(String qualifiedAPIName, String objectName){
+		if(!qualifiedAPIName.contains('.')){
+			qualifiedAPIName = objectName + '.' + shortenApiName(qualifiedAPIName);
+		}
+		return qualifiedAPIName;
+	}
+
+	/*******************************************************************************************************
+	* @description utility for shortening md labal
+	* @param label the 
+	* @return String
+	*/ 
+	private static String shortenLabel(String label){
+		return shorten(label,'label');
+	}
+
+	/*******************************************************************************************************
+	* @description utility for shortening md labal
+	* @param label the 
+	* @return String
+	*/ 
+	private static String shortenApiName(String qualifiedAPIName){
+		return shorten(qualifiedAPIName,'apiname');
+	}
+	/*******************************************************************************************************
+	* @description utility for shortening strings
+	* @param label the 
+	* @param type
+	* @return String
+	*/ 
+	private static String shorten(String value, String type){
+		value = String.isNotBlank(value) ? value.trim() : value;
+		Integer stringSize = type == 'label' ? 80 : 40;
+		String delimiter = type == 'label' ? '*' : '_';
+		if(String.isNotBlank(value) && value.length()  >stringSize){
+			value = value.left((stringSize/2)-1) + delimiter + value.right((stringSize/2));
+		}
+		return value;
+	}
+
 }
