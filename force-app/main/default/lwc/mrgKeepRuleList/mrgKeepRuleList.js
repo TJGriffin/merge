@@ -28,7 +28,30 @@ export default class mrgKeepRuleList extends LightningElement {
             this.handleError();
         });
     }
+    handleSubscribe(){
+        // Callback invoked whenever a new event message is received
+        const messageCallback = function(response) {
+            console.log('New message received: ', JSON.stringify(response));
+            if(response.hasOwnProperty('data')
+                && response.data.hasOwnProperty('payload')
+                && response.data.payload.hasOwnProperty('IsSuccess__c')) {
+                    console.log('has success property');
+                    if(response.data.payload.IsSuccess__c == true) {
+                        console.log('is success');
+                        this.handleSuccess();
+                }
+            }
+            
 
+        };
+
+        // Invoke subscribe method of empApi. Pass reference to messageCallback
+        subscribe(this.channelName, -1, messageCallback.bind(this)).then(response => {
+            // Response contains the subscription information on subscribe call
+            console.log('Subscription request sent to: ', JSON.stringify(response.channel));
+            this.subscription = response;
+        });
+    }
     handleSuccess() {
         console.log('handleSuccess called');
         this.notificationTitle = 'Record Saved';
