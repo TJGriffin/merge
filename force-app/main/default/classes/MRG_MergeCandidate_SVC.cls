@@ -69,4 +69,96 @@ public with sharing class MRG_MergeCandidate_SVC {
 
         return new MRG_MergeCandidate(candidate,keepRecord,mergeRecords,mergeResult,fieldDifferences);
     }
+    /*******************************************************************************************************
+    * @description gets a soql query for the batch job
+    * @return String
+    */ 
+    public static String getBatchSoql(){
+        String soql = 'SELECT Id'
+        +', KeepRecordId__c'
+        +', MergeRecordId__c'
+        +', Merge2RecordId__c'
+        +', Object__c'
+        +', Status__c'
+        +' FROM MergeCandidate__c'
+        +' WHERE Status__c !=\'Processed\'';
+
+        return soql;
+    }
+
+    /*******************************************************************************************************
+    * @description processes the records from the batch job
+    * @param mergeCandidates a list of merge candidates
+    */ 
+    public static void processMergeCandidatesFromBatch(List<MergeCandidate__c> mergeCandidates){
+        Map<Id, List<SObject>> recordMap = getObjectsFromMergeCandidates(mergeCandidates);
+        List<MergeCandidate__c> updateRecords = new List<MergeCandidate__c>();
+        for(MergeCandidate__c mc:mergeCandidates){
+            if(mc.Status__c == 'Processed'){
+                continue;
+            }
+            List<SObject> records = !recordMap.containsKey(mc.Id) ? new List<SObject>() : recordMap.get(mc.Id);
+            if(records.size() <= 1){
+                String keepRecordId = records[0].Id;
+                mc.Status__c = 'Processed';
+                if(mc.KeepRecordId__c != keepRecordId){
+                    mc.MergeRecordId__c = mc.KeepRecordId__c;
+                    mc.KeepRecordId__c = keepRecordId;
+                }
+                updateRecords.add(mc);
+            }
+        }
+
+        database.update(updateRecords);
+    }
+
+    /*******************************************************************************************************
+    * @description queries the database for records associated with the merge candidate
+    * @param mergeCandidates
+    * @return MRG_MergeCandidate the mergecandidate record
+    */ 
+    public static Map<Id, List<SObject>> getObjectsFromMergeCandidates(List<MergeCandidate__c> mergeCandidates){
+        Map<Id, List<SObject>> recordMap = new Map<Id, List<SObject>>();
+
+        Map<String, List<Id>> idsByObjectType = new Map<String, List<Id>>();
+
+        for(MergeCandidate__c mc:mergeCandidates){
+            String objectType = mc.Object__c;
+            Set<Id> ids = MRG_Duplicate_SVC.getAllIds(MRG_Duplicate_SVC.getMergeKeyMap(mc));
+
+            for(Id id:ids){
+                if(!idsByObjectType.containsKey(objectType)){
+                    idsByObjectType.put(objectType, new List<Id>());
+                }
+                idsByObjectType.get(objectType).add(id);
+            }
+        }
+
+        List<SObject> records = new List<SObject>();
+
+        for(String objectType:idsByObjectType.keySet()){
+            List<Id> ids = idsByObjectType.get(objectType);
+            String soqlQuery = 'SELECT Id FROM ' + objectType + ' WHERE Id IN :ids';
+            records.addAll(Database.query(soqlQuery));
+        }
+
+        Map<Id, SObject> mergeRecordMap = new Map<Id, SObject>(records);
+
+        for(MergeCandidate__c mc:mergeCandidates){
+            Id mcId = mc.Id;
+            recordMap.put(mcId, new List<SObject>());
+            Set<Id> ids = MRG_Duplicate_SVC.getAllIds(MRG_Duplicate_SVC.getMergeKeyMap(mc));
+
+            for(Id recordId:ids){
+                if(mergeRecordMap.containsKey(recordId)){
+                    SObject record = mergeRecordMap.get(recordId);
+                    recordMap.get(mcId).add(record);
+                }
+            }
+        }
+        return recordMap;
+    }
+
+
+
 }
