@@ -174,7 +174,7 @@ public with sharing class MRG_Duplicate_SVC {
         List<dupeRule> duplicateRules = getActiveDuplicateRules(objectType);
         List<Id> recordIds = new List<Id>();
         recordIds.addAll(recordMap.keyset());
-        List<Datacloud.DuplicateResult> duplicateResults = getDuplicateResults(recordIds, objectType);
+        List<Datacloud.FindDuplicatesResult> duplicateResults = getDuplicateResults(recordIds, objectType);
         if(duplicateResults.size()>0)
             mergeCandidates.addAll(getMergeCandidates(recordMap,duplicateResults,duplicateRules));
         for(MergeCandidate__c mergeCandidate:mergeCandidates){
@@ -191,13 +191,11 @@ public with sharing class MRG_Duplicate_SVC {
 	* @param List<Id> records
 	* @return List<Datacloud.DuplicateResult> duplicate results
 	*/ 
-	public static List<Datacloud.DuplicateResult> getDuplicateResults(List<SOBject> records, String objectType) {
-        List<Datacloud.DuplicateResult> duplicateResults = new List<Datacloud.DuplicateResult>();
+	public static List<Datacloud.FindDuplicatesResult> getDuplicateResults(List<SOBject> records, String objectType) {
+        List<Datacloud.FindDuplicatesResult> duplicateResults = new List<Datacloud.FindDuplicatesResult>();
 		if(duplicateRulesAreActive(records) && 
             (objectType=='Account' || objectType=='Lead' || objectType=='Contact')) {
-			For(Datacloud.FindDuplicatesResult findDupeResult:Datacloud.FindDuplicates.findDuplicates(records)) {
-                duplicateResults.addAll(findDupeResult.getDuplicateResults());
-			}
+			duplicateResults = Datacloud.FindDuplicates.findDuplicates(records);
 		}
 		return duplicateResults;
 	}
@@ -207,13 +205,11 @@ public with sharing class MRG_Duplicate_SVC {
 	* @param List<Id> records
 	* @return List<Datacloud.DuplicateResult> duplicate results
 	*/ 
-	public static List<Datacloud.DuplicateResult> getDuplicateResults(List<Id> recordIds, String objectType) {
-        List<Datacloud.DuplicateResult> duplicateResults = new List<Datacloud.DuplicateResult>();
+	public static List<Datacloud.FindDuplicatesResult> getDuplicateResults(List<Id> recordIds, String objectType) {
+        List<Datacloud.FindDuplicatesResult> duplicateResults = new List<Datacloud.FindDuplicatesResult>();
 		if(duplicateRulesAreActive(recordIds) && 
             (objectType=='Account' || objectType=='Lead' || objectType=='Contact')) {
-			For(Datacloud.FindDuplicatesResult findDupeResult:Datacloud.FindDuplicatesByIds.findDuplicatesByIds(recordIds)) {
-                duplicateResults.addAll(findDupeResult.getDuplicateResults());
-			}
+			duplicateResults = Datacloud.FindDuplicatesByIds.findDuplicatesByIds(recordIds);
 		}
 		return duplicateResults;
 	}
@@ -224,7 +220,7 @@ public with sharing class MRG_Duplicate_SVC {
     * @param dupeRules a list of duplicate rules
 	* @return List<MergeCandidate__c> a list of merge candidate records
 	*/ 
-    public static List<MergeCandidate__c> getMergeCandidates(Map<Id,SObject> recordMap, List<Datacloud.DuplicateResult> duplicateResults, List<dupeRule> duplicateRules){
+    public static List<MergeCandidate__c> getMergeCandidates(Map<Id,SObject> recordMap, List<Datacloud.FindDuplicatesResult> duplicateResults, List<dupeRule> duplicateRules){
         Map<String, dupeRule> duplicateRuleMap = new Map<String, dupeRule>();
         for(dupeRule duplicateRule:duplicateRules) {
             duplicateRuleMap.put(duplicateRule.ruleName, duplicateRule);
@@ -234,9 +230,8 @@ public with sharing class MRG_Duplicate_SVC {
         Integer i=0;
         for(Id recordId:recordMap.keyset()) {
             SObject sObj = recordMap.get(recordId);
-            for(Integer d=0;d<duplicateRules.size();d++) {
-
-                DataCloud.DuplicateResult duplicateResult = duplicateResults[i];
+            Datacloud.FindDuplicatesResult findDuplicateResult = duplicateResults[i];
+            for(DataCloud.DuplicateResult duplicateResult:findDuplicateResult.getDuplicateResults()) {
                 String ruleName = duplicateResult.getDuplicateRule();
                 dupeRule duplicateRule = duplicateRuleMap.containsKey(ruleName) ? duplicateRuleMap.get(ruleName) : null;
                 MergeCandidate__c mergeCandidate = getMergeCandidate(sObj, duplicateResult,duplicateRule);
