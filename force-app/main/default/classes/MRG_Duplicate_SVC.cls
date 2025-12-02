@@ -251,8 +251,8 @@ public with sharing class MRG_Duplicate_SVC {
                         mergedIds.add(mergeId);
                     }
                 }
-                i++;
             }
+            i++;
         }
 
         return mergeCandidates.values();
