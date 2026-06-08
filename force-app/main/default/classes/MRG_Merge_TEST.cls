@@ -42,24 +42,25 @@ public class MRG_Merge_TEST {
 
 	static testMethod void testContactMerge() {
 		createMergeFields();
-		List<Contact> cons = [
-			SELECT Id, FirstName, LastName, Email, MailingStreet, MailingCity,
-				MailingState, MailingPostalCode, Birthdate
-			FROM Contact ORDER BY MailingState
-		];
-		// MailingState orders CA (cons[0]) before TX (cons[1]); keep the TX record (the setup record
-		// with City=Austin, PostalCode=78751, Birthdate=-1200) and make it the older record so the
-		// Oldest/Newest rules are deterministic.
-		Contact tx = cons[0].MailingState == 'TX' ? cons[0] : cons[1];
-		Contact ca = cons[0].MailingState == 'TX' ? cons[1] : cons[0];
-		Id keepId = tx.Id;
-		Id mergeId = ca.Id;
+		// build the two records explicitly so keep/merge values and ages are unambiguous.
+		// keep = older record; merge = newer record.
+		List<Contact> cons = new List<Contact>{
+			new Contact(FirstName='Keep', LastName='KeepLast', Email='keep@test.com',
+				MailingCity='Austin', MailingState='TX', MailingPostalCode='78751',
+				Birthdate=Date.Today().addDays(-1200)),
+			new Contact(FirstName='Merge', LastName='MergeLast', Email='merge@test.com',
+				MailingStreet='123 Main Street', MailingState='CA', MailingPostalCode='78754',
+				HasOptedOutOfEmail=true, Birthdate=Date.Today().addDays(-500))
+		};
+		insert cons;
+		Id keepId = cons[0].Id;
+		Id mergeId = cons[1].Id;
 		Test.setCreatedDate(keepId, Datetime.now().addDays(-30)); // keep is oldest
 		Test.setCreatedDate(mergeId, Datetime.now().addDays(-1));  // merge is newest
 
 		MergeCandidate__c mc = new MergeCandidate__c(
 			KeepRecordId__c = keepId,
-			KeepName__c = 'Test',
+			KeepName__c = 'Keep',
 			MergeRecordId__c = mergeId,
 			Object__c = 'Contact',
 			Rule__c = 'test',
@@ -92,13 +93,13 @@ public class MRG_Merge_TEST {
 		system.assert(mergeMap.size()>0, 'tracked field history should be created');
 		MergeFieldHistory__c emailMergeField = mergeMap.get('email');
 		system.assertNotEquals(null, emailMergeField, 'email is a tracked field and should be recorded');
-		system.assertEquals(ca.Email, emailMergeField.MergeValue__c, 'merged email recorded');
-		system.assertEquals(tx.Email, emailMergeField.KeptValue__c, 'kept email recorded');
+		system.assertEquals('merge@test.com', emailMergeField.MergeValue__c, 'merged email recorded');
+		system.assertEquals('keep@test.com', emailMergeField.KeptValue__c, 'kept email recorded');
 		system.assertEquals(keepId, emailMergeField.KeptRecordId__c, 'kept record id recorded');
 
 		system.assertEquals(Date.Today().addDays(-1200), keptCon.Birthdate, 'Smallest keeps the earlier birthdate');
 		system.assertEquals('78754', keptCon.MailingPostalCode, 'Largest keeps the larger postal code');
-		system.assertEquals('Test', keptCon.LastName, 'Oldest keeps the older (kept) record last name');
+		system.assertEquals('KeepLast', keptCon.LastName, 'Oldest keeps the older (kept) record last name');
 		system.assertEquals('CA', keptCon.MailingState, 'Newest keeps the newer record mailing state');
 		system.assert(String.isNotBlank(keptCon.MailingStreet), 'blank street filled from merged record');
 		system.assert(String.isNotBlank(keptCon.MailingCity), 'kept city retained');
