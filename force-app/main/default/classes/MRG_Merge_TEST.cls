@@ -120,6 +120,35 @@ public class MRG_Merge_TEST {
 	}
 
 
+	static testMethod void testFieldHistoryCarriesIntoPerKeepResult() {
+		List<Contact> cons = [SELECT Id FROM Contact ORDER BY CreatedDate ASC];
+		Id keepId = cons[0].Id;
+		Id mergeId = cons[1].Id;
+
+		MergeFieldHistory__c history = new MergeFieldHistory__c(
+			KeptRecordId__c = keepId,
+			MergedRecordId__c = mergeId,
+			KeptValue__c = 'kept',
+			MergeValue__c = 'merged',
+			MergeValueType__c = 'Email'
+		);
+		MRG_Merge_SVC.mergeHistoryResult result = new MRG_Merge_SVC.mergeHistoryResult(
+			new List<SObject>(),
+			new List<MergeFieldHistory__c>{ history }
+		);
+		Map<Id, Set<Id>> mergeKeyMap = new Map<Id, Set<Id>>{ keepId => new Set<Id>{ mergeId } };
+
+		test.startTest();
+		Map<Id, MRG_Merge_SVC.mergeHistoryResult> byKeep =
+			MRG_Merge_SVC.getMergeHistoryResultByKeepId(result, mergeKeyMap);
+		test.stopTest();
+
+		system.assert(byKeep.containsKey(keepId), 'result should be keyed by keep id');
+		system.assertEquals(1, byKeep.get(keepId).fieldHistory.size(),
+			'field history must carry into the per-keep result, not be dropped');
+		system.assertEquals('Email', byKeep.get(keepId).fieldHistory[0].MergeValueType__c);
+	}
+
 	static testMethod void testAccountMerge() {
 		Contact oldestCon;
 		Contact newestCon;

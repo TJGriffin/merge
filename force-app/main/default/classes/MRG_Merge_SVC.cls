@@ -924,7 +924,7 @@ public with sharing class MRG_Merge_SVC {
 				updateRecords.add(updateRecordsById.get(keepId));
 			List<MergeFieldHistory__c> fieldHistory = new List<MergeFieldHistory__c>();
 			if(fieldHistoryByKeepId.containsKey(keepId))
-				fieldHistoryByKeepId.get(keepId);
+				fieldHistory = fieldHistoryByKeepId.get(keepId);
 			Map<Id, SObject> objectMap = new Map<Id, SObject>();
 			if(mergeResult.objectMap.containsKey(keepId))
 				objectMap.put(keepId, mergeResult.objectMap.get(keepId));
