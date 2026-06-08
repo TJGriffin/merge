@@ -6,21 +6,21 @@
 */
 public with sharing class MRG_DuplicateMerge_BATCH implements Database.Batchable<sObject>, Schedulable, Database.stateful {
 	/*******************************************************************************************************
-	* @description set of objects to scan
-	*/  
-    private static Boolean accountTriggerDisabled;	
+	* @description the Account trigger disabled state to restore when the batch chain finishes
+	*/
+    @testvisible private Boolean accountTriggerDisabled;
+	/*******************************************************************************************************
+	* @description the Contact trigger disabled state to restore when the batch chain finishes
+	*/
+    @testvisible private Boolean contactTriggerDisabled;
 	/*******************************************************************************************************
 	* @description set of objects to scan
-	*/  
-    private static Boolean contactTriggerDisabled;	
-	/*******************************************************************************************************
-	* @description set of objects to scan
-	*/  
+	*/
     @testvisible private Set<String> objects;
 
 	/*******************************************************************************************************
 	* @description set of objects to scan
-	*/  
+	*/
     @testvisible private String objectType;
 
 	/*******************************************************************************************************
@@ -38,16 +38,29 @@ public with sharing class MRG_DuplicateMerge_BATCH implements Database.Batchable
     }
 
 	/*******************************************************************************************************
+	* @description constructor used to carry the original trigger-disabled state forward through the
+	* batch chain so the last batch in the chain restores the true pre-batch values
+	*/
+    public MRG_DuplicateMerge_BATCH(Set<String> objects, Boolean accountTriggerDisabled, Boolean contactTriggerDisabled) {
+        this.objects = objects;
+        this.accountTriggerDisabled = accountTriggerDisabled;
+        this.contactTriggerDisabled = contactTriggerDisabled;
+    }
+
+	/*******************************************************************************************************
 	* @description batch start method
 	* @param BC batchable context
 	* @return Querylocator the scope of the batch
 	*/  	 
 	public Database.QueryLocator start(Database.BatchableContext BC) {
         MergeControlSettings__c settings = MRG_Merge_SVC.getSettings();
-        if(settings!=null) {
+        // only capture the original state on the first batch in the chain; later batches in the
+        // chain receive the original values via the constructor so they aren't overwritten with
+        // the already-disabled state this batch set.
+        if(accountTriggerDisabled == null && settings != null)
             accountTriggerDisabled = settings.DisableAccountTrigger__c;
+        if(contactTriggerDisabled == null && settings != null)
             contactTriggerDisabled = settings.DisableContactTrigger__c;
-        }
         settings.DisableAccountTrigger__c = true;
         settings.DisableContactTrigger__c = true;
         upsert settings;
@@ -73,7 +86,15 @@ public with sharing class MRG_DuplicateMerge_BATCH implements Database.Batchable
 	public void finish(Database.BatchableContext BC) {
 		if(objects.size()>1){
             objects.remove(objectType);
-            Database.executeBatch(new MRG_DuplicateMerge_BATCH(objects),1);
+            Database.executeBatch(new MRG_DuplicateMerge_BATCH(objects, accountTriggerDisabled, contactTriggerDisabled),1);
+        } else {
+            // last batch in the chain: restore the trigger-disabled state captured before the run
+            MergeControlSettings__c settings = MRG_Merge_SVC.getSettings();
+            if(settings != null) {
+                settings.DisableAccountTrigger__c = accountTriggerDisabled == null ? false : accountTriggerDisabled;
+                settings.DisableContactTrigger__c = contactTriggerDisabled == null ? false : contactTriggerDisabled;
+                upsert settings;
+            }
         }
     }
 	/*******************************************************************************************************

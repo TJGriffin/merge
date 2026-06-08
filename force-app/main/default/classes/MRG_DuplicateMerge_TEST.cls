@@ -79,6 +79,22 @@ private class MRG_DuplicateMerge_TEST {
 
         test.stopTest();
     }
+    static testMethod void testBatchRestoresTriggerState(){
+        // pre-batch state: Account trigger already disabled, Contact trigger enabled
+        MergeControlSettings__c settings = MRG_Merge_SVC.getSettings();
+        settings.DisableAccountTrigger__c = true;
+        settings.DisableContactTrigger__c = false;
+        upsert settings;
+
+        test.startTest();
+        database.executeBatch(new MRG_DuplicateMerge_BATCH(new Set<String>{'Contact'}));
+        test.stopTest();
+
+        // after the chain finishes the original state must be restored, not left disabled
+        MergeControlSettings__c restored = MRG_Merge_SVC.getSettings();
+        system.assertEquals(true, restored.DisableAccountTrigger__c, 'Account trigger state should be restored to its pre-batch value');
+        system.assertEquals(false, restored.DisableContactTrigger__c, 'Contact trigger state should be restored to its pre-batch value');
+    }
     static testMethod void testBatch2(){
 
         test.startTest();
