@@ -736,10 +736,10 @@ public with sharing class MRG_Merge_SVC {
 								&& hasChange)) {
 							if(keepValue != null
 								&& mergeValue != null
-								&& keepValue != mergeValue) {
-									
+								&& !valuesAreEqual(keepValue, mergeValue)) {
+
 								mergeRecords.add(getMergeRecord(keepValue, mergeValue, keptRec, mergedRecordId, fieldName));
-								
+
 							}
 						}
 
@@ -868,6 +868,19 @@ public with sharing class MRG_Merge_SVC {
 		if(fieldValue instanceOf Decimal) return 'Decimal';
 		if(fieldValue instanceOf Double) return 'Double';
 		return 'String';
+	}
+	/*******************************************************************************************************
+	* @description compares two field values for equality. Both values are normalized through
+	* String.valueOf so the comparison matches how values are persisted to MergeFieldHistory__c and
+	* avoids unreliable Object inequality across field value types. Two nulls are equal; one null is not.
+	* @param a the first value
+	* @param b the second value
+	* @return Boolean true when the values are considered equal
+	*/
+	public static Boolean valuesAreEqual(Object a, Object b) {
+		if(a == null && b == null) return true;
+		if(a == null || b == null) return false;
+		return String.valueOf(a) == String.valueOf(b);
 	}
 	/*******************************************************************************************************
 	* @description objectField class
