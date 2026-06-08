@@ -413,11 +413,13 @@ public with sharing class MRG_Merge_SVC {
 		Map<Id, Set<Id>> mergeKeyMap = MRG_Duplicate_SVC.getMergeKeyMap(records);
 		if(mergeResult.fieldHistory.size()>0)
 			insert mergeResult.fieldHistory;
-		Map<Id, Sobject> keptRecordMap = new Map<Id, SObject>(mergeResult.updateRecords);
 		Set<Id> keepIdsMerged = new Set<Id>();
 		for(Id keepId:mergeKeyMap.keyset()){
+			// merge with a clean keep object; the queried kept record carries updateable-but-not-
+			// mergeable system fields (e.g. IsCustomerPortal) that the merge DML rejects. Preserved /
+			// override values are applied separately below.
 			if(objectType=='Account') {
-				Account keepObject = keptRecordMap.containsKey(keepId) ? (Account) keptRecordMap.get(keepId).clone(true,false,false,false) : new Account(Id=keepId);
+				Account keepObject = new Account(Id=keepId);
 				List<Account> mergeObjects = new List<Account>();
 				for(Id mergeId:mergeKeyMap.get(keepId)) {
 					mergeObjects.add((Account) objMap.get(mergeId));
@@ -426,7 +428,7 @@ public with sharing class MRG_Merge_SVC {
 				keepIdsMerged.add(keepObject.Id);
 
 			} else {
-				Contact keepObject = keptRecordMap.containsKey(keepId) ? (Contact) keptRecordMap.get(keepId).clone(true,false,false,false) : new Contact(Id=keepId);
+				Contact keepObject = new Contact(Id=keepId);
 				List<Contact> mergeObjects = new List<Contact>();
 				for(Id mergeId:mergeKeyMap.get(keepId)) {
 					mergeObjects.add((Contact) objMap.get(mergeId));
@@ -436,6 +438,9 @@ public with sharing class MRG_Merge_SVC {
 
 			}
 		}
+		// apply preserved / override field values to the surviving records after the merge
+		if(mergeResult.updateRecords != null && mergeResult.updateRecords.size()>0)
+			update mergeResult.updateRecords;
 		Map<Id, mergeHistoryResult> mergeResultByKeepId = getMergeHistoryResultByKeepId(mergeResult,mergeKeyMap);
 		updateMergeCandidateStatus(keepIdsMerged, mergeCandidateMap, mergeCandidateIdByKeepId, mergeResultByKeepId);
 		if(disableTriggers)
