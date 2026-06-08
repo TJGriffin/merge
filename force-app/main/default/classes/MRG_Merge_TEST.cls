@@ -120,6 +120,27 @@ public class MRG_Merge_TEST {
 	}
 
 
+	static testMethod void testCoerceOverrideValue() {
+		// blank -> null
+		system.assertEquals(null, MRG_Merge_SVC.coerceOverrideValue('STRING', null));
+		system.assertEquals(null, MRG_Merge_SVC.coerceOverrideValue('STRING', ''));
+		// string / id pass through
+		system.assertEquals('hello', MRG_Merge_SVC.coerceOverrideValue('STRING', 'hello'));
+		system.assertEquals('001000000000000AAA', MRG_Merge_SVC.coerceOverrideValue('ID', '001000000000000AAA'));
+		// boolean
+		system.assertEquals(true, MRG_Merge_SVC.coerceOverrideValue('BOOLEAN', 'true'));
+		// numeric
+		system.assertEquals(12.5, (Double) MRG_Merge_SVC.coerceOverrideValue('DOUBLE', '12.5'));
+		system.assertEquals(7, (Integer) MRG_Merge_SVC.coerceOverrideValue('INTEGER', '7'));
+		// date / datetime from raw (unquoted) strings -- the case that previously threw
+		system.assertEquals(Date.newInstance(2020,1,15), (Date) MRG_Merge_SVC.coerceOverrideValue('DATE', '2020-01-15'));
+		system.assertEquals(Datetime.valueOf('2020-01-15 13:30:00'),
+			(Datetime) MRG_Merge_SVC.coerceOverrideValue('DATETIME', '2020-01-15 13:30:00'));
+		// unparseable value -> null (does not throw)
+		system.assertEquals(null, MRG_Merge_SVC.coerceOverrideValue('DATE', 'not-a-date'));
+		system.assertEquals(null, MRG_Merge_SVC.coerceOverrideValue('INTEGER', 'abc'));
+	}
+
 	static testMethod void testValuesAreEqual() {
 		// nulls
 		system.assert(MRG_Merge_SVC.valuesAreEqual(null, null), 'two nulls are equal');

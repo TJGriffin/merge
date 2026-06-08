@@ -341,28 +341,8 @@ public with sharing class MRG_Merge_SVC {
 
 				List<MRG_MergeCandidate.fieldOverride> overrides = (List<MRG_MergeCandidate.fieldOverride>) JSON.deserialize(record.Override__c, List<MRG_MergeCandidate.fieldOverride>.class);
 				for(MRG_MergeCandidate.fieldOVerride ovrride:overrides){
-					Object fieldVal;
 					String fieldName = ovrride.fieldName;
-					switch on ovrride.fieldType {
-						when 'BOOLEAN' {
-							fieldVal = Boolean.valueOf(ovrride.fieldValue);
-						}
-						when 'DATE' {
-							fieldVal = (Date) JSON.deserialize(ovrride.fieldValue, Date.class);
-						}	
-						when 'DATETIME' {
-							fieldVal = (Datetime) JSON.deserialize(ovrride.fieldValue, Datetime.class);
-						}
-						when 'DOUBLE' {
-							fieldVal = Double.valueOf(ovrride.fieldValue);
-						}
-						when 'INTEGER' {
-							fieldVal = Integer.valueOf(ovrride.fieldValue);
-						}
-						when else {
-							fieldVal = ovrride.fieldValue;
-						}
-					}
+					Object fieldVal = coerceOverrideValue(ovrride.fieldType, ovrride.fieldValue);
 					if(fieldVal != null)
 						manualOverridesByKeepId.get(keepId).put(fieldName,fieldVal);
 				}
@@ -370,6 +350,53 @@ public with sharing class MRG_Merge_SVC {
 			}
 		}
 		return manualOverridesByKeepId;
+	}
+
+	/*******************************************************************************************************
+	* @description coerces a manual-override string value into the typed value for an SObject field.
+	* fieldType is a Schema.SOAPType name (BOOLEAN/DATE/DATETIME/DOUBLE/INTEGER/TIME/ID/STRING/...).
+	* The stored fieldValue is a raw (unquoted) string, so we use the native valueOf parsers rather
+	* than JSON.deserialize (which would require a quoted value and throw on a raw date string). A
+	* value that cannot be parsed returns null so one bad override does not abort the whole merge.
+	* @param fieldType the SOAP type name of the field
+	* @param fieldValue the raw string value from the override
+	* @return Object the typed value, or null if blank/unparseable
+	*/
+	public static Object coerceOverrideValue(String fieldType, String fieldValue) {
+		if(String.isBlank(fieldValue))
+			return null;
+		try {
+			switch on fieldType {
+				when 'BOOLEAN' {
+					return Boolean.valueOf(fieldValue);
+				}
+				when 'DATE' {
+					return Date.valueOf(fieldValue);
+				}
+				when 'DATETIME' {
+					return Datetime.valueOf(fieldValue);
+				}
+				when 'TIME' {
+					// Time has no valueOf; derive it from a datetime parse of a date+time string
+					Datetime dt = Datetime.valueOf('1970-01-01 ' + fieldValue);
+					return dt.timeGmt();
+				}
+				when 'DOUBLE' {
+					return Double.valueOf(fieldValue);
+				}
+				when 'INTEGER' {
+					return Integer.valueOf(fieldValue);
+				}
+				when else {
+					// ID, STRING, ANYTYPE, BASE64BINARY, etc. are written as-is
+					return fieldValue;
+				}
+			}
+		} catch(Exception e) {
+			System.debug(LoggingLevel.WARN, 'Could not coerce override value "' + fieldValue + '" as ' + fieldType + ': ' + e.getMessage());
+			return null;
+		}
+		return null;
 	}
 
 	/*******************************************************************************************************
