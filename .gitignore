@@ -21,13 +21,16 @@ yarn-error.log*
 
 # Dependency directories
 node_modules/
+# IDE
+*.code-workspace
 
 # Eslint cache
 .eslintcache
 
 # MacOS system files
 .DS_Store
-
+*tmp_issues
+*tmp_issues/*
 # Windows system files
 Thumbs.db
 ehthumbs.db

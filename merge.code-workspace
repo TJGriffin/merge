@@ -3,5 +3,8 @@
 		{
 			"path": "."
 		}
-	]
+	],
+	"settings": {
+		"xml.preferences.showSchemaDocumentationType": "none"
+	}
 }

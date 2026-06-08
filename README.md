@@ -9,6 +9,10 @@ The Merge Control app provides SF Administrators with the following tools relate
 4) a condensed UI where you can see the key differences between records as well as the resulting values post merge
 - admins can control which fields should be hidden from this UI (particularly if you've already defined rules for preservation)
 
+## Documentation
+
+- [Administrator Guide](docs/user-guide.md) — how each functional area works and how to use it
+
 
 
 
