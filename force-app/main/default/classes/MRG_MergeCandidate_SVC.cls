@@ -55,7 +55,7 @@ public with sharing class MRG_MergeCandidate_SVC {
                             if(fieldDifferences.contains(field))
                                 continue;
                             Object fieldVal = keepRecord.get(field);
-                            if(testRecord.get(field) != fieldVal) {
+                            if(!MRG_Merge_SVC.valuesAreEqual(testRecord.get(field), fieldVal)) {
                                 String fieldApiName = fieldmap.containsKey(field) ? fieldmap.get(field).getDescribe().getName() : field;
                                 fieldDifferences.add(fieldApiName);
 

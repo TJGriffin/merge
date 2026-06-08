@@ -120,6 +120,23 @@ public class MRG_Merge_TEST {
 	}
 
 
+	static testMethod void testValuesAreEqual() {
+		// nulls
+		system.assert(MRG_Merge_SVC.valuesAreEqual(null, null), 'two nulls are equal');
+		system.assert(!MRG_Merge_SVC.valuesAreEqual(null, 'x'), 'one null is not equal');
+		system.assert(!MRG_Merge_SVC.valuesAreEqual('x', null), 'one null is not equal');
+		// equal values across types
+		system.assert(MRG_Merge_SVC.valuesAreEqual('abc', 'abc'), 'equal strings');
+		system.assert(MRG_Merge_SVC.valuesAreEqual(5, 5), 'equal integers');
+		system.assert(MRG_Merge_SVC.valuesAreEqual(true, true), 'equal booleans');
+		Date d = Date.newInstance(2020,1,1);
+		system.assert(MRG_Merge_SVC.valuesAreEqual(d, Date.newInstance(2020,1,1)), 'equal dates');
+		// different values
+		system.assert(!MRG_Merge_SVC.valuesAreEqual('abc', 'abd'), 'different strings');
+		system.assert(!MRG_Merge_SVC.valuesAreEqual(5, 6), 'different integers');
+		system.assert(!MRG_Merge_SVC.valuesAreEqual(true, false), 'different booleans');
+	}
+
 	static testMethod void testFieldHistoryCarriesIntoPerKeepResult() {
 		List<Contact> cons = [SELECT Id FROM Contact ORDER BY CreatedDate ASC];
 		Id keepId = cons[0].Id;
