@@ -340,6 +340,13 @@ public with sharing class MRG_Duplicate_SVC {
             mergeCandidate.Merge2Name__c = String.isNotBlank(mergeCandidate.Merge2RecordId__c) ? matchNames.get(mergeCandidate.Merge2RecordId__c) : null;
             mergeCandidate.Object__c = objectType;
             mergeCandidate.Status__c = 'New';
+            // a merge handles at most 3 records (keep + 2). Surface when the group had more so the
+            // truncation isn't invisible; the remainder is re-found by the next scan after this merges.
+            if(matchIdList.size()>3) {
+                mergeCandidate.HasAdditionalDuplicates__c = true;
+                System.debug(LoggingLevel.WARN, 'Duplicate group for ' + matchIdList[0] + ' has ' + matchIdList.size()
+                    + ' records; ' + (matchIdList.size()-3) + ' deferred to a later run.');
+            }
         } else {
             mergeCandidate = null;
         }
