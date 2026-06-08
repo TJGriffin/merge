@@ -100,9 +100,9 @@ private class MRG_MergeExecution_TEST {
 		MRG_TestFactory.registerMergeFields(new List<MergeFieldSetting__mdt>());
 		MergeCandidate__c mc = MRG_TestFactory.mergeCandidate(keepId, mergeId, 'Contact');
 		MRG_TestFactory.setOverrides(mc, new List<MRG_MergeCandidate.fieldOverride>{
-			MRG_TestFactory.override(keepId, 'MailingState', 'WA', 'STRING'),
-			MRG_TestFactory.override(keepId, 'Birthdate', '1990-05-15', 'DATE'),
-			MRG_TestFactory.override(keepId, 'HasOptedOutOfEmail', 'true', 'BOOLEAN')
+			MRG_TestFactory.fieldOverride(keepId, 'MailingState', 'WA', 'STRING'),
+			MRG_TestFactory.fieldOverride(keepId, 'Birthdate', '1990-05-15', 'DATE'),
+			MRG_TestFactory.fieldOverride(keepId, 'HasOptedOutOfEmail', 'true', 'BOOLEAN')
 		});
 		// re-query so the candidate carries Override__c into the merge
 		MergeCandidate__c withOverride = [
