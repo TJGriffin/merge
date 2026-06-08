@@ -176,7 +176,7 @@ public with sharing class MRG_Duplicate_SVC {
         recordIds.addAll(recordMap.keyset());
         List<Datacloud.FindDuplicatesResult> duplicateResults = getDuplicateResults(recordIds, objectType);
         if(duplicateResults.size()>0)
-            mergeCandidates.addAll(getMergeCandidates(recordMap,duplicateResults,duplicateRules));
+            mergeCandidates.addAll(getMergeCandidates(recordMap,recordIds,duplicateResults,duplicateRules));
         for(MergeCandidate__c mergeCandidate:mergeCandidates){
             Id keepId = String.isNotBlank(mergeCandidate.KeepRecordId__c) ? Id.valueOf(mergeCandidate.KeepRecordId__c) : null;
             if(String.isNotBlank(keepId)
@@ -219,16 +219,31 @@ public with sharing class MRG_Duplicate_SVC {
 	* @param duplicateResults a list of duplicate results
     * @param dupeRules a list of duplicate rules
 	* @return List<MergeCandidate__c> a list of merge candidate records
-	*/ 
+	*/
     public static List<MergeCandidate__c> getMergeCandidates(Map<Id,SObject> recordMap, List<Datacloud.FindDuplicatesResult> duplicateResults, List<dupeRule> duplicateRules){
+        // derive an ordered id list from the map; only safe when the caller has no list of its own.
+        List<Id> recordIds = new List<Id>();
+        recordIds.addAll(recordMap.keyset());
+        return getMergeCandidates(recordMap, recordIds, duplicateResults, duplicateRules);
+    }
+	/*******************************************************************************************************
+	* @description returns a list of merge candidates given duplcates and duplicate rules
+    * @param recordMap a map of SObjects keyed by Id
+    * @param recordIds the ordered list of record ids passed to findDuplicatesByIds; duplicateResults
+    *        are returned in this same order, so we must pair against this list (not the map keyset)
+	* @param duplicateResults a list of duplicate results
+    * @param dupeRules a list of duplicate rules
+	* @return List<MergeCandidate__c> a list of merge candidate records
+	*/
+    public static List<MergeCandidate__c> getMergeCandidates(Map<Id,SObject> recordMap, List<Id> recordIds, List<Datacloud.FindDuplicatesResult> duplicateResults, List<dupeRule> duplicateRules){
         Map<String, dupeRule> duplicateRuleMap = new Map<String, dupeRule>();
         for(dupeRule duplicateRule:duplicateRules) {
             duplicateRuleMap.put(duplicateRule.ruleName, duplicateRule);
         }
         Map<String, MergeCandidate__c> mergeCandidates = new Map<String, MergeCandidate__c>();
         Set<String> mergedIds = new Set<String>();
-        Integer i=0;
-        for(Id recordId:recordMap.keyset()) {
+        for(Integer i=0; i<recordIds.size(); i++) {
+            Id recordId = recordIds[i];
             SObject sObj = recordMap.get(recordId);
             Datacloud.FindDuplicatesResult findDuplicateResult = duplicateResults[i];
             for(DataCloud.DuplicateResult duplicateResult:findDuplicateResult.getDuplicateResults()) {
@@ -247,7 +262,6 @@ public with sharing class MRG_Duplicate_SVC {
                     }
                 }
             }
-            i++;
         }
 
         return mergeCandidates.values();
