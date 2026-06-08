@@ -52,7 +52,7 @@ private class MRG_TestFactory_TEST {
 		List<Account> accs = MRG_TestFactory.accounts(2);
 		Id keepId = accs[0].Id;
 
-		MRG_MergeCandidate.fieldOverride o = MRG_TestFactory.override(keepId, 'Name', 'Overridden', 'STRING');
+		MRG_MergeCandidate.fieldOverride o = MRG_TestFactory.fieldOverride(keepId, 'Name', 'Overridden', 'STRING');
 		system.assertEquals(keepId, o.keepId);
 		system.assertEquals('Name', o.fieldName);
 		system.assertEquals('Overridden', o.fieldValue);

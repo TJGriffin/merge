@@ -180,7 +180,7 @@ public class MRG_TestFactory {
 	* @param fieldType the SOAP type name (BOOLEAN/DATE/DATETIME/DOUBLE/INTEGER/STRING/...)
 	* @return MRG_MergeCandidate.fieldOverride the override
 	*/
-	public static MRG_MergeCandidate.fieldOverride override(Id keepId, String fieldName, String fieldValue, String fieldType) {
+	public static MRG_MergeCandidate.fieldOverride fieldOverride(Id keepId, String fieldName, String fieldValue, String fieldType) {
 		MRG_MergeCandidate.fieldOverride o = new MRG_MergeCandidate.fieldOverride();
 		o.keepId = keepId;
 		o.fieldName = fieldName;
