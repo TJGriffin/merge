@@ -41,82 +41,67 @@ public class MRG_Merge_TEST {
 	}
 
 	static testMethod void testContactMerge() {
-		Contact oldestCon;
-		Contact newestCon;
-		Contact mergedCon;
-	
 		createMergeFields();
-		List<Account> accs = [
-			SELECT
-			Id,
-			Name
-			FROM Account
-		];
 		List<Contact> cons = [
-			SELECT
-			Id,
-			FirstName,
-			LastNAme,
-			Email,
-			MailingStreet,
-			MailingCity,
-			MailingState,
-			MailingPostalCode,
-			Birthdate
-			FROM Contact	
+			SELECT Id, FirstName, LastName, Email, MailingStreet, MailingCity,
+				MailingState, MailingPostalCode, Birthdate
+			FROM Contact ORDER BY MailingState
 		];
+		// MailingState orders CA (cons[0]) before TX (cons[1]); keep the TX record (the setup record
+		// with City=Austin, PostalCode=78751, Birthdate=-1200) and make it the older record so the
+		// Oldest/Newest rules are deterministic.
+		Contact tx = cons[0].MailingState == 'TX' ? cons[0] : cons[1];
+		Contact ca = cons[0].MailingState == 'TX' ? cons[1] : cons[0];
+		Id keepId = tx.Id;
+		Id mergeId = ca.Id;
+		Test.setCreatedDate(keepId, Datetime.now().addDays(-30)); // keep is oldest
+		Test.setCreatedDate(mergeId, Datetime.now().addDays(-1));  // merge is newest
+
+		MergeCandidate__c mc = new MergeCandidate__c(
+			KeepRecordId__c = keepId,
+			KeepName__c = 'Test',
+			MergeRecordId__c = mergeId,
+			Object__c = 'Contact',
+			Rule__c = 'test',
+			Status__c = 'New',
+			AutoMerge__c = true
+		);
+		insert mc;
+
 		test.startTest();
-		merge cons[0] cons[1];
+		// drive the merge through the production service path so the in-memory merge field settings
+		// apply (the async ContactMerge trigger path would run in a fresh context without them).
+		// disableTriggers=true suppresses the delete-trigger queue job so processing stays in this txn.
+		MRG_Merge_SVC.processMergesFromBatch(new List<MergeCandidate__c>{ mc }, 'Contact', true);
 		test.stopTest();
-		cons = [
-			SELECT
-			Id,
-			FirstName,
-			LastNAme,
-			Email,
-			HasOptedOutOfEmail,
-			MailingStreet,
-			MailingCity,
-			MailingState,
-			MailingPostalCode,
-			Birthdate,
-			CreatedDate,
-			LastModifiedDate,
-			IsDeleted,
-			MasterRecordId
-			FROM Contact
-			ALL ROWS	
+
+		Contact keptCon = [
+			SELECT Id, LastName, Email, MailingStreet, MailingCity, MailingState,
+				MailingPostalCode, Birthdate
+			FROM Contact WHERE Id=:keepId
 		];
+
 		Map<String, MergeFieldHistory__c> mergeMap = new Map<String, MergeFieldHistory__c>();
 		for(MergeFieldHistory__c mergeField: [
-			SELECT 
-			Id, 
-			KeptRecordId__c,
-			KeptValue__c,
-			MergeValue__c,
-			MergeValueType__c
+			SELECT Id, KeptRecordId__c, KeptValue__c, MergeValue__c, MergeValueType__c
 			FROM MergeFieldHistory__c
 		]) {
 			mergeMap.put(mergeField.MergeValueType__c.trim().toLowerCase(), mergeField);
 		}
 
-		oldestcon = cons[0].CreatedDate < cons[1].CreatedDate ? cons[0] : cons[1];
-		newestCon = oldestcon == cons[0] ? cons[1] : cons[0];
-		mergedCon = cons[0].IsDeleted ? cons[0] : cons[1];
-		Contact keptCon = !cons[0].isDeleted ? cons[0] : cons[1]; 
-
-		system.assert(mergeMap.size()>0);
+		system.assert(mergeMap.size()>0, 'tracked field history should be created');
 		MergeFieldHistory__c emailMergeField = mergeMap.get('email');
-		system.assertEquals(emailMergeField.mergeValue__c,cons[1].Email);
-		system.assertEquals(emailMergeField.keptValue__c,cons[0].Email);
-		system.assertEquals(emailMergeField.keptRecordId__c,cons[0].Id);
-		system.assertEquals(keptCon.BirthDate,Date.Today().addDays(-1200));
-		system.assertEquals(keptCon.MailingPostalCode,'78754');
-		system.assertEquals(keptCon.LastName,oldestCon.LastName);
-		system.assertEquals(keptCon.MailingState,newestCon.MailingState);
-		system.assert(String.isNotBlank(keptCon.MailingStreet));
-		system.assert(String.isNotBlank(keptCon.MailingCity));
+		system.assertNotEquals(null, emailMergeField, 'email is a tracked field and should be recorded');
+		system.assertEquals(ca.Email, emailMergeField.MergeValue__c, 'merged email recorded');
+		system.assertEquals(tx.Email, emailMergeField.KeptValue__c, 'kept email recorded');
+		system.assertEquals(keepId, emailMergeField.KeptRecordId__c, 'kept record id recorded');
 
+		system.assertEquals(Date.Today().addDays(-1200), keptCon.Birthdate, 'Smallest keeps the earlier birthdate');
+		system.assertEquals('78754', keptCon.MailingPostalCode, 'Largest keeps the larger postal code');
+		system.assertEquals('Test', keptCon.LastName, 'Oldest keeps the older (kept) record last name');
+		system.assertEquals('CA', keptCon.MailingState, 'Newest keeps the newer record mailing state');
+		system.assert(String.isNotBlank(keptCon.MailingStreet), 'blank street filled from merged record');
+		system.assert(String.isNotBlank(keptCon.MailingCity), 'kept city retained');
 	}
 
 
@@ -226,9 +211,11 @@ public class MRG_Merge_TEST {
 
 		test.startTest();
 		List<Account> acc = [SELECT Id FROM Account LIMIT 1];
-		List<Contact> con = [SELECT Id FROM Contact LIMIT 1];
-		delete acc;
+		List<Contact> con = [SELECT Id FROM Contact WHERE AccountId = null LIMIT 1];
+		// delete the contact first: deleting the account can cascade to related contacts in this org,
+		// which would leave the contact already-deleted (ENTITY_IS_DELETED) by the time we reach it
 		delete con;
+		delete acc;
 		test.stopTest();
 	}
 	@testvisible private static void createMergeFields() {
