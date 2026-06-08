@@ -193,9 +193,14 @@ public with sharing class MRG_Duplicate_SVC {
 	*/ 
 	public static List<Datacloud.FindDuplicatesResult> getDuplicateResults(List<SOBject> records, String objectType) {
         List<Datacloud.FindDuplicatesResult> duplicateResults = new List<Datacloud.FindDuplicatesResult>();
-		if(duplicateRulesAreActive(records) && 
-            (objectType=='Account' || objectType=='Lead' || objectType=='Contact')) {
-			duplicateResults = Datacloud.FindDuplicates.findDuplicates(records);
+		if(objectType=='Account' || objectType=='Lead' || objectType=='Contact') {
+			// the API call itself is the "are rules active" probe: it throws when no rules are
+			// active, in which case we return an empty result rather than calling twice.
+			try {
+				duplicateResults = Datacloud.FindDuplicates.findDuplicates(records);
+			} catch(Exception e) {
+				duplicateResults = new List<Datacloud.FindDuplicatesResult>();
+			}
 		}
 		return duplicateResults;
 	}
@@ -207,9 +212,14 @@ public with sharing class MRG_Duplicate_SVC {
 	*/ 
 	public static List<Datacloud.FindDuplicatesResult> getDuplicateResults(List<Id> recordIds, String objectType) {
         List<Datacloud.FindDuplicatesResult> duplicateResults = new List<Datacloud.FindDuplicatesResult>();
-		if(duplicateRulesAreActive(recordIds) && 
-            (objectType=='Account' || objectType=='Lead' || objectType=='Contact')) {
-			duplicateResults = Datacloud.FindDuplicatesByIds.findDuplicatesByIds(recordIds);
+		if(objectType=='Account' || objectType=='Lead' || objectType=='Contact') {
+			// the API call itself is the "are rules active" probe: it throws when no rules are
+			// active, in which case we return an empty result rather than calling twice.
+			try {
+				duplicateResults = Datacloud.FindDuplicatesByIds.findDuplicatesByIds(recordIds);
+			} catch(Exception e) {
+				duplicateResults = new List<Datacloud.FindDuplicatesResult>();
+			}
 		}
 		return duplicateResults;
 	}
@@ -343,13 +353,10 @@ public with sharing class MRG_Duplicate_SVC {
 	*/ 
 	public static Boolean duplicateRulesAreActive(List<Id> recordIds) {
 		Boolean rulesAreActive = true;
-		
 		try {
 			Datacloud.FindDuplicatesByIds.findDuplicatesByIds(recordIds);
 		} catch(Exception e) {
 			rulesAreActive = false;
-		} finally {
-			return rulesAreActive;
 		}
 		return rulesAreActive;
 	}
@@ -360,13 +367,10 @@ public with sharing class MRG_Duplicate_SVC {
 	*/ 
 	public static Boolean duplicateRulesAreActive(List<SObject> records) {
 		Boolean rulesAreActive = true;
-		
 		try {
 			Datacloud.FindDuplicates.findDuplicates(records);
 		} catch(Exception e) {
 			rulesAreActive = false;
-		} finally {
-			return rulesAreActive;
 		}
 		return rulesAreActive;
 	}
