@@ -149,8 +149,13 @@ public class MRG_TestFactory {
 	* @return MergeCandidate__c the inserted candidate
 	*/
 	public static MergeCandidate__c mergeCandidate(Id keepId, Id mergeId, Id merge2Id, String objectType) {
+		// KeepName__c is required on MergeCandidate__c; populate it from the kept record's Name
+		String keepName = (String) Database.query(
+			'SELECT Name FROM '+String.escapeSingleQuotes(objectType)+' WHERE Id=:keepId'
+		)[0].get('Name');
 		MergeCandidate__c mc = new MergeCandidate__c(
 			KeepRecordId__c = keepId,
+			KeepName__c = keepName,
 			MergeRecordId__c = mergeId,
 			Merge2RecordId__c = merge2Id,
 			Object__c = objectType,
