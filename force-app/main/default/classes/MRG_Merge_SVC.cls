@@ -535,6 +535,15 @@ public with sharing class MRG_Merge_SVC {
 	* @param objectType the SObject api name
 	* @return List<MRG_ComplexPreserveRule>
 	*/
+	public static List<MRG_FallbackRule> getFallbackRules(String objectType) {
+		return MRG_FallbackRule.getRules(objectType);
+	}
+	/*******************************************************************************************************
+	* @description the Complex preservation rules for an object: enabled Preserve fields whose rule is
+	* 'Complex', converted to MRG_ComplexPreserveRule for group-wide evaluation
+	* @param objectType the SObject api name
+	* @return List<MRG_ComplexPreserveRule>
+	*/
 	public static List<MRG_ComplexPreserveRule> getComplexPreserveRules(String objectType) {
 		List<MRG_ComplexPreserveRule> complexRules = new List<MRG_ComplexPreserveRule>();
 		for(mergeFieldWrap mfw:getPreserveMergeFields()) {
@@ -849,11 +858,10 @@ public with sharing class MRG_Merge_SVC {
 					updateRecordMap.put(keptRec.Id,keptRec);
 			}
 		}
-		// --- group-wide Complex-rule pass (#33) ---------------------------------------------------
-		// For each kept record, gather its full group (kept + merged) and, per Complex rule, preserve
-		// the value from the rule's winning record (condition match + tie-break). Emits field history
-		// when the kept value changes.
-		if(!complexRules.isEmpty()) {
+		// --- group-wide passes (#33 Complex, #34 Fallback) ----------------------------------------
+		// Both operate on the full per-keep group (kept + merged), so build that grouping once.
+		List<MRG_FallbackRule> fallbackRules = getFallbackRules(objectType);
+		if(!complexRules.isEmpty() || !fallbackRules.isEmpty()) {
 			Map<Id, List<SObject>> mergedByKeepId = new Map<Id, List<SObject>>();
 			for(SObject obj:mergedRecords) {
 				Id mId = (Id) obj.get('Id');
@@ -870,7 +878,8 @@ public with sharing class MRG_Merge_SVC {
 				List<SObject> recordGroup = new List<SObject>{ keptRec };
 				if(mergedByKeepId.containsKey(keepId))
 					recordGroup.addAll(mergedByKeepId.get(keepId));
-				Boolean complexChange = false;
+				Boolean groupChange = false;
+				// Complex preserve (#33): preserve the winning record's value onto the same field
 				for(MRG_ComplexPreserveRule complexRule:complexRules) {
 					Object winning = complexRule.winningValue(recordGroup);
 					if(winning == null)
@@ -879,10 +888,18 @@ public with sharing class MRG_Merge_SVC {
 					if(valuesAreEqual(current, winning))
 						continue;
 					keptRec.put(complexRule.fieldName, winning);
-					complexChange = true;
+					groupChange = true;
 					mergeRecords.add(getMergeRecord(winning, current, keptRec, String.valueOf(keepId), complexRule.fieldName));
 				}
-				if(complexChange)
+				// Fallback (#34): route the winning record's source value(s) into target field(s), only
+				// where the target is empty. Records where each value ended up (tracking-aware history).
+				for(MRG_FallbackRule fallbackRule:fallbackRules) {
+					for(MRG_FallbackRule.applied a:fallbackRule.apply(keptRec, recordGroup)) {
+						groupChange = true;
+						mergeRecords.add(getFallbackMergeRecord(a.value, keptRec.Id, a.sourceRecordId, a.sourceField, a.targetField));
+					}
+				}
+				if(groupChange)
 					updateRecordMap.put(keptRec.Id, keptRec);
 			}
 		}
@@ -931,6 +948,26 @@ public with sharing class MRG_Merge_SVC {
 			MergeValueType__c = fieldName
 		);
 		return mergeRecord;
+	}
+	/*******************************************************************************************************
+	* @description history record for a fallback-routed value: the source value (from the winning
+	* record) written to a different target field on the kept record
+	* @param value the routed value
+	* @param keptRecordId the kept record id
+	* @param sourceRecordId the record the value came from
+	* @param sourceField the source field api name
+	* @param targetField the target field api name on the kept record
+	* @return MergeFieldHistory__c
+	*/
+	public static MergeFieldHistory__c getFallbackMergeRecord(Object value, Id keptRecordId, Id sourceRecordId, String sourceField, String targetField) {
+		return new MergeFieldHistory__c(
+			KeptRecordId__c = keptRecordId,
+			MergedRecordId__c = sourceRecordId,
+			KeptValue__c = String.valueOf(value),
+			MergeValue__c = String.valueOf(value),
+			MergeValueType__c = sourceField,
+			TargetField__c = targetField
+		);
 	}
 	/*******************************************************************************************************
 	* @description gets writeable fields for a contact record
