@@ -112,6 +112,36 @@ public with sharing class MRG_Metadata_SVC {
 	* @param integrationProcessToSave the integration process we're saving
 	* @return the Job Id of the deployment job
 	*/ 		
+	public Metadata.CustomMetadata getMetaDataRecord(FallbackRuleSettings__mdt fallbackSetting) {
+		Metadata.CustomMetadata mdRecord = new Metadata.CustomMetadata();
+		List<String> mdRecordNames = new List<String>();
+		Map<String, Object> fieldKeyValues = new Map<String, Object>();
+		fieldKeyValues.put('Object__c', fallbackSetting.Object__r.QualifiedAPIName);
+		fieldKeyValues.put('SelectionType__c', fallbackSetting.SelectionType__c);
+		fieldKeyValues.put('Rule__c', fallbackSetting.Rule__c);
+		fieldKeyValues.put('FilterLogic__c', fallbackSetting.FilterLogic__c);
+		fieldKeyValues.put('Conditions__c', fallbackSetting.Conditions__c);
+		fieldKeyValues.put('TieBreakDirection__c', fallbackSetting.TieBreakDirection__c);
+		fieldKeyValues.put('TieBreakField__c', fallbackSetting.TieBreakField__r != null ? fallbackSetting.TieBreakField__r.QualifiedAPIName : null);
+		fieldKeyValues.put('FieldPairs__c', fallbackSetting.FieldPairs__c);
+		String qualifiedName = !fallbackSetting.QualifiedAPIName.contains('.') ? 'FallbackRuleSettings__mdt.'+fallbackSetting.QualifiedAPIName : fallbackSetting.QualifiedAPIName;
+		mdRecordNames.add(qualifiedName);
+
+		List<Metadata.Metadata> metadataRecords = getMetadataRecords(mdRecordNames);
+		if(metadataRecords.size()>0) {
+			mdRecord = (Metadata.CustomMetadata) metadataRecords.get(0).clone();
+		} else {
+			mdRecord.fullName = qualifiedName;
+		}
+		mdRecord.Label = fallbackSetting.Label;
+		mdRecord = updateMetadataObjectFields(mdRecord, fieldKeyValues);
+		return mdRecord;
+	}
+	/*******************************************************************************************************
+	* @description saves an integration process via metadata deployment
+	* @param keepRuleSetting the keep-record rule setting to save
+	* @return the Job Id of the deployment job
+	*/
 	public Metadata.CustomMetadata getMetaDataRecord(KeepRecordRuleSettings__mdt keepRuleSetting) {
 		   	// create metadata container
 		Metadata.CustomMetadata mdRecord = new Metadata.CustomMetadata();

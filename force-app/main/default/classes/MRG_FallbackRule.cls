@@ -37,6 +37,27 @@ public with sharing class MRG_FallbackRule {
 	}
 
 	/*******************************************************************************************************
+	* @description builds a fallback rule wrapper from a FallbackRuleSettings__mdt record
+	* @param setting the metadata record (with Object__r / TieBreakField__r selected)
+	*/
+	public MRG_FallbackRule(FallbackRuleSettings__mdt setting) {
+		this.id = setting.Id;
+		this.label = setting.Label;
+		this.objectName = setting.Object__r != null ? setting.Object__r.QualifiedAPIName : null;
+		this.selectionType = String.isNotBlank(setting.SelectionType__c) ? setting.SelectionType__c : 'simple';
+		this.rule = String.isNotBlank(setting.Rule__c) ? setting.Rule__c : 'Newest';
+		this.filterLogic = setting.FilterLogic__c;
+		this.conditions = String.isNotBlank(setting.Conditions__c)
+			? (List<MRG_KeepRecordRule.condition>) JSON.deserialize(setting.Conditions__c, List<MRG_KeepRecordRule.condition>.class)
+			: new List<MRG_KeepRecordRule.condition>();
+		this.tieBreakField = setting.TieBreakField__r != null ? setting.TieBreakField__r.QualifiedAPIName : null;
+		this.tieBreakDirection = String.isNotBlank(setting.TieBreakDirection__c) ? setting.TieBreakDirection__c : 'DESC';
+		this.fieldPairs = String.isNotBlank(setting.FieldPairs__c)
+			? (List<fieldPair>) JSON.deserialize(setting.FieldPairs__c, List<fieldPair>.class)
+			: new List<fieldPair>();
+	}
+
+	/*******************************************************************************************************
 	* @description a source -> target field mapping for the fallback
 	*/
 	public class fieldPair {
@@ -163,5 +184,90 @@ public with sharing class MRG_FallbackRule {
 		if(value == null) return true;
 		if(value instanceof String) return String.isBlank((String) value);
 		return false;
+	}
+
+	/*******************************************************************************************************
+	* @description all configured fallback rules, lazily queried from custom metadata
+	*/
+	public static List<MRG_FallbackRule> fallbackRules {
+		get {
+			if(fallbackRules == null) {
+				List<MRG_FallbackRule> rules = new List<MRG_FallbackRule>();
+				for(FallbackRuleSettings__mdt setting:[
+					SELECT Id, Label, QualifiedAPIName, Object__c, Object__r.QualifiedAPIName,
+						SelectionType__c, Rule__c, FilterLogic__c, Conditions__c,
+						TieBreakField__r.QualifiedAPIName, TieBreakDirection__c, FieldPairs__c
+					FROM FallbackRuleSettings__mdt
+				]) {
+					rules.add(new MRG_FallbackRule(setting));
+				}
+				fallbackRules = rules;
+			}
+			return fallbackRules;
+		}
+		set;
+	}
+
+	/*******************************************************************************************************
+	* @description the fallback rules configured for a single object
+	* @param objectType the SObject api name
+	* @return List<MRG_FallbackRule> (may be empty)
+	*/
+	public static List<MRG_FallbackRule> getRules(String objectType) {
+		List<MRG_FallbackRule> rules = new List<MRG_FallbackRule>();
+		for(MRG_FallbackRule rule:fallbackRules) {
+			if(String.isNotBlank(rule.objectName) && rule.objectName.equalsIgnoreCase(objectType))
+				rules.add(rule);
+		}
+		return rules;
+	}
+
+	/*******************************************************************************************************
+	* @description saves a list of fallback rules via the Metadata API
+	* @param rules the rules to save
+	* @return String the metadata deploy job id
+	*/
+	public static String saveFallbackRules(List<MRG_FallbackRule> rules) {
+		MRG_Metadata_SVC mdService = new MRG_Metadata_SVC();
+		List<Metadata.CustomMetadata> mdRecords = new List<Metadata.CustomMetadata>();
+		for(MRG_FallbackRule rule:rules) {
+			mdRecords.add(mdService.getMetaDataRecord(toSetting(rule)));
+		}
+		return mdService.deployMetadataRecords(mdRecords);
+	}
+
+	/*******************************************************************************************************
+	* @description converts a fallback rule wrapper into a FallbackRuleSettings__mdt record, populating
+	* the read-only Object__r / TieBreakField__r relationships via JSON injection
+	* @param rule the rule wrapper
+	* @return FallbackRuleSettings__mdt the metadata record
+	*/
+	public static FallbackRuleSettings__mdt toSetting(MRG_FallbackRule rule) {
+		FallbackRuleSettings__mdt setting = new FallbackRuleSettings__mdt(
+			Label = String.isNotBlank(rule.label) ? rule.label : (rule.objectName + ' Fallback'),
+			SelectionType__c = rule.selectionType,
+			Rule__c = rule.rule,
+			FilterLogic__c = rule.filterLogic,
+			Conditions__c = rule.conditions != null && !rule.conditions.isEmpty() ? JSON.serialize(rule.conditions) : null,
+			TieBreakDirection__c = rule.tieBreakDirection,
+			FieldPairs__c = rule.fieldPairs != null && !rule.fieldPairs.isEmpty() ? JSON.serialize(rule.fieldPairs) : null
+		);
+		String devName = (rule.objectName == null ? 'Obj' : rule.objectName.replace('__','').replace('_','')) + 'Fallback'
+			+ (String.isNotBlank(rule.label) ? rule.label.replaceAll('[^a-zA-Z0-9]','') : '');
+		setting.QualifiedAPIName = devName;
+		Map<String, Object> settingJSON = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(setting));
+		settingJSON.put('Object__r', new Map<String, Object>{
+			'attributes' => new Map<String, Object>{ 'type' => 'EntityDefinition' },
+			'QualifiedAPIName' => rule.objectName
+		});
+		if(String.isNotBlank(rule.tieBreakField)) {
+			settingJSON.put('TieBreakField__r', new Map<String, Object>{
+				'attributes' => new Map<String, Object>{ 'type' => 'EntityParticle' },
+				'QualifiedAPIName' => rule.tieBreakField
+			});
+		}
+		if(String.isNotBlank(rule.id))
+			settingJSON.put('Id', rule.id);
+		return (FallbackRuleSettings__mdt) JSON.deserialize(JSON.serialize(settingJSON), FallbackRuleSettings__mdt.class);
 	}
 }
