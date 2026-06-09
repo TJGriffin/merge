@@ -867,12 +867,12 @@ public with sharing class MRG_Merge_SVC {
 				if(!keptRecordMap.containsKey(keepId))
 					continue;
 				SObject keptRec = keptRecordMap.get(keepId);
-				List<SObject> group = new List<SObject>{ keptRec };
+				List<SObject> recordGroup = new List<SObject>{ keptRec };
 				if(mergedByKeepId.containsKey(keepId))
-					group.addAll(mergedByKeepId.get(keepId));
+					recordGroup.addAll(mergedByKeepId.get(keepId));
 				Boolean complexChange = false;
 				for(MRG_ComplexPreserveRule complexRule:complexRules) {
-					Object winning = complexRule.winningValue(group);
+					Object winning = complexRule.winningValue(recordGroup);
 					if(winning == null)
 						continue;
 					Object current = keptRec.get(complexRule.fieldName);
