@@ -26,7 +26,9 @@ public with sharing class MRG_KeepRecordRules_CTRL {
 	*/
 	@auraEnabled(cacheable=true)
 	public static List<MRG_Merge_SVC.objectField> getObjectFields(String objectType) {
-		return MRG_MergeSettings_CTRL.getObjectFields(objectType);
+		// keep-record conditions only READ values to choose a record, so offer all readable fields
+		// (incl. CreatedDate / LastModifiedDate / formulas), not just updateable ones
+		return MRG_MergeSettings_CTRL.getReadableObjectFields(objectType);
 	}
 
 	/*******************************************************************************************************

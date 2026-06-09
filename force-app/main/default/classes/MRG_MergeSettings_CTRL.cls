@@ -203,14 +203,36 @@ public with sharing class MRG_MergeSettings_CTRL {
 	*/
 	@auraEnabled(cacheable=true)
 	public static List<MRG_Merge_SVC.objectField> getObjectFields(String objectType) {
+		return getObjectFields(objectType, false);
+	}
+	/*******************************************************************************************************
+	* @description gets readable (accessible) fields for a specific object, including read-only fields
+	* such as CreatedDate / LastModifiedDate / formulas. Use for rule SELECTORS (conditions, tie-breaks)
+	* that only read values to choose a record; use getObjectFields for targets that get written.
+	* @param objectType the type of object
+	* @return List<MRG_Merge_SVC.objectField>
+	*/
+	@auraEnabled(cacheable=true)
+	public static List<MRG_Merge_SVC.objectField> getReadableObjectFields(String objectType) {
+		return getObjectFields(objectType, true);
+	}
+	/*******************************************************************************************************
+	* @description gets fields for an object, optionally including read-only (accessible-but-not-
+	* updateable) fields
+	* @param objectType the type of object
+	* @param includeReadOnly when true, require only accessibility (not updateability)
+	* @return List<MRG_Merge_SVC.objectField>
+	*/
+	public static List<MRG_Merge_SVC.objectField> getObjectFields(String objectType, Boolean includeReadOnly) {
 		List<MRG_Merge_SVC.objectField> fields = new List<MRG_Merge_SVC.objectField>();
 		if(String.isBlank(objectType))
 			return fields;
 		SObjectType objType = Schema.getGlobalDescribe().get(objectType);
 		for(SObjectfield objField : objType.getDescribe().fields.getMap().values()) {
-			if(objField.getDescribe().isAccessible() 
-			&& objField.getDescribe().isUpdateable()
-			&& !ignoreFields.contains(objField.getDescribe().getName().toLowerCase())) {
+			Schema.DescribeFieldResult dfr = objField.getDescribe();
+			if(dfr.isAccessible()
+			&& (includeReadOnly || dfr.isUpdateable())
+			&& !ignoreFields.contains(dfr.getName().toLowerCase())) {
 				fields.add(new MRG_Merge_SVC.objectField(objField));
 			}
 		}

@@ -140,9 +140,33 @@ public with sharing class MRG_Duplicate_SVC {
 	* @return String the soql Query
 	********************************************************************************************************/ 
     public static String getMergeSOQLQuery(String objectType) {
-        String soqlQuery = 'SELECT Id, CreatedDate, ';
-        soqlQuery+=getFieldSOQLQuery(objectType);
-        soqlQuery+=' FROM '+objectType;
+        return getMergeSOQLQuery(objectType, null);
+    }
+	/*******************************************************************************************************
+	* @description gets the merge SOQL query, additionally selecting any extra (readable) fields that
+	* rules reference but that aren't updateable (e.g. CreatedDate, formulas), so rule conditions and
+	* tie-breaks can read them
+	* @param objectType
+	* @param extraFields readable field api names to also select (may be null/empty)
+	* @return String the soql query
+	********************************************************************************************************/
+    public static String getMergeSOQLQuery(String objectType, Set<String> extraFields) {
+        Set<String> fields = new Set<String>();
+        for(String f:getFieldSOQLQuery(objectType).split(',')) {
+            if(String.isNotBlank(f)) fields.add(f.trim().toLowerCase());
+        }
+        if(extraFields != null) {
+            for(String f:extraFields) {
+                if(String.isNotBlank(f)) fields.add(f.trim().toLowerCase());
+            }
+        }
+        // Id and CreatedDate are always present; remove to avoid duplicates then prepend
+        fields.remove('id');
+        fields.remove('createddate');
+        String soqlQuery = 'SELECT Id, CreatedDate';
+        if(!fields.isEmpty())
+            soqlQuery += ', ' + String.join(new List<String>(fields), ',');
+        soqlQuery += ' FROM '+objectType;
         return soqlQuery;
     }
 

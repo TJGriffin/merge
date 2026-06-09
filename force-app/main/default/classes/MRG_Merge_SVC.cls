@@ -335,7 +335,12 @@ public with sharing class MRG_Merge_SVC {
 	public static mergeHistoryResult getMergeHistoryResult(List<MergeCandidate__c> records,String objectType){
 		Map<Id, Set<Id>> mergeKeyMap = MRG_Duplicate_SVC.getMergeKeyMap(records);
 		Set<Id> allIds = MRG_Duplicate_SVC.getAllIds(mergeKeyMap);
-		String soqlQuery = MRG_Duplicate_SVC.getMergeSOQLQuery(objectType);
+		// include readable fields the complex rules reference (conditions, tie-breaks) so those rules
+		// can read values that aren't updateable (e.g. CreatedDate, formulas)
+		Set<String> extraFields = new Set<String>();
+		for(MRG_ComplexPreserveRule rule:getComplexPreserveRules(objectType))
+			extraFields.addAll(rule.referencedFields());
+		String soqlQuery = MRG_Duplicate_SVC.getMergeSOQLQuery(objectType, extraFields);
 		soqlQuery+=' WHERE Id in:allIds';
 		Map<Id, SObject> objMap = new Map<Id, SObject>(Database.query(soqlQuery));
 		Map<Id, Map<String, Object>> manualOverrides = getManualOverridesByKeepId(records);
