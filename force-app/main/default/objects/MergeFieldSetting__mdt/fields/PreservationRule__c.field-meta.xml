@@ -35,6 +35,11 @@
                 <default>false</default>
                 <label>Related Field</label>
             </value>
+            <value>
+                <fullName>Complex</fullName>
+                <default>false</default>
+                <label>Complex</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>
