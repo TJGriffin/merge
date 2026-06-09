@@ -22,6 +22,21 @@ public with sharing class MRG_KeepRecordRule implements Comparable {
 	}
 
 	/*******************************************************************************************************
+	* @description builds a rule wrapper from a KeepRecordRuleSettings__mdt record
+	* @param setting the metadata record (with Object__r.QualifiedAPIName selected)
+	*/
+	public MRG_KeepRecordRule(KeepRecordRuleSettings__mdt setting) {
+		this.id = setting.Id;
+		this.label = setting.Label;
+		this.objectName = setting.Object__r != null ? setting.Object__r.QualifiedAPIName : null;
+		this.order = setting.Order__c != null ? Integer.valueOf(setting.Order__c) : 0;
+		this.filterLogic = setting.FilterLogic__c;
+		this.conditions = String.isNotBlank(setting.Conditions__c)
+			? (List<condition>) JSON.deserialize(setting.Conditions__c, List<condition>.class)
+			: new List<condition>();
+	}
+
+	/*******************************************************************************************************
 	* @description sorts rules by their evaluation order (ascending)
 	*/
 	public Integer compareTo(Object compareTo) {
@@ -187,5 +202,81 @@ public with sharing class MRG_KeepRecordRule implements Comparable {
 				return matched[0];
 		}
 		return null;
+	}
+
+	/*******************************************************************************************************
+	* @description all configured keep-record rules, lazily queried from custom metadata
+	*/
+	public static List<MRG_KeepRecordRule> keepRecordRules {
+		get {
+			if(keepRecordRules == null) {
+				List<MRG_KeepRecordRule> rules = new List<MRG_KeepRecordRule>();
+				for(KeepRecordRuleSettings__mdt setting:[
+					SELECT Id, Label, QualifiedAPIName, Object__c, Object__r.QualifiedAPIName,
+						Order__c, FilterLogic__c, Conditions__c
+					FROM KeepRecordRuleSettings__mdt
+				]) {
+					rules.add(new MRG_KeepRecordRule(setting));
+				}
+				keepRecordRules = rules;
+			}
+			return keepRecordRules;
+		}
+		set;
+	}
+
+	/*******************************************************************************************************
+	* @description the keep-record rules for a single object, sorted by evaluation order
+	* @param objectType the SObject api name
+	* @return List<MRG_KeepRecordRule> the rules for that object (may be empty)
+	*/
+	public static List<MRG_KeepRecordRule> getRules(String objectType) {
+		List<MRG_KeepRecordRule> rules = new List<MRG_KeepRecordRule>();
+		for(MRG_KeepRecordRule rule:keepRecordRules) {
+			if(String.isNotBlank(rule.objectName) && rule.objectName.equalsIgnoreCase(objectType))
+				rules.add(rule);
+		}
+		rules.sort();
+		return rules;
+	}
+
+	/*******************************************************************************************************
+	* @description saves a list of keep-record rules via the Metadata API
+	* @param rules the rules to save
+	* @return String the metadata deploy job id
+	*/
+	public static String saveKeepRecordRules(List<MRG_KeepRecordRule> rules) {
+		MRG_Metadata_SVC mdService = new MRG_Metadata_SVC();
+		List<Metadata.CustomMetadata> mdRecords = new List<Metadata.CustomMetadata>();
+		for(MRG_KeepRecordRule rule:rules) {
+			mdRecords.add(mdService.getMetaDataRecord(toSetting(rule)));
+		}
+		return mdService.deployMetadataRecords(mdRecords);
+	}
+
+	/*******************************************************************************************************
+	* @description converts a rule wrapper into a KeepRecordRuleSettings__mdt record, populating the
+	* read-only Object__r relationship via JSON injection (mirrors the existing settings-save pattern)
+	* @param rule the rule wrapper
+	* @return KeepRecordRuleSettings__mdt the metadata record
+	*/
+	public static KeepRecordRuleSettings__mdt toSetting(MRG_KeepRecordRule rule) {
+		KeepRecordRuleSettings__mdt setting = new KeepRecordRuleSettings__mdt(
+			Label = String.isNotBlank(rule.label) ? rule.label : (rule.objectName + ' Keep Rule ' + rule.order),
+			Order__c = rule.order,
+			FilterLogic__c = rule.filterLogic,
+			Conditions__c = JSON.serialize(rule.conditions == null ? new List<condition>() : rule.conditions)
+		);
+		// developer/qualified name: object prefix + order, sanitized
+		String devName = (rule.objectName == null ? 'Obj' : rule.objectName.replace('__','').replace('_','')) + 'KeepRule' + rule.order;
+		setting.QualifiedAPIName = devName;
+		Map<String, Object> settingJSON = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(setting));
+		settingJSON.put('Object__r', new Map<String, Object>{
+			'attributes' => new Map<String, Object>{ 'type' => 'EntityDefinition' },
+			'QualifiedAPIName' => rule.objectName
+		});
+		if(String.isNotBlank(rule.id))
+			settingJSON.put('Id', rule.id);
+		return (KeepRecordRuleSettings__mdt) JSON.deserialize(JSON.serialize(settingJSON), KeepRecordRuleSettings__mdt.class);
 	}
 }
