@@ -108,7 +108,79 @@
                             <lightning-button onclick={handleSave} variant="brand" title="Save" label="Save"></lightning-button>
                         </lightning-button-group>
                     </lightning-layout-item>
-                </lightning-layout>  
+                </lightning-layout>
+
+                <template if:true={isComplex}>
+                    <div class="slds-box slds-m-horizontal_small slds-m-bottom_medium">
+                        <p class="slds-text-title_caps slds-m-bottom_x-small">Complex Rule</p>
+                        <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">
+                            Preserve this field's value from the record that matches the conditions below.
+                            When more than one record matches, the tie-break field decides which wins.
+                        </p>
+
+                        <template for:each={mergeRecord.conditions} for:item="condition">
+                            <div key={condition.conditionIndex} class="slds-grid slds-gutters slds-grid_vertical-align-end slds-m-bottom_x-small">
+                                <div class="slds-col slds-size_1-of-12 slds-text-body_small slds-align-middle">{condition.conditionIndex}</div>
+                                <div class="slds-col slds-size_4-of-12">
+                                    <lightning-combobox
+                                        label="Field"
+                                        value={condition.fieldName}
+                                        options={allFieldOptions}
+                                        data-condition={condition.conditionIndex}
+                                        onchange={handleConditionFieldSelect}>
+                                    </lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_3-of-12">
+                                    <lightning-combobox
+                                        label="Operator"
+                                        value={condition.operator}
+                                        options={operatorOptions}
+                                        data-condition={condition.conditionIndex}
+                                        onchange={handleConditionOperatorSelect}>
+                                    </lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_3-of-12">
+                                    <template if:true={condition.isCheckbox}>
+                                        <lightning-input type="checkbox" label="Value" checked={condition.checked}
+                                            data-condition={condition.conditionIndex} onchange={handleConditionValueChange}>
+                                        </lightning-input>
+                                    </template>
+                                    <template if:false={condition.isCheckbox}>
+                                        <lightning-input type={condition.inputType} label="Value" value={condition.value}
+                                            data-condition={condition.conditionIndex} onchange={handleConditionValueChange}>
+                                        </lightning-input>
+                                    </template>
+                                </div>
+                                <div class="slds-col slds-size_1-of-12">
+                                    <lightning-button-icon icon-name="utility:close" alternative-text="Remove condition"
+                                        title="Remove condition" data-condition={condition.conditionIndex} onclick={removeCondition}>
+                                    </lightning-button-icon>
+                                </div>
+                            </div>
+                        </template>
+
+                        <lightning-button label="Add Condition" icon-name="utility:add" variant="base"
+                            class="slds-m-bottom_x-small" onclick={addCondition}>
+                        </lightning-button>
+
+                        <lightning-input label="Filter Logic (e.g. (1 AND 2) OR 3 — leave blank to AND all conditions)"
+                            value={mergeRecord.filterLogic} onchange={handleFilterLogicChange}>
+                        </lightning-input>
+
+                        <div class="slds-grid slds-gutters slds-m-top_x-small">
+                            <div class="slds-col slds-size_6-of-12">
+                                <lightning-combobox label="Tie-Break Field" value={mergeRecord.tieBreakField}
+                                    placeholder="Select Field" options={allFieldOptions} onchange={handleTieBreakFieldSelect}>
+                                </lightning-combobox>
+                            </div>
+                            <div class="slds-col slds-size_6-of-12">
+                                <lightning-combobox label="Tie-Break Direction" value={mergeRecord.tieBreakDirection}
+                                    options={directionOptions} onchange={handleTieBreakDirectionSelect}>
+                                </lightning-combobox>
+                            </div>
+                        </div>
+                    </div>
+                </template>
             </template>
         </template>
 </template>

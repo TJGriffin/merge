@@ -32,8 +32,21 @@ export default class mergeSingleRecord extends LightningElement {
         return type;
     }
     trackOptions = [{label:'Track Fields',value:'t'},{label:'Preserve Fields',value:'p'}];
-    ruleOptions = [{label:'Oldest Record',value:'Oldest'},{label:'Newest Record',value:'Newest'},{label:'Largest Field Value',value:'Largest'},{label:'Smallest Field Value',value:'Smallest'},{label:'Related Field Value',value:'Related Field'}];
+    ruleOptions = [{label:'Oldest Record',value:'Oldest'},{label:'Newest Record',value:'Newest'},{label:'Largest Field Value',value:'Largest'},{label:'Smallest Field Value',value:'Smallest'},{label:'Related Field Value',value:'Related Field'},{label:'Complex Rule',value:'Complex'}];
+    operatorOptions = [
+        {label:'equals',value:'equals'},
+        {label:'not equals',value:'notEquals'},
+        {label:'less than',value:'lessThan'},
+        {label:'less or equal',value:'lessOrEqual'},
+        {label:'greater than',value:'greaterThan'},
+        {label:'greater or equal',value:'greaterOrEqual'},
+        {label:'contains',value:'contains'},
+        {label:'starts with',value:'startsWith'},
+        {label:'ends with',value:'endsWith'}
+    ];
+    directionOptions = [{label:'Descending',value:'DESC'},{label:'Ascending',value:'ASC'}];
     objectOptions = [{label:'Account',value:'Account'},{label:'Contact',value:'Contact'}];
+    fieldTypeByName = {};
     notificationBody;
     notificationStyle;
     notificationTitle;
@@ -41,11 +54,15 @@ export default class mergeSingleRecord extends LightningElement {
         value = value === undefined || value == null ? [] : value;
         var options = [];
         var relatedFieldOptions = [];
+        var allOptions = [];
+        var typeMap = {};
         value.forEach(fieldResult=>{
-            
+
                 var option = {};
                 option.label = fieldResult.label;
                 option.value = fieldResult.name;
+                allOptions.push(option);
+                typeMap[fieldResult.name] = fieldResult.type;
             if(!this.usedFields.includes(fieldResult.name)) {
                 options.push(option);
             } else {
@@ -54,6 +71,10 @@ export default class mergeSingleRecord extends LightningElement {
         })
         this.fieldOptions = options;
         this.relatedFieldOptions = relatedFieldOptions;
+        // complex rules can reference any field (conditions + tie-break), not just unused ones
+        this.allFieldOptions = allOptions;
+        this.fieldTypeByName = typeMap;
+        this.refreshConditionInputTypes();
     }
     get fieldResults(){
         return this.fieldOptions;
@@ -66,9 +87,42 @@ export default class mergeSingleRecord extends LightningElement {
     }
     @track relatedFieldOptions;
     @track fieldOptions;
+    @track allFieldOptions = [];
 
     get isRelatedField(){
         return this.mergeRecord !== undefined && this.mergeRecord != null && this.preserve && this.mergeRecord.rule == 'Related Field';
+    }
+
+    get isComplex(){
+        return this.mergeRecord !== undefined && this.mergeRecord != null && this.preserve && this.mergeRecord.rule == 'Complex';
+    }
+
+    // re-derive each condition's value input type from its selected field, and add row indices
+    refreshConditionInputTypes(){
+        if(this.mergeRecord && Array.isArray(this.mergeRecord.conditions)){
+            this.mergeRecord.conditions = this.mergeRecord.conditions.map((c, i)=>{
+                const type = this.fieldTypeByName[c.fieldName];
+                c.inputType = this.inputTypeForFieldType(type);
+                c.isCheckbox = c.inputType === 'checkbox';
+                c.checked = c.isCheckbox && c.value === 'true';
+                c.conditionIndex = i;
+                return c;
+            });
+        }
+    }
+
+    inputTypeForFieldType(fieldType){
+        switch(fieldType){
+            case 'BOOLEAN': return 'checkbox';
+            case 'DATE': return 'date';
+            case 'DATETIME': return 'datetime';
+            case 'DOUBLE':
+            case 'CURRENCY':
+            case 'INTEGER':
+            case 'LONG':
+            case 'PERCENT': return 'number';
+            default: return 'text';
+        }
     }
 
     connectedCallback(){
@@ -114,6 +168,56 @@ export default class mergeSingleRecord extends LightningElement {
     }
     handleRuleSelect(event) {
         this.mergeRecord.rule = event.detail.value;
+        if(this.mergeRecord.rule === 'Complex'){
+            this.mergeRecord.conditions = Array.isArray(this.mergeRecord.conditions) ? this.mergeRecord.conditions : [];
+            this.mergeRecord.filterLogic = this.mergeRecord.filterLogic || '';
+            this.mergeRecord.tieBreakDirection = this.mergeRecord.tieBreakDirection || 'DESC';
+            this.refreshConditionInputTypes();
+        }
+    }
+
+    addCondition(){
+        const conditions = Array.isArray(this.mergeRecord.conditions) ? [...this.mergeRecord.conditions] : [];
+        conditions.push({ fieldName:'', operator:'equals', value:'' });
+        this.mergeRecord.conditions = conditions;
+        this.refreshConditionInputTypes();
+    }
+
+    removeCondition(event){
+        const ci = parseInt(event.target.dataset.condition, 10);
+        const conditions = [...this.mergeRecord.conditions];
+        conditions.splice(ci, 1);
+        this.mergeRecord.conditions = conditions;
+        this.refreshConditionInputTypes();
+    }
+
+    handleConditionFieldSelect(event){
+        const ci = parseInt(event.target.dataset.condition, 10);
+        this.mergeRecord.conditions[ci].fieldName = event.detail.value;
+        this.refreshConditionInputTypes();
+    }
+
+    handleConditionOperatorSelect(event){
+        const ci = parseInt(event.target.dataset.condition, 10);
+        this.mergeRecord.conditions[ci].operator = event.detail.value;
+    }
+
+    handleConditionValueChange(event){
+        const ci = parseInt(event.target.dataset.condition, 10);
+        const cond = this.mergeRecord.conditions[ci];
+        cond.value = cond.isCheckbox ? String(event.target.checked) : event.target.value;
+    }
+
+    handleTieBreakFieldSelect(event){
+        this.mergeRecord.tieBreakField = event.detail.value;
+    }
+
+    handleTieBreakDirectionSelect(event){
+        this.mergeRecord.tieBreakDirection = event.detail.value;
+    }
+
+    handleFilterLogicChange(event){
+        this.mergeRecord.filterLogic = event.target.value;
     }
     doEdit(event){
         this.isEdit=true;
@@ -132,9 +236,17 @@ export default class mergeSingleRecord extends LightningElement {
     }
     doNotify(){
         console.log('do notify');
-        console.log(JSON.stringify(this.record));
         this.isEdit=false;
         this.record.name = this.record.name == null ? this.record.fieldName+''+this.record.objectName : this.record.name;
+        // strip UI-only keys from complex conditions so the saved JSON matches the Apex condition shape
+        if(Array.isArray(this.record.conditions)){
+            this.record.conditions = this.record.conditions.map(c=>({
+                fieldName: c.fieldName,
+                operator: c.operator,
+                value: c.value
+            }));
+        }
+        console.log(JSON.stringify(this.record));
         const notify = new CustomEvent('notify', {
             bubbles:true,
             composed:false,
