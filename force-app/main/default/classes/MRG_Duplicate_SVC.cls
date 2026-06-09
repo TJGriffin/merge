@@ -332,6 +332,14 @@ public with sharing class MRG_Duplicate_SVC {
             List<String> matchIdList = new List<String>();
             matchIdList.addAll(allIds);
             matchIdList.sort();
+            // if keep-record rules are configured for this object, let them choose the keep record;
+            // a unique rule match moves that id to the front. Otherwise the sorted-id default stands.
+            Id ruleKeepId = selectKeepIdByRules(matchIdList, objectType);
+            Integer keepIdx = ruleKeepId == null ? -1 : matchIdList.indexOf(String.valueOf(ruleKeepId));
+            if(keepIdx > 0) {
+                matchIdList.remove(keepIdx);
+                matchIdList.add(0, String.valueOf(ruleKeepId));
+            }
             mergeCandidate.KeepRecordId__c = matchIdList[0];
             mergeCandidate.KeepName__c = String.isNotBlank(mergeCandidate.KeepRecordId__c) ? matchNames.get(mergeCandidate.KeepRecordId__c) : null;
             mergeCandidate.MergeRecordId__c = matchIdList.size()>1 ? matchIdList[1] : null;
@@ -354,10 +362,33 @@ public with sharing class MRG_Duplicate_SVC {
 
     }
 	/*******************************************************************************************************
+	* @description applies the configured keep-record rules to a group of matched ids and returns the id
+	* of the record to keep, or null when no rule produces a unique match (caller keeps its default).
+	* Queries only the fields the rules reference, for the matched ids.
+	* @param matchIdList the ids in the duplicate group
+	* @param objectType the SObject type
+	* @return Id the rule-selected keep id, or null
+	*/
+    @testvisible
+    private static Id selectKeepIdByRules(List<String> matchIdList, String objectType) {
+        List<MRG_KeepRecordRule> rules = MRG_KeepRecordRule.getRules(objectType);
+        if(rules.isEmpty())
+            return null;
+        Set<String> fields = new Set<String>{'Id'};
+        for(MRG_KeepRecordRule rule:rules)
+            fields.addAll(rule.referencedFields());
+        Set<Id> ids = new Set<Id>();
+        for(String idStr:matchIdList)
+            ids.add(Id.valueOf(idStr));
+        String soql = 'SELECT ' + String.join(new List<String>(fields), ',') + ' FROM ' + objectType + ' WHERE Id IN :ids';
+        List<SObject> records = Database.query(soql);
+        return MRG_KeepRecordRule.selectKeepId(rules, records);
+    }
+	/*******************************************************************************************************
 	* @description determines if duplicate rules are active for this object
 	* @param List<SObject> records
 	* @return Boolean
-	*/ 
+	*/
 	public static Boolean duplicateRulesAreActive(List<Id> recordIds) {
 		Boolean rulesAreActive = true;
 		try {

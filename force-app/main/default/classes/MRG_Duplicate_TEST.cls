@@ -65,4 +65,45 @@ private class MRG_Duplicate_TEST {
 
     }
 
+	static testMethod void testSelectKeepIdByRulesNoRulesReturnsNull() {
+		List<Contact> cons = [SELECT Id FROM Contact];
+		List<String> ids = new List<String>{ cons[0].Id, cons[1].Id };
+		// no keep-record rules configured
+		MRG_KeepRecordRule.keepRecordRules = new List<MRG_KeepRecordRule>();
+		system.assertEquals(null, MRG_Duplicate_SVC.selectKeepIdByRules(ids, 'Contact'),
+			'no rules -> null so caller keeps the sorted-id default');
+	}
+
+	static testMethod void testSelectKeepIdByRulesUniqueMatch() {
+		// setup contacts: one in CA, one in TX
+		List<Contact> cons = [SELECT Id, MailingState FROM Contact ORDER BY MailingState];
+		Id caId = cons[0].MailingState == 'CA' ? cons[0].Id : cons[1].Id;
+		List<String> ids = new List<String>{ cons[0].Id, cons[1].Id };
+
+		MRG_KeepRecordRule rule = new MRG_KeepRecordRule();
+		rule.objectName = 'Contact';
+		rule.order = 1;
+		rule.conditions = new List<MRG_KeepRecordRule.condition>{
+			new MRG_KeepRecordRule.condition('MailingState','equals','CA')
+		};
+		MRG_KeepRecordRule.keepRecordRules = new List<MRG_KeepRecordRule>{ rule };
+
+		system.assertEquals(caId, MRG_Duplicate_SVC.selectKeepIdByRules(ids, 'Contact'),
+			'the CA record should be selected by the keep rule');
+	}
+
+	static testMethod void testSelectKeepIdByRulesNoUniqueMatchReturnsNull() {
+		List<Contact> cons = [SELECT Id FROM Contact];
+		List<String> ids = new List<String>{ cons[0].Id, cons[1].Id };
+		// rule matches a state neither contact has -> no match -> null
+		MRG_KeepRecordRule rule = new MRG_KeepRecordRule();
+		rule.objectName = 'Contact';
+		rule.order = 1;
+		rule.conditions = new List<MRG_KeepRecordRule.condition>{
+			new MRG_KeepRecordRule.condition('MailingState','equals','ZZ')
+		};
+		MRG_KeepRecordRule.keepRecordRules = new List<MRG_KeepRecordRule>{ rule };
+		system.assertEquals(null, MRG_Duplicate_SVC.selectKeepIdByRules(ids, 'Contact'));
+	}
+
 }
