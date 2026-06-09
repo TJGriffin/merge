@@ -335,8 +335,11 @@ public with sharing class MRG_Duplicate_SVC {
             // if keep-record rules are configured for this object, let them choose the keep record;
             // a unique rule match moves that id to the front. Otherwise the sorted-id default stands.
             Id ruleKeepId = selectKeepIdByRules(matchIdList, objectType);
-            if(ruleKeepId != null && matchIdList.remove(String.valueOf(ruleKeepId)))
+            Integer keepIdx = ruleKeepId == null ? -1 : matchIdList.indexOf(String.valueOf(ruleKeepId));
+            if(keepIdx > 0) {
+                matchIdList.remove(keepIdx);
                 matchIdList.add(0, String.valueOf(ruleKeepId));
+            }
             mergeCandidate.KeepRecordId__c = matchIdList[0];
             mergeCandidate.KeepName__c = String.isNotBlank(mergeCandidate.KeepRecordId__c) ? matchNames.get(mergeCandidate.KeepRecordId__c) : null;
             mergeCandidate.MergeRecordId__c = matchIdList.size()>1 ? matchIdList[1] : null;
