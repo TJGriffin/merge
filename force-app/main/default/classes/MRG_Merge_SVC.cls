@@ -164,6 +164,11 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public String rule;
 		@auraEnabled public String relatedField;
 		@auraEnabled public Boolean disable;
+		// Complex-rule (#33) configuration; populated only when rule == 'Complex'
+		@auraEnabled public String filterLogic;
+		@auraEnabled public List<MRG_KeepRecordRule.condition> conditions;
+		@auraEnabled public String tieBreakField;
+		@auraEnabled public String tieBreakDirection;
 
 		public mergeFieldWrap(MergeFieldSetting__mdt mergeField) {
 			this.id = mergeField.Id;
@@ -175,6 +180,12 @@ public with sharing class MRG_Merge_SVC {
 			this.rule = mergeField.PreservationRule__c;
 			this.relatedField = mergeField.RelatedField__r.QualifiedAPIName;
 			this.disable = mergeField.Disable__c;
+			this.filterLogic = mergeField.FilterLogic__c;
+			this.conditions = String.isNotBlank(mergeField.Conditions__c)
+				? (List<MRG_KeepRecordRule.condition>) JSON.deserialize(mergeField.Conditions__c, List<MRG_KeepRecordRule.condition>.class)
+				: new List<MRG_KeepRecordRule.condition>();
+			this.tieBreakField = mergeField.TieBreakField__r != null ? mergeField.TieBreakField__r.QualifiedAPIName : null;
+			this.tieBreakDirection = mergeField.TieBreakDirection__c;
 		}
 		public Integer compareTo(Object compareTo) {
 			mergeFieldWrap sortObj = (mergeFieldWrap) compareTo;
@@ -227,8 +238,10 @@ public with sharing class MRG_Merge_SVC {
 		MergeFieldSetting__mdt mergeField = new MergeFieldSetting__mdt(
 			Label = mfw.label,
 			PreservationRule__c = mfw.rule,
-			Disable__c = mfw.disable
-
+			Disable__c = mfw.disable,
+			FilterLogic__c = mfw.filterLogic,
+			Conditions__c = mfw.conditions != null && !mfw.conditions.isEmpty() ? JSON.serialize(mfw.conditions) : null,
+			TieBreakDirection__c = mfw.tieBreakDirection
 		);
 		mergeField.Type__c = mfw.type == 't' ? 'Track' : 'Preserve';
 		if(String.isNotBlank(mfw.id))
@@ -255,6 +268,15 @@ public with sharing class MRG_Merge_SVC {
 				'QualifiedAPIName' => mfw.relatedField
 			};
 			mergeFieldJSON.put('RelatedField__r',rltField);
+		}
+		if(String.isNotBlank(mfw.tieBreakField)){
+			Map<String, Object> tbField = new Map<String, Object> {
+				'attributes' => new Map<String, Object> {
+					'type' => 'EntityParticle'
+				},
+				'QualifiedAPIName' => mfw.tieBreakField
+			};
+			mergeFieldJSON.put('TieBreakField__r',tbField);
 		}
 		mergeFieldJSON.put('Field__r',fldField);
 		mergeFieldJSON.put('Object__r',objField);
@@ -290,6 +312,10 @@ public with sharing class MRG_Merge_SVC {
 					Object__r.QualifiedAPIName,
 					Field__r.QualifiedAPIName,
 					RelatedField__r.QualifiedAPIName,
+					TieBreakField__r.QualifiedAPIName,
+					TieBreakDirection__c,
+					FilterLogic__c,
+					Conditions__c,
 					Type__c,
 					Disable__c,
 					PreservationRule__c
@@ -502,6 +528,29 @@ public with sharing class MRG_Merge_SVC {
 				preserveMergeFields.add(new mergeFieldWrap(mergeField));
 		}
 		return preserveMergeFields;
+	}
+	/*******************************************************************************************************
+	* @description the Complex preservation rules for an object: enabled Preserve fields whose rule is
+	* 'Complex', converted to MRG_ComplexPreserveRule for group-wide evaluation
+	* @param objectType the SObject api name
+	* @return List<MRG_ComplexPreserveRule>
+	*/
+	public static List<MRG_ComplexPreserveRule> getComplexPreserveRules(String objectType) {
+		List<MRG_ComplexPreserveRule> complexRules = new List<MRG_ComplexPreserveRule>();
+		for(mergeFieldWrap mfw:getPreserveMergeFields()) {
+			if(!mfw.disable
+				&& mfw.rule != null && mfw.rule.equalsIgnoreCase('Complex')
+				&& mfw.objectName != null && mfw.objectName.equalsIgnoreCase(objectType)) {
+				MRG_ComplexPreserveRule rule = new MRG_ComplexPreserveRule();
+				rule.fieldName = mfw.fieldName;
+				rule.filterLogic = mfw.filterLogic;
+				rule.conditions = mfw.conditions == null ? new List<MRG_KeepRecordRule.condition>() : mfw.conditions;
+				rule.tieBreakField = mfw.tieBreakField;
+				rule.tieBreakDirection = mfw.tieBreakDirection;
+				complexRules.add(rule);
+			}
+		}
+		return complexRules;
 	}
 	/*******************************************************************************************************
 	* @description translates deleted contacts into merge records

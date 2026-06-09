@@ -193,6 +193,11 @@ public with sharing class MRG_Metadata_SVC {
 		fieldKeyValues.put('Object__c',mergeField.Object__r.QualifiedAPIName);
 	 	fieldKeyValues.put('PreservationRule__c', mergeField.PreservationRule__c);
 		fieldKeyValues.put('Type__c',mergeField.Type__c);
+		// Complex-rule (#33) fields
+		fieldKeyValues.put('FilterLogic__c', mergeField.FilterLogic__c);
+		fieldKeyValues.put('Conditions__c', mergeField.Conditions__c);
+		fieldKeyValues.put('TieBreakDirection__c', mergeField.TieBreakDirection__c);
+		fieldKeyValues.put('TieBreakField__c', mergeField.TieBreakField__r != null ? mergeField.TieBreakField__r.QualifiedAPIName : null);
 		String qualifiedName = !mergeField.QualifiedAPIName.contains('.') ? 'MergeFieldSetting__mdt.'+mergeField.QualifiedAPIName : mergeField.QualifiedAPIName;	   	
 		mdRecordNames.add(qualifiedName);
 		
