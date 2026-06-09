@@ -169,6 +169,8 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public List<MRG_KeepRecordRule.condition> conditions;
 		@auraEnabled public String tieBreakField;
 		@auraEnabled public String tieBreakDirection;
+		// optional fallback target: the losing value for this field is written here (if empty)
+		@auraEnabled public String fallbackField;
 
 		public mergeFieldWrap(MergeFieldSetting__mdt mergeField) {
 			this.id = mergeField.Id;
@@ -186,6 +188,7 @@ public with sharing class MRG_Merge_SVC {
 				: new List<MRG_KeepRecordRule.condition>();
 			this.tieBreakField = mergeField.TieBreakField__r != null ? mergeField.TieBreakField__r.QualifiedAPIName : null;
 			this.tieBreakDirection = mergeField.TieBreakDirection__c;
+			this.fallbackField = mergeField.FallbackField__r != null ? mergeField.FallbackField__r.QualifiedAPIName : null;
 		}
 		public Integer compareTo(Object compareTo) {
 			mergeFieldWrap sortObj = (mergeFieldWrap) compareTo;
@@ -278,6 +281,15 @@ public with sharing class MRG_Merge_SVC {
 			};
 			mergeFieldJSON.put('TieBreakField__r',tbField);
 		}
+		if(String.isNotBlank(mfw.fallbackField)){
+			Map<String, Object> fbField = new Map<String, Object> {
+				'attributes' => new Map<String, Object> {
+					'type' => 'EntityParticle'
+				},
+				'QualifiedAPIName' => mfw.fallbackField
+			};
+			mergeFieldJSON.put('FallbackField__r',fbField);
+		}
 		mergeFieldJSON.put('Field__r',fldField);
 		mergeFieldJSON.put('Object__r',objField);
 
@@ -313,6 +325,7 @@ public with sharing class MRG_Merge_SVC {
 					Field__r.QualifiedAPIName,
 					RelatedField__r.QualifiedAPIName,
 					TieBreakField__r.QualifiedAPIName,
+					FallbackField__r.QualifiedAPIName,
 					TieBreakDirection__c,
 					FilterLogic__c,
 					Conditions__c,
@@ -540,9 +553,6 @@ public with sharing class MRG_Merge_SVC {
 	* @param objectType the SObject api name
 	* @return List<MRG_ComplexPreserveRule>
 	*/
-	public static List<MRG_FallbackRule> getFallbackRules(String objectType) {
-		return MRG_FallbackRule.getRules(objectType);
-	}
 	/*******************************************************************************************************
 	* @description the Complex preservation rules for an object: enabled Preserve fields whose rule is
 	* 'Complex', converted to MRG_ComplexPreserveRule for group-wide evaluation
@@ -845,7 +855,7 @@ public with sharing class MRG_Merge_SVC {
 							keptMasterFields.put(fieldName,true);
 						// if we should track this field then track it
 						if(trackField != null
-							|| (preserveField != null 
+							|| (preserveField != null
 								&& hasChange)) {
 							if(keepValue != null
 								&& mergeValue != null
@@ -854,6 +864,20 @@ public with sharing class MRG_Merge_SVC {
 								mergeRecords.add(getMergeRecord(keepValue, mergeValue, keptRec, mergedRecordId, fieldName));
 
 							}
+						}
+						// fallback (#34, re-homed): route the LOSING value (mergeValue) into the
+						// configured fallback field on the kept record when that target is empty.
+						// Applies to both Track and Preserve settings.
+						String fallbackField = trackField != null && String.isNotBlank(trackField.fallbackField)
+							? trackField.fallbackField
+							: (preserveField != null ? preserveField.fallbackField : null);
+						if(String.isNotBlank(fallbackField)
+							&& mergeValue != null
+							&& !valuesAreEqual(keepValue, mergeValue)
+							&& isBlankValue(keptRec.get(fallbackField))) {
+							keptRec.put(fallbackField, mergeValue);
+							hasChange = true;
+							mergeRecords.add(getFallbackMergeRecord(mergeValue, keptRec.Id, Id.valueOf(mergedRecordId), fieldName, fallbackField));
 						}
 
 					}
@@ -869,10 +893,11 @@ public with sharing class MRG_Merge_SVC {
 					updateRecordMap.put(keptRec.Id,keptRec);
 			}
 		}
-		// --- group-wide passes (#33 Complex, #34 Fallback) ----------------------------------------
-		// Both operate on the full per-keep group (kept + merged), so build that grouping once.
-		List<MRG_FallbackRule> fallbackRules = getFallbackRules(objectType);
-		if(!complexRules.isEmpty() || !fallbackRules.isEmpty()) {
+		// --- group-wide Complex-rule pass (#33) ---------------------------------------------------
+		// Preserve the winning record's value onto the same field, evaluated over the full per-keep
+		// group. Evaluate against the ORIGINAL kept values (+ unmutated merged records), not the
+		// keptRec the pairwise loop may have changed; writes still target the live keptRec.
+		if(!complexRules.isEmpty()) {
 			Map<Id, List<SObject>> mergedByKeepId = new Map<Id, List<SObject>>();
 			for(SObject obj:mergedRecords) {
 				Id mId = (Id) obj.get('Id');
@@ -886,15 +911,11 @@ public with sharing class MRG_Merge_SVC {
 				if(!keptRecordMap.containsKey(keepId))
 					continue;
 				SObject keptRec = keptRecordMap.get(keepId);
-				// evaluate winner/conditions against the ORIGINAL kept values (+ unmutated merged
-				// records), not the keptRec the pairwise loop may have already changed; writes still
-				// target the live keptRec.
 				SObject keptOriginal = keptOriginalById.containsKey(keepId) ? keptOriginalById.get(keepId) : keptRec;
 				List<SObject> recordGroup = new List<SObject>{ keptOriginal };
 				if(mergedByKeepId.containsKey(keepId))
 					recordGroup.addAll(mergedByKeepId.get(keepId));
 				Boolean groupChange = false;
-				// Complex preserve (#33): preserve the winning record's value onto the same field
 				for(MRG_ComplexPreserveRule complexRule:complexRules) {
 					Object winning = complexRule.winningValue(recordGroup);
 					if(winning == null)
@@ -905,14 +926,6 @@ public with sharing class MRG_Merge_SVC {
 					keptRec.put(complexRule.fieldName, winning);
 					groupChange = true;
 					mergeRecords.add(getMergeRecord(winning, current, keptRec, String.valueOf(keepId), complexRule.fieldName));
-				}
-				// Fallback (#34): route the winning record's source value(s) into target field(s), only
-				// where the target is empty. Records where each value ended up (tracking-aware history).
-				for(MRG_FallbackRule fallbackRule:fallbackRules) {
-					for(MRG_FallbackRule.applied a:fallbackRule.apply(keptRec, recordGroup)) {
-						groupChange = true;
-						mergeRecords.add(getFallbackMergeRecord(a.value, keptRec.Id, a.sourceRecordId, a.sourceField, a.targetField));
-					}
 				}
 				if(groupChange)
 					updateRecordMap.put(keptRec.Id, keptRec);
@@ -1063,6 +1076,16 @@ public with sharing class MRG_Merge_SVC {
 		if(a == null && b == null) return true;
 		if(a == null || b == null) return false;
 		return String.valueOf(a) == String.valueOf(b);
+	}
+	/*******************************************************************************************************
+	* @description treats null and blank string as empty (used for the fallback "only if empty" check)
+	* @param value the value to test
+	* @return Boolean
+	*/
+	public static Boolean isBlankValue(Object value) {
+		if(value == null) return true;
+		if(value instanceof String) return String.isBlank((String) value);
+		return false;
 	}
 	/*******************************************************************************************************
 	* @description objectField class

@@ -110,6 +110,26 @@
                     </lightning-layout-item>
                 </lightning-layout>
 
+                <template if:true={objectType}>
+                    <template if:true={fieldResults}>
+                        <div class="slds-box slds-m-horizontal_small slds-m-bottom_small">
+                            <p class="slds-text-title_caps slds-m-bottom_x-small">Fallback Field (optional)</p>
+                            <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small">
+                                When this field's value is lost on the kept record, write the losing value into
+                                this field instead (only if it is empty). The routed value is recorded in Merge
+                                Field History with the target field.
+                            </p>
+                            <lightning-combobox
+                                name="Fallback Field"
+                                value={mergeRecord.fallbackField}
+                                placeholder="Select Fallback Field"
+                                options={fieldResults}
+                                onchange={handleFallbackFieldSelect}
+                            ></lightning-combobox>
+                        </div>
+                    </template>
+                </template>
+
                 <template if:true={isComplex}>
                     <div class="slds-box slds-m-horizontal_small slds-m-bottom_medium">
                         <p class="slds-text-title_caps slds-m-bottom_x-small">Complex Rule</p>
