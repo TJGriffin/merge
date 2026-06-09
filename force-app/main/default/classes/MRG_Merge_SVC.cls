@@ -725,6 +725,16 @@ public with sharing class MRG_Merge_SVC {
 		Map<Id,Id> keepIdMap = getKeepIdMap(mergeKeyMap);
 		Map<String, mergeFieldWrap> trackfieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(trackMergeFields));
 		Map<String, mergeFieldWrap> preserveFieldMap = new Map<String, mergeFieldWrap>(getMergeFieldMap(preserveMergeFields));
+		// Complex rules (#33) are evaluated group-wide in a separate pass below; collect their target
+		// fields so the pairwise loop skips them entirely (no preserve map entry, no default fill).
+		List<MRG_ComplexPreserveRule> complexRules = getComplexPreserveRules(objectType);
+		Set<String> complexFields = new Set<String>();
+		for(MRG_ComplexPreserveRule complexRule:complexRules) {
+			if(String.isNotBlank(complexRule.fieldName)) {
+				preserveFieldMap.remove(complexRule.fieldName.toLowerCase());
+				complexFields.add(complexRule.fieldName.toLowerCase());
+			}
+		}
 		/****
 		*	a map of child field to master field keyed by child field
 		***/
@@ -759,7 +769,9 @@ public with sharing class MRG_Merge_SVC {
 				Boolean keptRecordIsOlder = (Datetime) keptRec.get('CreatedDate') < (Datetime) obj.get('CreatedDate');
 				Boolean hasChange = false;
 				for(String fieldName:fieldsToCheck) {
-					system.debug(JSON.serializePretty(fieldsToCheck));
+					// Complex-rule fields are handled in the group-wide pass; skip them here
+					if(complexFields.contains(fieldName))
+						continue;
 					Boolean isMaster = masterFields.contains(fieldName);
 					Boolean isChild = masterChildFields.containsKey(fieldName);
 					String masterFieldName = isChild ? masterChildFields.get(fieldName) : null;
@@ -835,6 +847,43 @@ public with sharing class MRG_Merge_SVC {
 				}
 				if(hasChange)
 					updateRecordMap.put(keptRec.Id,keptRec);
+			}
+		}
+		// --- group-wide Complex-rule pass (#33) ---------------------------------------------------
+		// For each kept record, gather its full group (kept + merged) and, per Complex rule, preserve
+		// the value from the rule's winning record (condition match + tie-break). Emits field history
+		// when the kept value changes.
+		if(!complexRules.isEmpty()) {
+			Map<Id, List<SObject>> mergedByKeepId = new Map<Id, List<SObject>>();
+			for(SObject obj:mergedRecords) {
+				Id mId = (Id) obj.get('Id');
+				Id kId = keepIdMap.containsKey(mId) ? keepIdMap.get(mId) : null;
+				if(kId == null) continue;
+				if(!mergedByKeepId.containsKey(kId))
+					mergedByKeepId.put(kId, new List<SObject>());
+				mergedByKeepId.get(kId).add(obj);
+			}
+			for(Id keepId:mergeKeyMap.keyset()) {
+				if(!keptRecordMap.containsKey(keepId))
+					continue;
+				SObject keptRec = keptRecordMap.get(keepId);
+				List<SObject> group = new List<SObject>{ keptRec };
+				if(mergedByKeepId.containsKey(keepId))
+					group.addAll(mergedByKeepId.get(keepId));
+				Boolean complexChange = false;
+				for(MRG_ComplexPreserveRule complexRule:complexRules) {
+					Object winning = complexRule.winningValue(group);
+					if(winning == null)
+						continue;
+					Object current = keptRec.get(complexRule.fieldName);
+					if(valuesAreEqual(current, winning))
+						continue;
+					keptRec.put(complexRule.fieldName, winning);
+					complexChange = true;
+					mergeRecords.add(getMergeRecord(winning, current, keptRec, String.valueOf(keepId), complexRule.fieldName));
+				}
+				if(complexChange)
+					updateRecordMap.put(keptRec.Id, keptRec);
 			}
 		}
 		mergeHistoryResult mergeResult = new mergeHistoryResult(updateRecordMap.values(),mergeRecords);
