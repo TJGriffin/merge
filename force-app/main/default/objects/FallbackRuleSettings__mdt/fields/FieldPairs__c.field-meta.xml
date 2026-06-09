@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>FieldPairs__c</fullName>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>JSON array of source-to-target field mappings, all routed from the same winning record. Maintained by the Fallback Rules UI.</inlineHelpText>
+    <label>Field Pairs</label>
+    <required>false</required>
+    <type>LongTextArea</type>
+    <length>131072</length>
+    <visibleLines>5</visibleLines>
+</CustomField>
