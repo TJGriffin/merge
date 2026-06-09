@@ -1,6 +1,7 @@
 import { LightningElement, api, track, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getObjectFields from '@salesforce/apex/MRG_MergeSettings_CTRL.getObjectFields';
+import getReadableObjectFields from '@salesforce/apex/MRG_MergeSettings_CTRL.getReadableObjectFields';
 
 export default class mergeSingleRecord extends LightningElement {
     @api set record(value) {
@@ -54,15 +55,10 @@ export default class mergeSingleRecord extends LightningElement {
         value = value === undefined || value == null ? [] : value;
         var options = [];
         var relatedFieldOptions = [];
-        var allOptions = [];
-        var typeMap = {};
         value.forEach(fieldResult=>{
-
                 var option = {};
                 option.label = fieldResult.label;
                 option.value = fieldResult.name;
-                allOptions.push(option);
-                typeMap[fieldResult.name] = fieldResult.type;
             if(!this.usedFields.includes(fieldResult.name)) {
                 options.push(option);
             } else {
@@ -71,10 +67,6 @@ export default class mergeSingleRecord extends LightningElement {
         })
         this.fieldOptions = options;
         this.relatedFieldOptions = relatedFieldOptions;
-        // complex rules can reference any field (conditions + tie-break), not just unused ones
-        this.allFieldOptions = allOptions;
-        this.fieldTypeByName = typeMap;
-        this.refreshConditionInputTypes();
     }
     get fieldResults(){
         return this.fieldOptions;
@@ -131,13 +123,31 @@ export default class mergeSingleRecord extends LightningElement {
     
     @wire(getObjectFields, {objectType:'$objectType'})
         getRowData({error,data}) {
-            console.log('wire');
                 if(data) {
                     this.fieldOptions = undefined;
                     this.fieldResults = JSON.parse(JSON.stringify(data));
                     this.error=undefined;
                 } else if(error){
                     this.fieldResults=undefined;
+                    this.error=error;
+                    this.handleError();
+                }
+    }
+    // readable fields (incl. read-only like CreatedDate) for the complex condition + tie-break pickers,
+    // which only READ values to select a record
+    @wire(getReadableObjectFields, {objectType:'$objectType'})
+        getReadableRowData({error,data}) {
+                if(data) {
+                    var allOptions = [];
+                    var typeMap = {};
+                    data.forEach(f=>{
+                        allOptions.push({ label: f.label, value: f.name });
+                        typeMap[f.name] = f.type;
+                    });
+                    this.allFieldOptions = allOptions;
+                    this.fieldTypeByName = typeMap;
+                    this.refreshConditionInputTypes();
+                } else if(error){
                     this.error=error;
                     this.handleError();
                 }
