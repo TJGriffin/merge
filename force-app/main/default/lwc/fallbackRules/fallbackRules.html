@@ -1,0 +1,138 @@
+<template>
+    <lightning-card title="Fallback Rules" icon-name="standard:flow">
+        <div class="slds-m-horizontal_medium">
+            <p class="slds-m-bottom_small slds-text-color_weak">
+                A fallback rule routes value(s) from a single winning record into different target
+                field(s) on the kept record, only where the target is empty. It applies regardless of
+                track/preserve settings. All pairs in a rule are taken from the same winning record.
+            </p>
+
+            <lightning-combobox label="Object" value={objectType} options={objectOptions}
+                onchange={handleObjectChange}>
+            </lightning-combobox>
+
+            <template if:true={hasObject}>
+                <template for:each={rules} for:item="rule">
+                    <div key={rule.uiKey} class="slds-box slds-m-vertical_small">
+                        <div class="slds-grid slds-grid_align-spread slds-m-bottom_x-small">
+                            <lightning-input class="slds-size_1-of-2" label="Rule Label" value={rule.label}
+                                data-rule={rule.ruleIndex} onchange={handleLabelChange}>
+                            </lightning-input>
+                            <lightning-button-icon icon-name="utility:delete" alternative-text="Remove rule"
+                                title="Remove rule" data-rule={rule.ruleIndex} onclick={removeRule}>
+                            </lightning-button-icon>
+                        </div>
+
+                        <div class="slds-grid slds-gutters slds-m-bottom_x-small">
+                            <div class="slds-col slds-size_1-of-2">
+                                <lightning-combobox label="Source Record Selection" value={rule.selectionType}
+                                    options={selectionOptions} data-rule={rule.ruleIndex}
+                                    onchange={handleSelectionTypeChange}>
+                                </lightning-combobox>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2">
+                                <template if:false={rule.isComplex}>
+                                    <lightning-combobox label="Rule" value={rule.rule} options={ruleOptions}
+                                        data-rule={rule.ruleIndex} onchange={handleSimpleRuleChange}>
+                                    </lightning-combobox>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- complex selection: conditions + filter logic + tie-break -->
+                        <template if:true={rule.isComplex}>
+                            <p class="slds-text-title_caps slds-m-vertical_x-small">Conditions</p>
+                            <template for:each={rule.conditions} for:item="condition">
+                                <div key={condition.uiKey} class="slds-grid slds-gutters slds-grid_vertical-align-end slds-m-bottom_x-small">
+                                    <div class="slds-col slds-size_1-of-12 slds-align-middle">{condition.conditionIndex}</div>
+                                    <div class="slds-col slds-size_4-of-12">
+                                        <lightning-combobox label="Field" value={condition.fieldName} options={fieldOptions}
+                                            data-rule={condition.ruleIndex} data-condition={condition.conditionIndex}
+                                            onchange={handleConditionFieldChange}>
+                                        </lightning-combobox>
+                                    </div>
+                                    <div class="slds-col slds-size_3-of-12">
+                                        <lightning-combobox label="Operator" value={condition.operator} options={operatorOptions}
+                                            data-rule={condition.ruleIndex} data-condition={condition.conditionIndex}
+                                            onchange={handleConditionOperatorChange}>
+                                        </lightning-combobox>
+                                    </div>
+                                    <div class="slds-col slds-size_3-of-12">
+                                        <template if:true={condition.isCheckbox}>
+                                            <lightning-input type="checkbox" label="Value" checked={condition.checked}
+                                                data-rule={condition.ruleIndex} data-condition={condition.conditionIndex}
+                                                onchange={handleConditionValueChange}>
+                                            </lightning-input>
+                                        </template>
+                                        <template if:false={condition.isCheckbox}>
+                                            <lightning-input type={condition.inputType} label="Value" value={condition.value}
+                                                data-rule={condition.ruleIndex} data-condition={condition.conditionIndex}
+                                                onchange={handleConditionValueChange}>
+                                            </lightning-input>
+                                        </template>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-12">
+                                        <lightning-button-icon icon-name="utility:close" alternative-text="Remove condition"
+                                            data-rule={condition.ruleIndex} data-condition={condition.conditionIndex}
+                                            onclick={removeCondition}>
+                                        </lightning-button-icon>
+                                    </div>
+                                </div>
+                            </template>
+                            <lightning-button label="Add Condition" icon-name="utility:add" variant="base"
+                                class="slds-m-bottom_x-small" data-rule={rule.ruleIndex} onclick={addCondition}>
+                            </lightning-button>
+                            <lightning-input label="Filter Logic (e.g. (1 AND 2) OR 3 — blank = AND all)"
+                                value={rule.filterLogic} data-rule={rule.ruleIndex} onchange={handleLogicChange}>
+                            </lightning-input>
+                            <div class="slds-grid slds-gutters slds-m-top_x-small">
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-combobox label="Tie-Break Field" value={rule.tieBreakField}
+                                        placeholder="Select Field" options={fieldOptions}
+                                        data-rule={rule.ruleIndex} onchange={handleTieBreakFieldChange}>
+                                    </lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-combobox label="Tie-Break Direction" value={rule.tieBreakDirection}
+                                        options={directionOptions} data-rule={rule.ruleIndex}
+                                        onchange={handleTieBreakDirectionChange}>
+                                    </lightning-combobox>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- field pairs: source -> target -->
+                        <p class="slds-text-title_caps slds-m-top_small slds-m-bottom_x-small">Field Mappings (source &rarr; target)</p>
+                        <template for:each={rule.fieldPairs} for:item="pair">
+                            <div key={pair.uiKey} class="slds-grid slds-gutters slds-grid_vertical-align-end slds-m-bottom_x-small">
+                                <div class="slds-col slds-size_5-of-12">
+                                    <lightning-combobox label="Source Field" value={pair.sourceField} options={fieldOptions}
+                                        data-rule={pair.ruleIndex} data-pair={pair.pairIndex} onchange={handlePairSourceChange}>
+                                    </lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_5-of-12">
+                                    <lightning-combobox label="Target Field" value={pair.targetField} options={fieldOptions}
+                                        data-rule={pair.ruleIndex} data-pair={pair.pairIndex} onchange={handlePairTargetChange}>
+                                    </lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_2-of-12">
+                                    <lightning-button-icon icon-name="utility:close" alternative-text="Remove mapping"
+                                        data-rule={pair.ruleIndex} data-pair={pair.pairIndex} onclick={removePair}>
+                                    </lightning-button-icon>
+                                </div>
+                            </div>
+                        </template>
+                        <lightning-button label="Add Field Mapping" icon-name="utility:add" variant="base"
+                            data-rule={rule.ruleIndex} onclick={addPair}>
+                        </lightning-button>
+                    </div>
+                </template>
+
+                <div class="slds-grid slds-gutters slds-m-vertical_small">
+                    <lightning-button label="Add Rule" icon-name="utility:add" onclick={addRule} class="slds-m-right_x-small"></lightning-button>
+                    <lightning-button label="Save" variant="brand" onclick={handleSave}></lightning-button>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>
