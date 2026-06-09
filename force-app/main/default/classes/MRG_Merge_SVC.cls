@@ -767,6 +767,12 @@ public with sharing class MRG_Merge_SVC {
 
 		List<MergeFieldHistory__c> mergeRecords = new List<MergeFieldHistory__c>();
 		Map<Id, SObject> updateRecordMap = new Map<Id, SObject>();
+		// snapshot the kept records' ORIGINAL field values before the pairwise loop mutates them, so the
+		// group-wide passes (Complex/Fallback) evaluate conditions against pre-merge values rather than
+		// values the pairwise loop may have already changed (e.g. a default boolean preserve).
+		Map<Id, SObject> keptOriginalById = new Map<Id, SObject>();
+		for(Id keepId:keptRecordMap.keyset())
+			keptOriginalById.put(keepId, keptRecordMap.get(keepId).clone(true, false, false, false));
 		for(Sobject obj:mergedRecords) {
 			String mergedRecordId = (String) obj.get('Id'); 
 			String masterRecordId = keepIdMap.containsKey(Id.valueOf(mergedRecordId)) ? keepIdMap.get(Id.valueOf(mergedRecordId)) : null;
@@ -875,7 +881,11 @@ public with sharing class MRG_Merge_SVC {
 				if(!keptRecordMap.containsKey(keepId))
 					continue;
 				SObject keptRec = keptRecordMap.get(keepId);
-				List<SObject> recordGroup = new List<SObject>{ keptRec };
+				// evaluate winner/conditions against the ORIGINAL kept values (+ unmutated merged
+				// records), not the keptRec the pairwise loop may have already changed; writes still
+				// target the live keptRec.
+				SObject keptOriginal = keptOriginalById.containsKey(keepId) ? keptOriginalById.get(keepId) : keptRec;
+				List<SObject> recordGroup = new List<SObject>{ keptOriginal };
 				if(mergedByKeepId.containsKey(keepId))
 					recordGroup.addAll(mergedByKeepId.get(keepId));
 				Boolean groupChange = false;
