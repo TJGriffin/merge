@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>FallbackField__c</fullName>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Optional. On a Track or Preserve field, the field on the kept record that should receive the losing record's value for this field (only when that target field is empty). The routed value is recorded in Merge Field History with the target field.</inlineHelpText>
+    <label>Fallback Field</label>
+    <referenceTo>EntityParticle</referenceTo>
+    <relationshipLabel>Fallback_Field</relationshipLabel>
+    <relationshipName>Fallback_Field</relationshipName>
+    <required>false</required>
+    <type>MetadataRelationship</type>
+    <metadataRelationshipControllingField>Object__c</metadataRelationshipControllingField>
+    <unique>false</unique>
+</CustomField>

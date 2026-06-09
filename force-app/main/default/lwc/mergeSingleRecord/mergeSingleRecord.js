@@ -169,6 +169,9 @@ export default class mergeSingleRecord extends LightningElement {
     handleFieldSelect(event) {
         this.mergeRecord.fieldName = event.detail.value;
     }
+    handleFallbackFieldSelect(event){
+        this.mergeRecord.fallbackField = event.detail.value;
+    }
     handleRelatedFieldSelect(event){
         this.mergeRecord.relatedField = event.detail.value;
     }
