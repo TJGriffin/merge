@@ -1,17 +1,19 @@
 {
-    "packageDirectories": [
-        {
-            "path": "force-app",
-            "default": true,
-            "package": "merge",
-            "versionName": "ver 0.1",
-            "versionNumber": "0.1.0.NEXT"
-        }
-    ],
-    "namespace": "",
-    "sfdcLoginUrl": "https://login.salesforce.com",
-    "sourceApiVersion": "49.0",
-    "packageAliases": {
-        "merge": "0Ho4W000000TNLiSAO"
+  "packageDirectories": [
+    {
+      "path": "force-app",
+      "default": true,
+      "package": "merge",
+      "versionName": "ver 2.0",
+      "versionNumber": "2.0.0.NEXT"
     }
+  ],
+  "namespace": "",
+  "sfdcLoginUrl": "https://login.salesforce.com",
+  "sourceApiVersion": "49.0",
+  "packageAliases": {
+    "merge": "0Ho4W000000TNLiSAO",
+    "merge@2.0.0-1": "04tKb000000EgyJIAS",
+    "merge@2.0.0-2": "04tKb000000EgyOIAS"
+  }
 }
