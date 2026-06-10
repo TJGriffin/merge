@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Conditions__c</fullName>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>JSON array of conditions (field, operator, value, aggregator). The aggregator reduces a condition across the candidate's records: all / any / differ / same. Maintained by the Auto-Merge Accounts Rules UI.</inlineHelpText>
+    <label>Conditions</label>
+    <required>false</required>
+    <type>LongTextArea</type>
+    <length>131072</length>
+    <visibleLines>5</visibleLines>
+</CustomField>

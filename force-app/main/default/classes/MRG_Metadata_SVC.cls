@@ -112,6 +112,32 @@ public with sharing class MRG_Metadata_SVC {
 	* @param keepRuleSetting the keep-record rule setting to save
 	* @return the Job Id of the deployment job
 	*/
+	public Metadata.CustomMetadata getMetaDataRecord(AutoMergeAccountsRule__mdt amaSetting) {
+		Metadata.CustomMetadata mdRecord = new Metadata.CustomMetadata();
+		List<String> mdRecordNames = new List<String>();
+		Map<String, Object> fieldKeyValues = new Map<String, Object>();
+		fieldKeyValues.put('Object__c', amaSetting.Object__r.QualifiedAPIName);
+		fieldKeyValues.put('FilterLogic__c', amaSetting.FilterLogic__c);
+		fieldKeyValues.put('AutoMerge__c', amaSetting.AutoMerge__c);
+		fieldKeyValues.put('Conditions__c', amaSetting.Conditions__c);
+		String qualifiedName = !amaSetting.QualifiedAPIName.contains('.') ? 'AutoMergeAccountsRule__mdt.'+amaSetting.QualifiedAPIName : amaSetting.QualifiedAPIName;
+		mdRecordNames.add(qualifiedName);
+
+		List<Metadata.Metadata> metadataRecords = getMetadataRecords(mdRecordNames);
+		if(metadataRecords.size()>0) {
+			mdRecord = (Metadata.CustomMetadata) metadataRecords.get(0).clone();
+		} else {
+			mdRecord.fullName = qualifiedName;
+		}
+		mdRecord.Label = amaSetting.Label;
+		mdRecord = updateMetadataObjectFields(mdRecord, fieldKeyValues);
+		return mdRecord;
+	}
+	/*******************************************************************************************************
+	* @description saves an integration process via metadata deployment
+	* @param keepRuleSetting the keep-record rule setting to save
+	* @return the Job Id of the deployment job
+	*/
 	public Metadata.CustomMetadata getMetaDataRecord(KeepRecordRuleSettings__mdt keepRuleSetting) {
 		   	// create metadata container
 		Metadata.CustomMetadata mdRecord = new Metadata.CustomMetadata();
