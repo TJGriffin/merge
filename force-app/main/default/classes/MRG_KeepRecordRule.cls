@@ -85,6 +85,8 @@ public with sharing class MRG_KeepRecordRule implements Comparable {
 		@auraEnabled public String fieldName;
 		@auraEnabled public String operator;   // equals, notEquals, lessThan, lessOrEqual, greaterThan, greaterOrEqual, contains, startsWith, endsWith
 		@auraEnabled public String value;      // raw string value; typed via the record's field type
+		@auraEnabled public String aggregator; // optional cross-record aggregator (all/any/differ/same)
+		                                       // used by group-level rules; ignored by single-record use
 
 		public condition() {}
 
