@@ -153,7 +153,10 @@ private class MRG_Preservation_TEST {
 	}
 
 	static testMethod void testContactDefaultBooleanPreserved() {
-		// no setting: a true on the merged record is preserved over false on the kept record
+		// no setting: a true on the merged record is preserved over false on the kept record. The merge
+		// engine derives its field list from FLS-aware isUpdateable(), and HasOptedOutOfEmail defaults to
+		// hidden, so drive the merge as a user explicitly granted FLS on the field (see flsRunner()).
+		User runner = flsRunner();
 		List<Contact> cons = MRG_TestFactory.contacts(2);
 		Id keepId = cons[0].Id;
 		Id mergeId = cons[1].Id;
@@ -165,11 +168,50 @@ private class MRG_Preservation_TEST {
 		MergeCandidate__c mc = MRG_TestFactory.mergeCandidate(keepId, mergeId, 'Contact');
 
 		Test.startTest();
-		MRG_TestFactory.runMerge(new List<MergeCandidate__c>{ mc }, 'Contact');
+		System.runAs(runner) {
+			MRG_TestFactory.runMerge(new List<MergeCandidate__c>{ mc }, 'Contact');
+		}
 		Test.stopTest();
 
 		system.assertEquals(true, (Boolean) MRG_TestFactory.keptValue(keepId,'Contact','HasOptedOutOfEmail'),
 			'a true boolean on the merged record should be preserved over a false kept value');
+	}
+
+	/*******************************************************************************************************
+	* @description builds a System Administrator user granted FLS read/edit on Contact.HasOptedOutOfEmail
+	* via a permission set, so the merge engine's FLS-aware field list includes the field even in orgs
+	* where it defaults to hidden. Setup-object DML is isolated in a runAs block to avoid
+	* MIXED_DML_OPERATION with the test's Contact DML.
+	* @return User the FLS-granted runner
+	*/
+	private static User flsRunner() {
+		User runner;
+		System.runAs(new User(Id = UserInfo.getUserId())) {
+			Profile p = [SELECT Id FROM Profile WHERE Name = 'System Administrator' LIMIT 1];
+			runner = new User(
+				Alias = 'mrgfls',
+				Email = 'mrgfls@merge.test.example.com',
+				LastName = 'MergeFls',
+				Username = 'mrgfls' + DateTime.now().getTime() + '@merge.test.example.com',
+				EmailEncodingKey = 'UTF-8',
+				LanguageLocaleKey = 'en_US',
+				LocaleSidKey = 'en_US',
+				TimeZoneSidKey = 'America/Los_Angeles',
+				ProfileId = p.Id
+			);
+			insert runner;
+			PermissionSet ps = new PermissionSet(Name = 'MRG_BoolFlsTest', Label = 'MRG Bool FLS Test');
+			insert ps;
+			insert new FieldPermissions(
+				ParentId = ps.Id,
+				SObjectType = 'Contact',
+				Field = 'Contact.HasOptedOutOfEmail',
+				PermissionsRead = true,
+				PermissionsEdit = true
+			);
+			insert new PermissionSetAssignment(AssigneeId = runner.Id, PermissionSetId = ps.Id);
+		}
+		return runner;
 	}
 
 	// ---- Account rules (numeric) --------------------------------------------------------------

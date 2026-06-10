@@ -9,6 +9,22 @@ The Merge Control app provides SF Administrators with the following tools relate
 4) a condensed UI where you can see the key differences between records as well as the resulting values post merge
 - admins can control which fields should be hidden from this UI (particularly if you've already defined rules for preservation)
 
+## Installation
+
+Current release: **2.0.0** (unlocked package, `04tKb000000EgyOIAS`)
+
+Install via URL:
+- Production / Developer Edition: https://login.salesforce.com/packaging/installPackage.apexp?p0=04tKb000000EgyOIAS
+- Sandbox: https://test.salesforce.com/packaging/installPackage.apexp?p0=04tKb000000EgyOIAS
+
+Or with the Salesforce CLI:
+
+```
+sf package install --package 04tKb000000EgyOIAS --target-org <org-alias> --wait 10
+```
+
+After installing, assign the **Merge Control Administrator** permission set to administrators.
+
 ## Documentation
 
 - [Administrator Guide](docs/user-guide.md) — how each functional area works and how to use it
