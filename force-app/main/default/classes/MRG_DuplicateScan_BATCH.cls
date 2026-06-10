@@ -51,6 +51,9 @@ public with sharing class MRG_DuplicateScan_BATCH implements Database.Batchable<
 	public void execute(Database.BatchableContext BC, List<sObject> scope) {
         Map<Id, SObject> recordMap = new Map<Id, SObject>(scope);
         List<MergeCandidate__c> mergeCandidates = MRG_Duplicate_SVC.processRecords(recordMap,objectType);
+        // flag candidates whose records match an auto-merge-accounts rule (#35) so the account-merge
+        // pass merges their associated Accounts instead of merging the records
+        MRG_AccountMerge_SVC.flagAutoMergeAccounts(mergeCandidates, objectType);
         if(mergeCandidates.size()>0)
             upsert mergeCandidates KeepRecordId__c;
     }

@@ -14,6 +14,62 @@ public with sharing class MRG_AccountMerge_SVC {
 	public static final String STATUS_ACCOUNTS_MERGED = 'Accounts Merged';
 
 	/*******************************************************************************************************
+	* @description evaluates the auto-merge-accounts rules against each candidate's records and sets
+	* AutoMergeAccounts__c on candidates matched by a rule whose AutoMerge is true. Called at scan time
+	* (does not DML; the caller upserts the candidates). Candidates whose object has no rules are left
+	* untouched.
+	* @param candidates the merge candidates (e.g. Contact candidates)
+	* @param objectType the candidate object api name
+	*/
+	public static void flagAutoMergeAccounts(List<MergeCandidate__c> candidates, String objectType) {
+		List<MRG_AutoMergeAccountsRule> rules = MRG_AutoMergeAccountsRule.getRules(objectType);
+		if(rules.isEmpty() || candidates == null || candidates.isEmpty())
+			return;
+		// gather referenced fields and all candidate record ids
+		Set<String> fields = new Set<String>{'Id'};
+		Boolean anyAuto = false;
+		for(MRG_AutoMergeAccountsRule rule:rules) {
+			fields.addAll(rule.referencedFields());
+			anyAuto = anyAuto || rule.autoMerge == true;
+		}
+		if(!anyAuto)
+			return; // no auto rule could set the flag; manual action remains available
+		Set<Id> recordIds = new Set<Id>();
+		for(MergeCandidate__c c:candidates)
+			recordIds.addAll(candidateRecordIds(c));
+		if(recordIds.isEmpty())
+			return;
+		String soql = 'SELECT ' + String.join(new List<String>(fields), ',') + ' FROM ' + objectType + ' WHERE Id IN :recordIds';
+		Map<Id, SObject> recordsById = new Map<Id, SObject>(Database.query(soql));
+		for(MergeCandidate__c c:candidates) {
+			List<SObject> recordGroup = new List<SObject>();
+			for(Id rid:candidateRecordIds(c)) {
+				if(recordsById.containsKey(rid))
+					recordGroup.add(recordsById.get(rid));
+			}
+			if(recordGroup.size() < 2)
+				continue;
+			for(MRG_AutoMergeAccountsRule rule:rules) {
+				if(rule.autoMerge == true && rule.matches(recordGroup)) {
+					c.AutoMergeAccounts__c = true;
+					break;
+				}
+			}
+		}
+	}
+
+	/*******************************************************************************************************
+	* @description the candidate's record ids (keep/merge/merge2)
+	*/
+	private static List<Id> candidateRecordIds(MergeCandidate__c c) {
+		List<Id> ids = new List<Id>();
+		if(String.isNotBlank(c.KeepRecordId__c)) ids.add((Id) c.KeepRecordId__c);
+		if(String.isNotBlank(c.MergeRecordId__c)) ids.add((Id) c.MergeRecordId__c);
+		if(String.isNotBlank(c.Merge2RecordId__c)) ids.add((Id) c.Merge2RecordId__c);
+		return ids;
+	}
+
+	/*******************************************************************************************************
 	* @description the distinct AccountIds referenced by a contact merge candidate's contacts
 	* @param candidate the contact merge candidate
 	* @return List<Id> account ids (order: keep contact's account first when present)

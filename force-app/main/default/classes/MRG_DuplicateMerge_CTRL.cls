@@ -69,6 +69,23 @@ public with sharing class MRG_DuplicateMerge_CTRL {
     }
 
 	/*******************************************************************************************************
+	* @description merges the Accounts associated with a candidate's contacts (the contacts are kept)
+	* instead of merging the contacts (#35)
+	* @param recordId the merge candidate recordId
+	* @return String response
+	*/
+    @AuraEnabled
+    public static String mergeAccounts(String recordId){
+        String soqlQuery  = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL();
+        soqlQuery+=' WHERE Id=:recordId';
+        List<MergeCandidate__c> mergeCandidates = (List<MergeCandidate__c>) database.query(soqlQuery);
+        if(mergeCandidates.isEmpty())
+            return 'an error occurred';
+        Id keepAccountId = MRG_AccountMerge_SVC.mergeAccounts(mergeCandidates[0]);
+        return keepAccountId != null ? 'Accounts merged' : 'No accounts to merge (records share an account or have none)';
+    }
+
+	/*******************************************************************************************************
 	* @description returns the records for preview
 	* @param recordId recordId to merge
 	* @return String response
