@@ -111,7 +111,8 @@
                             
                            <lightning-button variant="neutral" label="Preview" onclick={handlePreview} class="slds-m-right_x-small" data-record={row.id}></lightning-button>
                            <lightning-button variant="destructive" label="Remove" onclick={handleRemove} class="slds-m-right_x-small" data-record={row.id}></lightning-button>
-                           <lightning-button variant="success" label="Merge" onclick={handleMerge} class="slds-m-right_x-small" data-record={row.id}></lightning-button>                     
+                           <lightning-button variant="success" label="Merge" onclick={handleMerge} class="slds-m-right_x-small" data-record={row.id}></lightning-button>
+                           <lightning-button variant="neutral" label="Merge Accounts" onclick={handleMergeAccounts} class="slds-m-right_x-small" data-record={row.id}></lightning-button>
                         </lightning-layout-item>
                     </lightning-layout>
                 </template>

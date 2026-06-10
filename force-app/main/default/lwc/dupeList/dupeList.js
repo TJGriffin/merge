@@ -5,6 +5,7 @@ import getDuplicateRules from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getRules
 import getCount from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getCount';
 import doMergeRecord from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeRecord';
 import doRemoveRecord from '@salesforce/apex/MRG_DuplicateMerge_CTRL.removeRecord';
+import doMergeAccounts from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeAccounts';
 import doPreviewRecord from '@salesforce/apex/MRG_DuplicateMerge_CTRL.previewRecord';
 
 export default class DupeList extends LightningElement {
@@ -215,6 +216,25 @@ export default class DupeList extends LightningElement {
         this.selectedRecordId = event.currentTarget.dataset.record;
         this.mergeRecord();
 
+    }
+    handleMergeAccounts(event){
+        this.showSpinner=true;
+        this.selectedRecordId = event.currentTarget.dataset.record;
+        this.mergeAccounts();
+    }
+    mergeAccounts() {
+        doMergeAccounts({recordId:this.selectedRecordId})
+        .then(response=>{
+            this.removeSelectedRecordFromRows();
+            this.notificationBody = response;
+            this.handleSuccess();
+            this.showSpinner=false;
+        })
+        .catch(error => {
+            this.error = error;
+            this.handleError();
+            this.showSpinner=false;
+        })
     }
     mergeRecord() {
         console.log('merge: '+this.selectedRecordId);

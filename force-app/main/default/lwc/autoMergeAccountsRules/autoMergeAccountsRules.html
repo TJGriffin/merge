@@ -1,0 +1,99 @@
+<template>
+    <lightning-card title="Auto-Merge Accounts Rules" icon-name="standard:account">
+        <div class="slds-m-horizontal_medium">
+            <p class="slds-m-bottom_small slds-text-color_weak">
+                When a merge candidate's records match a rule, their associated Accounts are merged
+                (the records themselves are kept) instead of merging the records. Conditions are
+                evaluated across the candidate's records using an aggregator (all / any / differ /
+                same). Rules with Auto Merge on are processed automatically; otherwise the candidate is
+                flagged for the manual "Merge Accounts" action.
+            </p>
+
+            <lightning-combobox label="Object" value={objectType} options={objectOptions}
+                onchange={handleObjectChange}>
+            </lightning-combobox>
+
+            <template if:true={hasObject}>
+                <template for:each={rules} for:item="rule">
+                    <div key={rule.uiKey} class="slds-box slds-m-vertical_small">
+                        <div class="slds-grid slds-gutters slds-grid_vertical-align-center slds-m-bottom_x-small">
+                            <div class="slds-col slds-size_6-of-12">
+                                <lightning-input label="Rule Label" value={rule.label}
+                                    data-rule={rule.ruleIndex} onchange={handleLabelChange}>
+                                </lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_4-of-12 slds-align-bottom">
+                                <lightning-input type="checkbox" label="Auto Merge" checked={rule.autoMerge}
+                                    data-rule={rule.ruleIndex} onchange={handleAutoMergeChange}>
+                                </lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_2-of-12 slds-text-align_right">
+                                <lightning-button-icon icon-name="utility:delete" alternative-text="Remove rule"
+                                    title="Remove rule" data-rule={rule.ruleIndex} onclick={removeRule}>
+                                </lightning-button-icon>
+                            </div>
+                        </div>
+
+                        <template for:each={rule.conditions} for:item="condition">
+                            <div key={condition.uiKey} class="slds-grid slds-gutters slds-grid_vertical-align-end slds-m-bottom_x-small">
+                                <div class="slds-col slds-size_1-of-12 slds-align-middle">{condition.conditionIndex}</div>
+                                <div class="slds-col slds-size_3-of-12">
+                                    <lightning-combobox label="Field" value={condition.fieldName} options={fieldOptions}
+                                        data-rule={condition.ruleIndex} data-condition={condition.conditionIndex}
+                                        onchange={handleConditionFieldChange}>
+                                    </lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_3-of-12">
+                                    <lightning-combobox label="Aggregator" value={condition.aggregator} options={aggregatorOptions}
+                                        data-rule={condition.ruleIndex} data-condition={condition.conditionIndex}
+                                        onchange={handleConditionAggregatorChange}>
+                                    </lightning-combobox>
+                                </div>
+                                <template if:true={condition.usesValue}>
+                                    <div class="slds-col slds-size_2-of-12">
+                                        <lightning-combobox label="Operator" value={condition.operator} options={operatorOptions}
+                                            data-rule={condition.ruleIndex} data-condition={condition.conditionIndex}
+                                            onchange={handleConditionOperatorChange}>
+                                        </lightning-combobox>
+                                    </div>
+                                    <div class="slds-col slds-size_2-of-12">
+                                        <template if:true={condition.isCheckbox}>
+                                            <lightning-input type="checkbox" label="Value" checked={condition.checked}
+                                                data-rule={condition.ruleIndex} data-condition={condition.conditionIndex}
+                                                onchange={handleConditionValueChange}>
+                                            </lightning-input>
+                                        </template>
+                                        <template if:true={condition.isValueInput}>
+                                            <lightning-input type={condition.inputType} label="Value" value={condition.value}
+                                                data-rule={condition.ruleIndex} data-condition={condition.conditionIndex}
+                                                onchange={handleConditionValueChange}>
+                                            </lightning-input>
+                                        </template>
+                                    </div>
+                                </template>
+                                <div class="slds-col slds-size_1-of-12">
+                                    <lightning-button-icon icon-name="utility:close" alternative-text="Remove condition"
+                                        data-rule={condition.ruleIndex} data-condition={condition.conditionIndex}
+                                        onclick={removeCondition}>
+                                    </lightning-button-icon>
+                                </div>
+                            </div>
+                        </template>
+
+                        <lightning-button label="Add Condition" icon-name="utility:add" variant="base"
+                            class="slds-m-bottom_x-small" data-rule={rule.ruleIndex} onclick={addCondition}>
+                        </lightning-button>
+                        <lightning-input label="Filter Logic (e.g. (1 AND 2) OR 3 — blank = AND all)"
+                            value={rule.filterLogic} data-rule={rule.ruleIndex} onchange={handleLogicChange}>
+                        </lightning-input>
+                    </div>
+                </template>
+
+                <div class="slds-grid slds-gutters slds-m-vertical_small">
+                    <lightning-button label="Add Rule" icon-name="utility:add" onclick={addRule} class="slds-m-right_x-small"></lightning-button>
+                    <lightning-button label="Save" variant="brand" onclick={handleSave}></lightning-button>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>
