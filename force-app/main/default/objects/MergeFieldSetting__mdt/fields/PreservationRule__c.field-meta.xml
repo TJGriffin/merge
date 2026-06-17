@@ -41,9 +41,9 @@
                 <label>Shortest Text</label>
             </value>
             <value>
-                <fullName>Populated</fullName>
+                <fullName>Contains</fullName>
                 <default>false</default>
-                <label>Has a Value</label>
+                <label>Contains Text</label>
             </value>
             <value>
                 <fullName>Related Field</fullName>

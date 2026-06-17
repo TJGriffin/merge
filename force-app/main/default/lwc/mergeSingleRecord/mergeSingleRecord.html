@@ -215,6 +215,19 @@
                         </lightning-input>
                     </div>
                 </template>
+
+                <template if:true={isContains}>
+                    <div class="slds-box slds-m-horizontal_small slds-m-bottom_medium">
+                        <p class="slds-text-title_caps slds-m-bottom_x-small">Contains Text</p>
+                        <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">
+                            Keep this field's value from whichever record's value contains the substring
+                            below (case-sensitive).
+                        </p>
+                        <lightning-input label="Contains Value" value={mergeRecord.containsValue}
+                            onchange={handleContainsValueChange}>
+                        </lightning-input>
+                    </div>
+                </template>
             </template>
         </template>
 </template>
