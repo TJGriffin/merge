@@ -44,6 +44,7 @@ private class MRG_DuplicateMerge_TEST {
             KeepName__c = 'Test',
             MergeRecordId__c = cons[1].Id,
             MergeName__c = 'Test 2',
+            PairKey__c = String.valueOf(cons[0].Id) + '-' + String.valueOf(cons[1].Id),
             Object__c = 'Contact',
             Rule__c = 'test',
             Status__c = 'New',
@@ -62,10 +63,12 @@ private class MRG_DuplicateMerge_TEST {
 	}
     static testMethod void testCTLR() {
         Integer count = MRG_DuplicateMerge_CTRL.getCount('Contact','test');
-        List<MRG_DuplicateMerge_CTRL.mergeGroup> groups = MRG_DuplicateMerge_CTRL.getMergeGroups('Contact','test',100,0);
-        String mergeGroupJSON = JSON.serialize(groups[0]);
+        List<MRG_DuplicateMerge_CTRL.keepGroup> groups = MRG_DuplicateMerge_CTRL.getKeepGroups('Contact','test',100,0);
+        system.assert(!groups.isEmpty(), 'a keep group should be returned');
+        List<MRG_DuplicateMerge_CTRL.mergeGroup> pairs = groups[0].pairs;
+        String mergeGroupJSON = JSON.serialize(pairs[0]);
         List<SObject> objs = MRG_DuplicateMerge_CTRL.getSObjectsFromMergeGroup(mergeGroupJSON);
-        List<MergeCandidate__c> candidates = MRG_DuplicateMerge_CTRL.getMergeCandidateFromMergeGroup(groups);
+        List<MergeCandidate__c> candidates = MRG_DuplicateMerge_CTRL.getMergeCandidateFromMergeGroup(pairs);
         String response = MRG_DuplicateMerge_CTRL.removeRecord(candidates[0].Id);
         test.startTest();
         response = MRG_DuplicateMerge_CTRL.mergeRecord(candidates[0].Id);
@@ -89,10 +92,30 @@ private class MRG_DuplicateMerge_TEST {
         mc.ConfidenceScore__c = 95.50;
         mc.Source__c = 'External';
         update mc;
-        List<MRG_DuplicateMerge_CTRL.mergeGroup> groups = MRG_DuplicateMerge_CTRL.getMergeGroups('Contact','test',100,0);
-        system.assertEquals(1, groups.size(), 'the candidate should be returned');
-        system.assertEquals(95.50, groups[0].confidenceScore, 'confidence score should flow through to the wrapper');
-        system.assertEquals('External', groups[0].source, 'source should flow through to the wrapper');
+        List<MRG_DuplicateMerge_CTRL.keepGroup> groups = MRG_DuplicateMerge_CTRL.getKeepGroups('Contact','test',100,0);
+        system.assertEquals(1, groups.size(), 'one keep group should be returned');
+        system.assertEquals(1, groups[0].pairs.size(), 'the keep group should have one pair');
+        system.assertEquals(95.50, groups[0].pairs[0].confidenceScore, 'confidence score should flow through to the pair wrapper');
+        system.assertEquals('External', groups[0].pairs[0].source, 'source should flow through to the pair wrapper');
+    }
+
+    static testMethod void testKeepGroupsOrderedByConfidenceDesc(){
+        // a keep with two duplicate pairs: the pairs must group under the keep, ordered confidence desc
+        List<Contact> cons = MRG_TestFactory.contacts(3);
+        Id keepId = cons[0].Id;
+        List<MergeCandidate__c> pairs = MRG_TestFactory.mergeCandidatePairs(keepId, new List<Id>{ cons[1].Id, cons[2].Id }, 'Contact');
+        pairs[0].ConfidenceScore__c = 10.00;
+        pairs[1].ConfidenceScore__c = 90.00;
+        update pairs;
+        MRG_DuplicateMerge_CTRL.keepGroup grp;
+        for(MRG_DuplicateMerge_CTRL.keepGroup g:MRG_DuplicateMerge_CTRL.getKeepGroups('Contact','test',100,0)){
+            if(g.keepId == String.valueOf(keepId))
+                grp = g;
+        }
+        system.assertNotEquals(null, grp, 'the keep group should be present');
+        system.assertEquals(2, grp.pairs.size(), 'both pairs should group under the one keep');
+        system.assertEquals(90.00, grp.pairs[0].confidenceScore, 'highest confidence pair should sort first');
+        system.assertEquals(10.00, grp.pairs[1].confidenceScore, 'lower confidence pair should sort second');
     }
 
     static testMethod void testBatch(){

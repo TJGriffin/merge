@@ -65,6 +65,22 @@ private class MRG_Duplicate_TEST {
 
     }
 
+	static testMethod void testBuildPairsExplodesGroupIntoPairs() {
+		List<String> ids = new List<String>();
+		for(Contact c:[SELECT Id FROM Contact]) ids.add(String.valueOf(c.Id));
+		for(Account a:[SELECT Id FROM Account]) ids.add(String.valueOf(a.Id));
+		List<String> ordered = new List<String>{ ids[0], ids[1], ids[2] };
+		Map<String,String> names = new Map<String,String>{ ids[0] => 'Keep', ids[1] => 'M1', ids[2] => 'M2' };
+		List<MergeCandidate__c> pairs = MRG_Duplicate_SVC.buildPairs(ordered, names, 'Contact', 'rx');
+		system.assertEquals(2, pairs.size(), 'a 3-record group yields two (keep, merge) pairs');
+		system.assertEquals(ids[0], pairs[0].KeepRecordId__c, 'all pairs share the keep');
+		system.assertEquals(ids[0], pairs[1].KeepRecordId__c);
+		system.assertEquals(ids[0] + '-' + ids[1], pairs[0].PairKey__c, 'pair key is keep-merge');
+		system.assertEquals('Keep', pairs[0].KeepName__c);
+		system.assert(MRG_Duplicate_SVC.buildPairs(new List<String>{ ids[0] }, names, 'Contact', 'rx').isEmpty(),
+			'a single id yields no pairs');
+	}
+
 	static testMethod void testSelectKeepIdByRulesNoRulesReturnsNull() {
 		List<Contact> cons = [SELECT Id FROM Contact];
 		List<String> ids = new List<String>{ cons[0].Id, cons[1].Id };

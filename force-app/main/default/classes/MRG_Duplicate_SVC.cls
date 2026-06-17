@@ -307,8 +307,9 @@ public with sharing class MRG_Duplicate_SVC {
         for(dupeRule duplicateRule:duplicateRules) {
             duplicateRuleMap.put(duplicateRule.ruleName, duplicateRule);
         }
-        Map<String, MergeCandidate__c> mergeCandidates = new Map<String, MergeCandidate__c>();
-        Set<String> mergedIds = new Set<String>();
+        // keyed by PairKey so the same (keep, merge) pair found from either seed collapses to one row;
+        // a keep legitimately appears in many pairs now, so there is no cross-record exclusion
+        Map<String, MergeCandidate__c> mergeCandidatesByPair = new Map<String, MergeCandidate__c>();
         for(Integer i=0; i<recordIds.size(); i++) {
             Id recordId = recordIds[i];
             SObject sObj = recordMap.get(recordId);
@@ -316,22 +317,18 @@ public with sharing class MRG_Duplicate_SVC {
             for(DataCloud.DuplicateResult duplicateResult:findDuplicateResult.getDuplicateResults()) {
                 String ruleName = duplicateResult.getDuplicateRule();
                 dupeRule duplicateRule = duplicateRuleMap.containsKey(ruleName) ? duplicateRuleMap.get(ruleName) : null;
-                MergeCandidate__c mergeCandidate = getMergeCandidate(sObj, duplicateResult,duplicateRule);
-                if(mergeCandidate != null) {
-                    String keepId = mergeCandidate.KeepRecordId__c;
-                    String mergeId = mergeCandidate.MergeRecordId__c;
-                    mergeCandidate.AutoMerge__c = mergeCandidate.Rule__c.equalsIgnoreCase(duplicateRule.ruleName) ? duplicateRule.autoMerge : mergeCandidate.AutoMerge__c;
-                    if(!mergedIds.contains(keepId)
-                        && !mergedIds.contains(mergeId)) {
-                        mergeCandidates.put(keepId, mergeCandidate);
-                        mergedIds.add(keepId);
-                        mergedIds.add(mergeId);
-                    }
+                for(MergeCandidate__c pair:getMergeCandidate(sObj, duplicateResult, duplicateRule)) {
+                    if(duplicateRule != null
+                        && pair.Rule__c != null
+                        && pair.Rule__c.equalsIgnoreCase(duplicateRule.ruleName))
+                        pair.AutoMerge__c = duplicateRule.autoMerge;
+                    if(!mergeCandidatesByPair.containsKey(pair.PairKey__c))
+                        mergeCandidatesByPair.put(pair.PairKey__c, pair);
                 }
             }
         }
 
-        return mergeCandidates.values();
+        return mergeCandidatesByPair.values();
     }
 	/*******************************************************************************************************
 	* @description determines if duplicate rules are active for this object
@@ -362,13 +359,12 @@ public with sharing class MRG_Duplicate_SVC {
 	* @param dupeRule
 	* @return MergeCandidate__c
 	*/ 
-    public static MergeCandidate__c getMergeCandidate(SObject sObj, Datacloud.DuplicateResult duplicateResult, dupeRule duplicateRule){
+    public static List<MergeCandidate__c> getMergeCandidate(SObject sObj, Datacloud.DuplicateResult duplicateResult, dupeRule duplicateRule){
         Id recordId = Id.valueOf((String) sObj.get('Id'));
         String recordName = (String) sObj.get('Name');
         Map<String,String> matchNames = new Map<String, String>();
         matchNames.put(recordId,recordName);
-        MergeCandidate__c mergeCandidate = new MergeCandidate__c();
-        mergeCandidate.Rule__c = duplicateResult.getDuplicateRule();
+        String ruleName = duplicateResult.getDuplicateRule();
         Set<String> matchIds = new Set<String>();
         Set<String> allIds = new Set<String>();
         String objectType = recordId.getSObjectType().getDescribe().getName();
@@ -379,9 +375,11 @@ public with sharing class MRG_Duplicate_SVC {
                 for(DataCloud.MatchRecord matchRecord: matchResult.getMatchRecords()) {
                     matchIds.add((String) matchRecord.getRecord().Id);
                     matchNames.put(matchRecord.getRecord().Id,(String) matchRecord.getRecord().get('Name'));
-                } 
+                }
             }
         }
+        // one MergeCandidate per (keep, merge) pair: the chosen keep paired with each other group member
+        List<MergeCandidate__c> pairs = new List<MergeCandidate__c>();
         if(hasMatch
             && matchIds.size()>0) {
             AllIds.add(recordId);
@@ -397,26 +395,41 @@ public with sharing class MRG_Duplicate_SVC {
                 matchIdList.remove(keepIdx);
                 matchIdList.add(0, String.valueOf(ruleKeepId));
             }
-            mergeCandidate.KeepRecordId__c = matchIdList[0];
-            mergeCandidate.KeepName__c = String.isNotBlank(mergeCandidate.KeepRecordId__c) ? matchNames.get(mergeCandidate.KeepRecordId__c) : null;
-            mergeCandidate.MergeRecordId__c = matchIdList.size()>1 ? matchIdList[1] : null;
-            mergeCandidate.MergeName__c = String.isNotBlank(mergeCandidate.MergeRecordId__c) ? matchNames.get(mergeCandidate.MergeRecordId__c) : null;
-            mergeCandidate.Merge2RecordId__c = matchIdList.size()>2 ? matchIdList[2] : null;
-            mergeCandidate.Merge2Name__c = String.isNotBlank(mergeCandidate.Merge2RecordId__c) ? matchNames.get(mergeCandidate.Merge2RecordId__c) : null;
-            mergeCandidate.Object__c = objectType;
-            mergeCandidate.Status__c = 'New';
-            // a merge handles at most 3 records (keep + 2). Surface when the group had more so the
-            // truncation isn't invisible; the remainder is re-found by the next scan after this merges.
-            if(matchIdList.size()>3) {
-                mergeCandidate.HasAdditionalDuplicates__c = true;
-                System.debug(LoggingLevel.WARN, 'Duplicate group for ' + matchIdList[0] + ' has ' + matchIdList.size()
-                    + ' records; ' + (matchIdList.size()-3) + ' deferred to a later run.');
-            }
-        } else {
-            mergeCandidate = null;
+            pairs.addAll(buildPairs(matchIdList, matchNames, objectType, ruleName));
         }
-        return mergeCandidate;
+        return pairs;
 
+    }
+    /*******************************************************************************************************
+    * @description builds one (keep, merge) candidate per non-keep id in an ordered group (the keep is
+    * the first id). Extracted so the pair-explosion logic is unit-testable without a Datacloud result.
+    * @param orderedIds the group ids with the chosen keep first
+    * @param names display names keyed by id (may be null)
+    * @param objectType the SObject api name
+    * @param ruleName the rule name to stamp on each pair
+    * @return List<MergeCandidate__c> one pair per merge id
+    */
+    @testvisible
+    private static List<MergeCandidate__c> buildPairs(List<String> orderedIds, Map<String,String> names, String objectType, String ruleName){
+        List<MergeCandidate__c> pairs = new List<MergeCandidate__c>();
+        if(orderedIds == null || orderedIds.size() < 2)
+            return pairs;
+        String keepId = orderedIds[0];
+        String keepName = names != null ? names.get(keepId) : null;
+        for(Integer i=1; i<orderedIds.size(); i++) {
+            String mergeId = orderedIds[i];
+            MergeCandidate__c pair = new MergeCandidate__c();
+            pair.Rule__c = ruleName;
+            pair.KeepRecordId__c = keepId;
+            pair.KeepName__c = keepName;
+            pair.MergeRecordId__c = mergeId;
+            pair.MergeName__c = names != null ? names.get(mergeId) : null;
+            pair.PairKey__c = keepId + '-' + mergeId;
+            pair.Object__c = objectType;
+            pair.Status__c = 'New';
+            pairs.add(pair);
+        }
+        return pairs;
     }
 	/*******************************************************************************************************
 	* @description applies the configured keep-record rules to a group of matched ids and returns the id
@@ -488,15 +501,10 @@ public with sharing class MRG_Duplicate_SVC {
 	* @return Map<String, Set<String>> a map of merge Ids keyed by keep Id
 	********************************************************************************************************/ 
     public static Map<Id, Set<Id>> getMergeKeyMap(MergeCandidate__c candidate) {
-        Map<Id, Set<Id>> mergeKeyMap = new Map<Id, Set<Id>>();        
+        Map<Id, Set<Id>> mergeKeyMap = new Map<Id, Set<Id>>();
         Id keepId = Id.valueOf(candidate.KeepRecordId__c);
-        ID mergeId = Id.valueOf(candidate.MergeRecordId__c);
-        Id mergeId2 = String.isNotBlank(candidate.Merge2RecordId__c) ? Id.valueOf(candidate.Merge2RecordId__c) : null;
-        mergeKeyMap.put(keepId, new Set<Id>());
-        mergeKeyMap.get(keepId).add(mergeId);
-        if(String.isNotBlank(mergeId2)) {
-            mergeKeyMap.get(keepId).add(mergeId2);
-        }
+        Id mergeId = Id.valueOf(candidate.MergeRecordId__c);
+        mergeKeyMap.put(keepId, new Set<Id>{ mergeId });
         return mergeKeyMap;
     }
 	/*******************************************************************************************************
@@ -507,7 +515,10 @@ public with sharing class MRG_Duplicate_SVC {
     public static Map<Id, Set<Id>> getMergeKeyMap(List<MergeCandidate__c> mergeCandidates) {
         Map<Id, Set<Id>> mergeKeyMap = new Map<Id, Set<Id>>();
         for(MergeCandidate__c candidate:mergeCandidates) {
-            mergeKeyMap.putAll(getMergeKeyMap(candidate));
+            Id keepId = Id.valueOf(candidate.KeepRecordId__c);
+            if(!mergeKeyMap.containsKey(keepId))
+                mergeKeyMap.put(keepId, new Set<Id>());
+            mergeKeyMap.get(keepId).add(Id.valueOf(candidate.MergeRecordId__c));
         }
         return mergeKeyMap;
     }

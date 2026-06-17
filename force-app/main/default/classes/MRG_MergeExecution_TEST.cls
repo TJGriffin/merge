@@ -56,10 +56,10 @@ private class MRG_MergeExecution_TEST {
 		Id mergeId = accs[1].Id;
 		Id merge2Id = accs[2].Id;
 		MRG_TestFactory.registerMergeFields(new List<MergeFieldSetting__mdt>());
-		MergeCandidate__c mc = MRG_TestFactory.mergeCandidate(keepId, mergeId, merge2Id, 'Account');
+		List<MergeCandidate__c> mcs = MRG_TestFactory.mergeCandidatePairs(keepId, new List<Id>{ mergeId, merge2Id }, 'Account');
 
 		Test.startTest();
-		MRG_TestFactory.runMerge(new List<MergeCandidate__c>{ mc }, 'Account');
+		MRG_TestFactory.runMerge(mcs, 'Account');
 		Test.stopTest();
 
 		system.assertEquals(1, [SELECT count() FROM Account WHERE Id=:keepId AND IsDeleted=false],

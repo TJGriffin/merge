@@ -20,7 +20,8 @@ export default class mergePreview extends LightningElement {
         var _cols = []
         _cols.push('keepRecord');
         _cols.push('mergeRecord1');
-        if(value.hasOwnProperty('mergeRecord2'))
+        // merge2 is deprecated (one keep+merge pair per candidate); only show it for legacy rows
+        if(value.hasOwnProperty('mergeRecord2') && value.mergeRecord2 != null)
             _cols.push('mergeRecord2');
         _cols.push('mergeResultRecord');
         this.cols = _cols;
