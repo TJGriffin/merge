@@ -226,6 +226,8 @@ public with sharing class MRG_Metadata_SVC {
 		fieldKeyValues.put('TieBreakField__c', mergeField.TieBreakField__r != null ? mergeField.TieBreakField__r.QualifiedAPIName : null);
 		// fallback field (re-homed #34)
 		fieldKeyValues.put('FallbackField__c', mergeField.FallbackField__r != null ? mergeField.FallbackField__r.QualifiedAPIName : null);
+		// Apex Defined rule: the resolver class name
+		fieldKeyValues.put('ApexClass__c', mergeField.ApexClass__c);
 		String qualifiedName = !mergeField.QualifiedAPIName.contains('.') ? 'MergeFieldSetting__mdt.'+mergeField.QualifiedAPIName : mergeField.QualifiedAPIName;	   	
 		mdRecordNames.add(qualifiedName);
 		
