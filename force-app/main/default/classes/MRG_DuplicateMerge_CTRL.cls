@@ -45,7 +45,7 @@ public with sharing class MRG_DuplicateMerge_CTRL {
 	*/
     @AuraEnabled(cacheable=TRUE)
     public static List<MRG_Duplicate_SVC.dupeRule> getRules(String objectType){
-        return MRG_Duplicate_SVC.getActiveDuplicateRules(objectType);
+        return MRG_Duplicate_SVC.getMergeCandidateRules(objectType);
     }
 	/*******************************************************************************************************
 	* @description Returns the merge fields
@@ -204,7 +204,11 @@ public with sharing class MRG_DuplicateMerge_CTRL {
         @AuraEnabled
         public Boolean autoMerge;
         @AuraEnabled
-        public Datetime createdDate; 
+        public Decimal confidenceScore;
+        @AuraEnabled
+        public String source;
+        @AuraEnabled
+        public Datetime createdDate;
         @AuraEnabled
         public Datetime lastModifiedDate;  
         @AuraEnabled
@@ -251,6 +255,8 @@ public with sharing class MRG_DuplicateMerge_CTRL {
             this.rule = mergeCandidate.Rule__c;
             this.status = mergeCandidate.Status__c;
             this.autoMerge = mergeCandidate.AutoMerge__c;
+            this.confidenceScore = mergeCandidate.ConfidenceScore__c;
+            this.source = mergeCandidate.Source__c;
             this.createdDate = mergeCandidate.CreatedDate;
             this.lastModifiedDate = mergeCandidate.LastModifiedDate;
             this.recordIds = new List<String>();
