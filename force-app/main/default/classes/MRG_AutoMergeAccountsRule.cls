@@ -154,8 +154,17 @@ public with sharing class MRG_AutoMergeAccountsRule {
 			AutoMerge__c = rule.autoMerge == true,
 			Conditions__c = rule.conditions != null && !rule.conditions.isEmpty() ? JSON.serialize(rule.conditions) : null
 		);
-		String devName = (rule.objectName == null ? 'Obj' : rule.objectName.replace('__','').replace('_','')) + 'AutoMergeAccounts'
-			+ (String.isNotBlank(rule.label) ? rule.label.replaceAll('[^a-zA-Z0-9]','') : '');
+		// developer/qualified name: derived from the (object-scoped) label, sanitized to a valid custom
+		// metadata DeveloperName — alphanumeric, leading letter, max 40 chars. Previously this prefixed
+		// objectName + 'AutoMergeAccounts' onto the label; because the default label already contains
+		// both, the result overflowed the 40-char limit and the metadata deploy silently failed.
+		String devName = String.isNotBlank(rule.label) ? rule.label.replaceAll('[^a-zA-Z0-9]','') : '';
+		if(String.isBlank(devName))
+			devName = (rule.objectName == null ? 'Obj' : rule.objectName.replace('__','').replace('_','')) + 'AutoMergeAccounts';
+		if(!devName.substring(0,1).isAlpha())
+			devName = 'X' + devName;
+		if(devName.length() > 40)
+			devName = devName.substring(0,40);
 		setting.QualifiedAPIName = devName;
 		Map<String, Object> settingJSON = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(setting));
 		settingJSON.put('Object__r', new Map<String, Object>{

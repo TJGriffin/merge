@@ -204,9 +204,14 @@ export default class AutoMergeAccountsRules extends LightningElement {
 
     handleSubscribe() {
         const messageCallback = (response) => {
-            if (response && response.data && response.data.payload &&
-                response.data.payload.IsSuccess__c === true) {
+            const payload = response && response.data && response.data.payload;
+            if (!payload) {
+                return;
+            }
+            if (payload.IsSuccess__c === true) {
                 this.handleSuccess();
+            } else {
+                this.handleError({ body: { message: payload.Message__c || 'Metadata deploy failed' } });
             }
         };
         subscribe(this.channelName, -1, messageCallback).then((response) => {

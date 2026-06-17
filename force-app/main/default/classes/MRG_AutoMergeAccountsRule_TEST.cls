@@ -134,6 +134,35 @@ private class MRG_AutoMergeAccountsRule_TEST {
 		system.assertEquals(2, rt.conditions.size());
 	}
 
+	static testMethod void testToSettingDeveloperNameWithinLimit() {
+		// the default UI label is "<Object> Auto Merge Accounts <n>"; the generated DeveloperName must
+		// stay within the 40-char custom metadata limit, start with a letter, and be alphanumeric, or
+		// the metadata deploy fails (and the failure is not surfaced to the user)
+		MRG_AutoMergeAccountsRule rule = new MRG_AutoMergeAccountsRule();
+		rule.objectName = 'Account';
+		rule.label = 'Account Auto Merge Accounts 1';
+		AutoMergeAccountsRule__mdt setting = MRG_AutoMergeAccountsRule.toSetting(rule);
+		String devName = setting.QualifiedAPIName;
+		system.assert(devName.length() <= 40, 'DeveloperName must be <= 40 chars, was ' + devName.length() + ': ' + devName);
+		system.assert(devName.substring(0,1).isAlpha(), 'DeveloperName must start with a letter: ' + devName);
+		system.assert(devName.isAlphanumeric(), 'DeveloperName must be alphanumeric: ' + devName);
+	}
+
+	static testMethod void testToSettingDeveloperNameFallbackAndLeadingDigit() {
+		// blank label falls back to an object-based name; a numeric-leading label is prefixed so the
+		// DeveloperName still starts with a letter
+		MRG_AutoMergeAccountsRule blank = new MRG_AutoMergeAccountsRule();
+		blank.objectName = 'Contact';
+		blank.label = '   ';
+		system.assert(MRG_AutoMergeAccountsRule.toSetting(blank).QualifiedAPIName.isAlphanumeric(), 'fallback name must be valid');
+
+		MRG_AutoMergeAccountsRule numeric = new MRG_AutoMergeAccountsRule();
+		numeric.objectName = 'Contact';
+		numeric.label = '123 rule';
+		String devName = MRG_AutoMergeAccountsRule.toSetting(numeric).QualifiedAPIName;
+		system.assert(devName.substring(0,1).isAlpha(), 'leading digit must be prefixed: ' + devName);
+	}
+
 	static testMethod void testSaveRules() {
 		MRG_AutoMergeAccountsRule rule = new MRG_AutoMergeAccountsRule();
 		rule.objectName = 'Contact';
