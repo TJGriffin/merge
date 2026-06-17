@@ -1107,6 +1107,9 @@ public with sharing class MRG_Merge_SVC {
 		Boolean isSmallest = preservationRule.equalsIgnoreCase('Smallest');
 		Boolean isOldest = preservationRule.equalsIgnoreCase('Oldest');
 		Boolean isNewest = preservationRule.equalsIgnorecase('Newest');
+		Boolean isLongest = preservationRule.equalsIgnoreCase('Longest');
+		Boolean isShortest = preservationRule.equalsIgnoreCase('Shortest');
+		Boolean isPopulated = preservationRule.equalsIgnoreCase('Populated');
 		Boolean result = false;
 		if(keptContactfieldValue == null)
 			return true;
@@ -1143,6 +1146,15 @@ public with sharing class MRG_Merge_SVC {
 					result = (isLargest && String.valueOf(fieldValue) > String.valueOf(keptContactFieldValue)) || (isSmallest && String.valueOf(fieldValue) < String.valueOf(keptContactFieldValue));
 				}
 			}
+		} else if(isLongest || isShortest) {
+			// preserve based on text length; blanks count as length 0 and never win "shortest"
+			Integer mergeLen = fieldValue == null ? -1 : String.valueOf(fieldValue).length();
+			Integer keepLen = String.valueOf(keptContactfieldValue).length();
+			result = (isLongest && mergeLen > keepLen) || (isShortest && mergeLen > 0 && mergeLen < keepLen);
+		} else if(isPopulated) {
+			// keep the value from the record that has one: take the merge value only when the kept
+			// value is blank and the merge value is not
+			result = String.isBlank(String.valueOf(keptContactfieldValue)) && String.isNotBlank(String.valueOf(fieldValue));
 		}
 		return result;
 	}

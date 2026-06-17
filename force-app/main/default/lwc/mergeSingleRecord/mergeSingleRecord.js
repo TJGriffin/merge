@@ -33,7 +33,7 @@ export default class mergeSingleRecord extends LightningElement {
         return type;
     }
     trackOptions = [{label:'Track Fields',value:'t'},{label:'Preserve Fields',value:'p'}];
-    ruleOptions = [{label:'Oldest Record',value:'Oldest'},{label:'Newest Record',value:'Newest'},{label:'Largest Field Value',value:'Largest'},{label:'Smallest Field Value',value:'Smallest'},{label:'Related Field Value',value:'Related Field'},{label:'Complex Rule',value:'Complex'},{label:'Apex Defined Rule',value:'Apex Defined'}];
+    ruleOptions = [{label:'Oldest Record',value:'Oldest'},{label:'Newest Record',value:'Newest'},{label:'Largest Field Value',value:'Largest'},{label:'Smallest Field Value',value:'Smallest'},{label:'Longest Text Value',value:'Longest'},{label:'Shortest Text Value',value:'Shortest'},{label:'Has a Value (Populated)',value:'Populated'},{label:'Related Field Value',value:'Related Field'},{label:'Complex Rule',value:'Complex'},{label:'Apex Defined Rule',value:'Apex Defined'}];
     operatorOptions = [
         {label:'equals',value:'equals'},
         {label:'not equals',value:'notEquals'},

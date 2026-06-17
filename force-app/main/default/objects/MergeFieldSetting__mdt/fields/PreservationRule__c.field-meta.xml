@@ -31,6 +31,21 @@
                 <label>Smallest</label>
             </value>
             <value>
+                <fullName>Longest</fullName>
+                <default>false</default>
+                <label>Longest Text</label>
+            </value>
+            <value>
+                <fullName>Shortest</fullName>
+                <default>false</default>
+                <label>Shortest Text</label>
+            </value>
+            <value>
+                <fullName>Populated</fullName>
+                <default>false</default>
+                <label>Has a Value</label>
+            </value>
+            <value>
                 <fullName>Related Field</fullName>
                 <default>false</default>
                 <label>Related Field</label>
