@@ -248,7 +248,7 @@ export default class mergePreview extends LightningElement {
                             opt.value = fieldValue;
                             picklistOptions.push(opt);
                         }
-                    } else if(col = 'mergeResultRecord') {
+                    } else if(col == 'mergeResultRecord') {
                         var editable = picklistOptions.length > 1;
                         dataRow['editable'] = editable;
                         if(picklistOptions.length > 1){
