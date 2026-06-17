@@ -124,10 +124,43 @@ public with sharing class MRG_Duplicate_SVC {
         return dupeRulesByName.values();
     }
 	/*******************************************************************************************************
+	* @description returns the rule values to filter the merge-review list by for an object: the active
+	* Salesforce duplicate rules (internal scan) unioned with any distinct Rule__c values present on
+	* existing candidates. External-provider candidates map to no Salesforce duplicate rule, so without
+	* this union their Rule__c values would be missing from the filter and those candidates unfilterable.
+	* @param objectType the candidate object api name
+	* @return List<dupeRule> rule wrappers (ruleName drives the UI filter)
+	********************************************************************************************************/
+    public static List<dupeRule> getMergeCandidateRules(String objectType){
+        Map<String, dupeRule> rulesByName = new Map<String, dupeRule>();
+        for(dupeRule dr:getActiveDuplicateRules(objectType)){
+            rulesByName.put(dr.ruleName, dr);
+        }
+        for(AggregateResult ar:[
+            SELECT Rule__c ruleName
+            FROM MergeCandidate__c
+            WHERE Object__c =:objectType
+            AND Status__c = 'New'
+            AND NotADuplicate__c = false
+            GROUP BY Rule__c
+        ]){
+            String ruleName = (String) ar.get('ruleName');
+            if(String.isNotBlank(ruleName) && !rulesByName.containsKey(ruleName)){
+                dupeRule dr = new dupeRule();
+                dr.name = ruleName;
+                dr.ruleName = ruleName;
+                dr.objectType = objectType;
+                dr.autoMerge = false;
+                rulesByName.put(ruleName, dr);
+            }
+        }
+        return rulesByName.values();
+    }
+	/*******************************************************************************************************
 	* @description gets the SOQL query for the duplicate scan batch
 	* @param objectType
 	* @return String the soql Query
-	********************************************************************************************************/  
+	********************************************************************************************************/
     public static String getScanSOQLQuery(String objectType) {
         String soqlQuery = 'SELECT Id, Name';
         soqlQuery+=' FROM '+objectType;

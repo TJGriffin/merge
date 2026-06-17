@@ -164,6 +164,16 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>MergeCandidate__c.ConfidenceScore__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>MergeCandidate__c.Source__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>MergeFieldHistory__c.KeptRecordId__c</field>
         <readable>true</readable>
     </fieldPermissions>

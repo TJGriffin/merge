@@ -72,6 +72,29 @@ private class MRG_DuplicateMerge_TEST {
         test.stopTest();
     }
 
+    static testMethod void testGetRulesIncludesCandidateRules(){
+        // the candidate's Rule__c ('test') maps to no Salesforce duplicate rule (the external-provider
+        // case); it must still appear in the merge-review rule filter
+        List<MRG_Duplicate_SVC.dupeRule> rules = MRG_DuplicateMerge_CTRL.getRules('Contact');
+        Boolean found = false;
+        for(MRG_Duplicate_SVC.dupeRule rule:rules){
+            if(rule.ruleName == 'test')
+                found = true;
+        }
+        system.assert(found, 'a candidate Rule__c value with no Salesforce duplicate rule should appear in the filter');
+    }
+
+    static testMethod void testMergeGroupExposesConfidenceAndSource(){
+        MergeCandidate__c mc = [SELECT Id FROM MergeCandidate__c LIMIT 1];
+        mc.ConfidenceScore__c = 95.50;
+        mc.Source__c = 'External';
+        update mc;
+        List<MRG_DuplicateMerge_CTRL.mergeGroup> groups = MRG_DuplicateMerge_CTRL.getMergeGroups('Contact','test',100,0);
+        system.assertEquals(1, groups.size(), 'the candidate should be returned');
+        system.assertEquals(95.50, groups[0].confidenceScore, 'confidence score should flow through to the wrapper');
+        system.assertEquals('External', groups[0].source, 'source should flow through to the wrapper');
+    }
+
     static testMethod void testBatch(){
 
         test.startTest();
