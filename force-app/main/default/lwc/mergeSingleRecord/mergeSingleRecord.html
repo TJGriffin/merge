@@ -201,6 +201,20 @@
                         </div>
                     </div>
                 </template>
+
+                <template if:true={isApex}>
+                    <div class="slds-box slds-m-horizontal_small slds-m-bottom_medium">
+                        <p class="slds-text-title_caps slds-m-bottom_x-small">Apex Defined Rule</p>
+                        <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">
+                            This field's kept value is decided by a custom Apex class implementing
+                            MRG_FieldKeepRule, run after the built-in rules. Enter the class name
+                            (e.g. MRG_SampleFieldKeepRule).
+                        </p>
+                        <lightning-input label="Apex Class" value={mergeRecord.apexClass}
+                            onchange={handleApexClassChange}>
+                        </lightning-input>
+                    </div>
+                </template>
             </template>
         </template>
 </template>

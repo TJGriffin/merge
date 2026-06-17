@@ -40,6 +40,11 @@
                 <default>false</default>
                 <label>Complex</label>
             </value>
+            <value>
+                <fullName>Apex Defined</fullName>
+                <default>false</default>
+                <label>Apex Defined</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

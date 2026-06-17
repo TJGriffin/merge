@@ -171,6 +171,8 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public String tieBreakDirection;
 		// optional fallback target: the losing value for this field is written here (if empty)
 		@auraEnabled public String fallbackField;
+		// for rule == 'Apex Defined': the MRG_FieldKeepRule implementation that decides this field
+		@auraEnabled public String apexClass;
 
 		public mergeFieldWrap(MergeFieldSetting__mdt mergeField) {
 			this.id = mergeField.Id;
@@ -189,6 +191,7 @@ public with sharing class MRG_Merge_SVC {
 			this.tieBreakField = mergeField.TieBreakField__r != null ? mergeField.TieBreakField__r.QualifiedAPIName : null;
 			this.tieBreakDirection = mergeField.TieBreakDirection__c;
 			this.fallbackField = mergeField.FallbackField__r != null ? mergeField.FallbackField__r.QualifiedAPIName : null;
+			this.apexClass = mergeField.ApexClass__c;
 		}
 		public Integer compareTo(Object compareTo) {
 			mergeFieldWrap sortObj = (mergeFieldWrap) compareTo;
@@ -244,7 +247,8 @@ public with sharing class MRG_Merge_SVC {
 			Disable__c = mfw.disable,
 			FilterLogic__c = mfw.filterLogic,
 			Conditions__c = mfw.conditions != null && !mfw.conditions.isEmpty() ? JSON.serialize(mfw.conditions) : null,
-			TieBreakDirection__c = mfw.tieBreakDirection
+			TieBreakDirection__c = mfw.tieBreakDirection,
+			ApexClass__c = mfw.apexClass
 		);
 		mergeField.Type__c = mfw.type == 't' ? 'Track' : 'Preserve';
 		if(String.isNotBlank(mfw.id))
@@ -331,7 +335,8 @@ public with sharing class MRG_Merge_SVC {
 					Conditions__c,
 					Type__c,
 					Disable__c,
-					PreservationRule__c
+					PreservationRule__c,
+					ApexClass__c
 					FROM MergeFieldSetting__mdt
 				]);
 			}
@@ -548,6 +553,48 @@ public with sharing class MRG_Merge_SVC {
 		return preserveMergeFields;
 	}
 	/*******************************************************************************************************
+	* @description enabled Preserve fields for an object whose rule is 'Apex Defined' with a class set
+	* @param objectType the SObject api name
+	* @return List<mergeFieldWrap>
+	*/
+	public static List<mergeFieldWrap> getApexKeepFields(String objectType) {
+		List<mergeFieldWrap> apexFields = new List<mergeFieldWrap>();
+		for(mergeFieldWrap mfw:getPreserveMergeFields()) {
+			if(!mfw.disable
+				&& mfw.rule != null && mfw.rule.equalsIgnoreCase('Apex Defined')
+				&& String.isNotBlank(mfw.apexClass)
+				&& mfw.objectName != null && mfw.objectName.equalsIgnoreCase(objectType))
+				apexFields.add(mfw);
+		}
+		return apexFields;
+	}
+	/*******************************************************************************************************
+	* @description instantiates (and caches) an MRG_FieldKeepRule by class name; returns null when the
+	* class can't be found or doesn't implement the interface (so a bad config skips, not breaks)
+	* @param className the Apex class name
+	* @param cache instances keyed by class name (null entries cached to avoid retrying)
+	* @return MRG_FieldKeepRule or null
+	*/
+	private static MRG_FieldKeepRule getFieldKeepResolver(String className, Map<String, MRG_FieldKeepRule> cache) {
+		if(String.isBlank(className))
+			return null;
+		if(cache.containsKey(className))
+			return cache.get(className);
+		MRG_FieldKeepRule resolver = null;
+		try {
+			Type resolverType = Type.forName(className);
+			Object instance = resolverType != null ? resolverType.newInstance() : null;
+			if(instance instanceof MRG_FieldKeepRule)
+				resolver = (MRG_FieldKeepRule) instance;
+			else
+				System.debug(LoggingLevel.ERROR, 'Apex Defined rule class ' + className + ' does not implement MRG_FieldKeepRule');
+		} catch(Exception e) {
+			System.debug(LoggingLevel.ERROR, 'Could not instantiate Apex Defined rule class ' + className + ': ' + e.getMessage());
+		}
+		cache.put(className, resolver);
+		return resolver;
+	}
+	/*******************************************************************************************************
 	* @description the Complex preservation rules for an object: enabled Preserve fields whose rule is
 	* 'Complex', converted to MRG_ComplexPreserveRule for group-wide evaluation
 	* @param objectType the SObject api name
@@ -759,6 +806,16 @@ public with sharing class MRG_Merge_SVC {
 				complexFields.add(complexRule.fieldName.toLowerCase());
 			}
 		}
+		// Apex Defined rule fields are resolved in a final group-wide pass below; like Complex, remove
+		// them from the pairwise preserve map and skip them in the pairwise loop.
+		List<mergeFieldWrap> apexFieldSettings = getApexKeepFields(objectType);
+		Set<String> apexFields = new Set<String>();
+		for(mergeFieldWrap apexFieldSetting:apexFieldSettings) {
+			if(String.isNotBlank(apexFieldSetting.fieldName)) {
+				preserveFieldMap.remove(apexFieldSetting.fieldName.toLowerCase());
+				apexFields.add(apexFieldSetting.fieldName.toLowerCase());
+			}
+		}
 		/****
 		*	a map of child field to master field keyed by child field
 		***/
@@ -799,8 +856,8 @@ public with sharing class MRG_Merge_SVC {
 				Boolean keptRecordIsOlder = (Datetime) keptRec.get('CreatedDate') < (Datetime) obj.get('CreatedDate');
 				Boolean hasChange = false;
 				for(String fieldName:fieldsToCheck) {
-					// Complex-rule fields are handled in the group-wide pass; skip them here
-					if(complexFields.contains(fieldName))
+					// Complex-rule and Apex Defined fields are handled in group-wide passes; skip here
+					if(complexFields.contains(fieldName) || apexFields.contains(fieldName))
 						continue;
 					Boolean isMaster = masterFields.contains(fieldName);
 					Boolean isChild = masterChildFields.containsKey(fieldName);
@@ -928,6 +985,49 @@ public with sharing class MRG_Merge_SVC {
 					mergeRecords.add(getMergeRecord(winning, current, keptRec, String.valueOf(keepId), complexRule.fieldName));
 				}
 				if(groupChange)
+					updateRecordMap.put(keptRec.Id, keptRec);
+			}
+		}
+		// --- Apex Defined rule pass ------------------------------------------------------------------
+		// Delegate field keep-value decisions to custom code AFTER every built-in rule has run. The
+		// resolver sees the rule-decided value (ctx.currentValue) plus the full record context and
+		// returns the final value. A faulty resolver is logged and skipped so it never breaks a merge.
+		if(!apexFieldSettings.isEmpty()) {
+			Map<String, MRG_FieldKeepRule> resolverByClass = new Map<String, MRG_FieldKeepRule>();
+			Map<Id, List<SObject>> apexMergedByKeepId = new Map<Id, List<SObject>>();
+			for(SObject obj:mergedRecords) {
+				Id mId = (Id) obj.get('Id');
+				Id kId = keepIdMap.containsKey(mId) ? keepIdMap.get(mId) : null;
+				if(kId == null) continue;
+				if(!apexMergedByKeepId.containsKey(kId))
+					apexMergedByKeepId.put(kId, new List<SObject>());
+				apexMergedByKeepId.get(kId).add(obj);
+			}
+			for(Id keepId:mergeKeyMap.keyset()) {
+				if(!keptRecordMap.containsKey(keepId))
+					continue;
+				SObject keptRec = keptRecordMap.get(keepId);
+				SObject keptOriginal = keptOriginalById.containsKey(keepId) ? keptOriginalById.get(keepId) : keptRec;
+				List<SObject> recordGroup = apexMergedByKeepId.containsKey(keepId) ? apexMergedByKeepId.get(keepId) : new List<SObject>();
+				Boolean apexChange = false;
+				for(mergeFieldWrap apexFieldSetting:apexFieldSettings) {
+					MRG_FieldKeepRule resolver = getFieldKeepResolver(apexFieldSetting.apexClass, resolverByClass);
+					if(resolver == null)
+						continue;
+					try {
+						MRG_FieldKeepContext ctx = new MRG_FieldKeepContext(objectType, apexFieldSetting.fieldName, keptRec, keptOriginal, recordGroup);
+						Object current = ctx.currentValue;
+						Object resolved = resolver.resolveValue(ctx);
+						if(!valuesAreEqual(current, resolved)) {
+							keptRec.put(apexFieldSetting.fieldName, resolved);
+							apexChange = true;
+							mergeRecords.add(getMergeRecord(resolved, current, keptRec, String.valueOf(keepId), apexFieldSetting.fieldName));
+						}
+					} catch(Exception e) {
+						System.debug(LoggingLevel.ERROR, 'Apex Defined rule ' + apexFieldSetting.apexClass + ' failed for ' + apexFieldSetting.fieldName + ': ' + e.getMessage());
+					}
+				}
+				if(apexChange)
 					updateRecordMap.put(keptRec.Id, keptRec);
 			}
 		}
