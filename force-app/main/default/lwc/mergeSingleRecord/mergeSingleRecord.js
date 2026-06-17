@@ -33,7 +33,7 @@ export default class mergeSingleRecord extends LightningElement {
         return type;
     }
     trackOptions = [{label:'Track Fields',value:'t'},{label:'Preserve Fields',value:'p'}];
-    ruleOptions = [{label:'Oldest Record',value:'Oldest'},{label:'Newest Record',value:'Newest'},{label:'Largest Field Value',value:'Largest'},{label:'Smallest Field Value',value:'Smallest'},{label:'Related Field Value',value:'Related Field'},{label:'Complex Rule',value:'Complex'},{label:'Apex Defined Rule',value:'Apex Defined'}];
+    ruleOptions = [{label:'Oldest Record',value:'Oldest'},{label:'Newest Record',value:'Newest'},{label:'Largest Field Value',value:'Largest'},{label:'Smallest Field Value',value:'Smallest'},{label:'Longest Text Value',value:'Longest'},{label:'Shortest Text Value',value:'Shortest'},{label:'Contains Text',value:'Contains'},{label:'Related Field Value',value:'Related Field'},{label:'Complex Rule',value:'Complex'},{label:'Apex Defined Rule',value:'Apex Defined'}];
     operatorOptions = [
         {label:'equals',value:'equals'},
         {label:'not equals',value:'notEquals'},
@@ -91,6 +91,10 @@ export default class mergeSingleRecord extends LightningElement {
 
     get isApex(){
         return this.mergeRecord !== undefined && this.mergeRecord != null && this.preserve && this.mergeRecord.rule == 'Apex Defined';
+    }
+
+    get isContains(){
+        return this.mergeRecord !== undefined && this.mergeRecord != null && this.preserve && this.mergeRecord.rule == 'Contains';
     }
 
     // re-derive each condition's value input type from its selected field, and add row indices
@@ -238,6 +242,9 @@ export default class mergeSingleRecord extends LightningElement {
     }
     handleApexClassChange(event){
         this.mergeRecord.apexClass = event.target.value;
+    }
+    handleContainsValueChange(event){
+        this.mergeRecord.containsValue = event.target.value;
     }
     doEdit(event){
         this.isEdit=true;
