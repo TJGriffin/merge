@@ -252,6 +252,46 @@ public with sharing class MRG_MergeSettings_CTRL {
 		return MRG_Merge_SVC.savePreviewFields(pFields);
 	}
 	/*******************************************************************************************************
+	* @description bulk-suppresses a comma-delimited list of field api names from the merge preview for
+	* an object: validates each against the object, builds a hidden PreviewFields setting per valid field
+	* and bulk-deploys them via the existing metadata path
+	* @param objectType the SObject api name (required)
+	* @param fieldNames a comma-delimited list of field api names
+	* @return String the metadata deploy job id
+	*/
+	@AuraEnabled
+	public static String suppressPreviewFields(String objectType, String fieldNames) {
+		if(String.isBlank(objectType))
+			throw new AuraHandledException('Select an object.');
+		if(String.isBlank(fieldNames))
+			throw new AuraHandledException('Enter at least one field API name.');
+		Schema.SObjectType sObjType = Schema.getGlobalDescribe().get(objectType);
+		if(sObjType == null)
+			throw new AuraHandledException('Unknown object: ' + objectType);
+		Map<String, Schema.SObjectField> fieldMap = sObjType.getDescribe().fields.getMap();
+		List<previewField> pFields = new List<previewField>();
+		List<String> invalid = new List<String>();
+		Set<String> seen = new Set<String>();
+		for(String raw:fieldNames.split(',')) {
+			String fieldName = raw == null ? '' : raw.trim();
+			if(String.isBlank(fieldName) || seen.contains(fieldName.toLowerCase()))
+				continue;
+			seen.add(fieldName.toLowerCase());
+			if(!fieldMap.containsKey(fieldName.toLowerCase())) {
+				invalid.add(fieldName);
+				continue;
+			}
+			// use the field's true api name (correct casing) so the deployed record name is stable
+			String apiName = fieldMap.get(fieldName.toLowerCase()).getDescribe().getName();
+			pFields.add(new previewField(objectType, apiName, true));
+		}
+		if(!invalid.isEmpty())
+			throw new AuraHandledException('Unknown field(s) on ' + objectType + ': ' + String.join(invalid, ', '));
+		if(pFields.isEmpty())
+			throw new AuraHandledException('No valid fields to suppress.');
+		return MRG_Merge_SVC.savePreviewFields(pFields);
+	}
+	/*******************************************************************************************************
 	* @description handles save
 	* @param String the JSON string to save
 	* @return String 
@@ -279,6 +319,13 @@ public with sharing class MRG_MergeSettings_CTRL {
 			this.objectName = pField.Object__r.QualifiedAPIName;
 			this.fieldName = pField.Field__r.QualifiedAPIName;
 			this.hidden = pField.Disable__c;
+		}
+		public previewField(String objectName, String fieldName, Boolean hidden){
+			this.objectName = objectName;
+			this.fieldName = fieldName;
+			this.hidden = hidden;
+			this.name = fieldName + objectName;
+			this.label = fieldName;
 		}
 		public Integer compareTo(Object compareTo) {
 			previewField sortObj = (previewField) compareTo;
