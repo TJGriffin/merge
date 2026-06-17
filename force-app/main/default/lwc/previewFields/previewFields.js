@@ -127,16 +127,21 @@ export default class previewFields extends LightningElement {
             if(isnew)
                 rows.push(this.selectedRecord);
             this.results = rows;
+        } else {
+            // cancel: drop the unsaved placeholder (TEMP) row so it doesn't linger as an empty row
+            this.results = this.rows.filter(row => !(row.name && row.name.includes('TEMP')));
         }
     }
 
     addRow(event){
+        // remove any lingering unsaved placeholder first, so a cancelled add can't stack empty rows
+        var existing = this.rows == null ? [] : this.rows.filter(row => !(row.name && row.name.includes('TEMP')));
         this.isNew=true;
         this.selectedRecord = {};
         this.selectedRecord.name='TEMP';
         this.selectedRecord.objectName = this.objectType;
         this.selectedRecord.hidden = true;
-        this.results = [...this.rows,this.selectedRecord];
+        this.results = [...existing,this.selectedRecord];
     }
 
     handleSave() {
