@@ -62,6 +62,7 @@ public class MRG_Merge_TEST {
 			KeepRecordId__c = keepId,
 			KeepName__c = 'Keep',
 			MergeRecordId__c = mergeId,
+			PairKey__c = String.valueOf(keepId) + '-' + String.valueOf(mergeId),
 			Object__c = 'Contact',
 			Rule__c = 'test',
 			Status__c = 'New',

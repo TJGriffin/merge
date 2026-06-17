@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PairKey__c</fullName>
+    <description>Unique (keep, merge) pair key (KeepRecordId__c-MergeRecordId__c). Upsert key for the duplicate scan and external providers.</description>
+    <externalId>true</externalId>
+    <label>Pair Key</label>
+    <length>40</length>
+    <required>true</required>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

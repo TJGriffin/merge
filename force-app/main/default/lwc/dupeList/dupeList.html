@@ -4,160 +4,121 @@
             <lightning-layout>
                 <lightning-layout-item padding="around-small" size="2">
                     <lightning-combobox
-                    name="objectType"
-                    label="Filter By Object"
-                    value={objectType}
-                    placeholder="Object Type"
-                    options={objectOptions}
-                    onchange={handleObjectFilterChange} ></lightning-combobox>
+                        name="objectType"
+                        label="Filter By Object"
+                        value={objectType}
+                        placeholder="Object Type"
+                        options={objectOptions}
+                        onchange={handleObjectFilterChange}></lightning-combobox>
                 </lightning-layout-item>
                 <template if:true={ruleOptions}>
                     <lightning-layout-item padding="around-small" size="2">
                         <lightning-combobox
-                        name="ruleName"
-                        label="Filter By Rule"
-                        value={rule}
-                        placeholder="Object Type"
-                        options={ruleOptions}
-                        onchange={handleRuleFilterChange} ></lightning-combobox>
+                            name="ruleName"
+                            label="Filter By Rule"
+                            value={rule}
+                            placeholder="Rule"
+                            options={ruleOptions}
+                            onchange={handleRuleFilterChange}></lightning-combobox>
                     </lightning-layout-item>
                 </template>
             </lightning-layout>
         </div>
         <template if:true={showSpinner}>
             <div class="slds-is-relative">
-                <lightning-spinner
-                    variant="brand"
-                    size="large"
-                    alternative-text="Processing...">
-                </lightning-spinner>
+                <lightning-spinner variant="brand" size="large" alternative-text="Processing..."></lightning-spinner>
             </div>
         </template>
-        <template if:true={rows}>
+        <template if:true={hasGroups}>
             <template if:true={hasPager}>
                 <c-pager total-pages={totalPages} current-page={currentPage} onpage={handlePager}></c-pager>
             </template>
             <div class="slds-m-around_medium">
-                <lightning-layout>
-                    <lightning-layout-item padding="around-small" size="1">
-                        Group Name
-                    </lightning-layout-item>
-                    <lightning-layout-item padding="around-small" size="1">
-                        Keep Record
-                    </lightning-layout-item>
-                    <lightning-layout-item padding="around-small" size="1">
-                        Merge Record
-                    </lightning-layout-item>
-                    <lightning-layout-item padding="around-small" size="1">
-                        Merge 2 Record
-                    </lightning-layout-item>
-                    <lightning-layout-item padding="around-small" size="1">
-                        Object Type
-                    </lightning-layout-item>
-                    <lightning-layout-item padding="around-small" size="2">
-                        Duplicate Rule
-                    </lightning-layout-item>
-                    <lightning-layout-item padding="around-small" size="1">
-                        Auto Merge?
-                    </lightning-layout-item>
-                    <lightning-layout-item padding="around-small" size="1">
-                        Confidence
-                    </lightning-layout-item>
-                    <lightning-layout-item padding="around-small" size="1">
-                        Actions
-                    </lightning-layout-item>
-                </lightning-layout>
-                <template for:each={rows} for:item="row">
-                    <lightning-layout key={row.id}>
-                        <lightning-layout-item padding="around-small" size="1">
-                            <lightning-formatted-url 
-                                value={row.link}
-                                label={row.name}
-                                target="_blank"></lightning-formatted-url>
-                        </lightning-layout-item>
-                        <lightning-layout-item padding="around-small" size="1">
-                            <lightning-formatted-url 
-                            value={row.keepLink}
-                            label={row.keepName}
-                            target="_blank"></lightning-formatted-url>                         
-                        </lightning-layout-item>
-                        <lightning-layout-item padding="around-small" size="1">
-                            <lightning-formatted-url 
-                            value={row.mergeLink}
-                            label={row.mergeName}
-                            target="_blank"></lightning-formatted-url>                       
-                        </lightning-layout-item>
-                        <lightning-layout-item padding="around-small" size="1">
-                            <template if:true={row.merge2Id}>
-                                <lightning-formatted-url 
-                                value={row.merge2Link}
-                                label={row.merge2Name}
-                                target="_blank"></lightning-formatted-url> 
-                            </template>                         
-                        </lightning-layout-item>
-                        <lightning-layout-item padding="around-small" size="1">
-                            
-                            {row.objectType}
-                                                
-                        </lightning-layout-item>
-                        <lightning-layout-item padding="around-small" size="2">
-                            
-                            {row.rule}
-                                                
-                        </lightning-layout-item>
-                        <lightning-layout-item padding="around-small" size="1">
-
-                            {row.autoMerge}
-
-                        </lightning-layout-item>
-                        <lightning-layout-item padding="around-small" size="1">
-
-                            {row.confidenceScore}
-
-                        </lightning-layout-item>
-                        <lightning-layout-item padding="around-small" size="2">
-
-                           <lightning-button variant="neutral" label="Preview" onclick={handlePreview} class="slds-m-right_x-small" data-record={row.id}></lightning-button>
-                           <lightning-button variant="destructive" label="Remove" onclick={handleRemove} class="slds-m-right_x-small" data-record={row.id}></lightning-button>
-                           <lightning-button variant="success" label="Merge" onclick={handleMerge} class="slds-m-right_x-small" data-record={row.id}></lightning-button>
-                           <lightning-button variant="neutral" label="Merge Accounts" onclick={handleMergeAccounts} class="slds-m-right_x-small" data-record={row.id}></lightning-button>
-                        </lightning-layout-item>
-                    </lightning-layout>
+                <template for:each={keepGroups} for:item="group">
+                    <div key={group.keepId} class="slds-box slds-box_x-small slds-m-bottom_small">
+                        <!-- keep header -->
+                        <lightning-layout class="slds-text-title_caps slds-p-around_x-small slds-theme_shade">
+                            <lightning-layout-item padding="around-small" size="6">
+                                Keep:&nbsp;
+                                <lightning-formatted-url value={group.keepLink} label={group.keepName} target="_blank"></lightning-formatted-url>
+                            </lightning-layout-item>
+                            <lightning-layout-item padding="around-small" size="3">
+                                {group.objectType}
+                            </lightning-layout-item>
+                            <lightning-layout-item padding="around-small" size="3">
+                                {group.pairCount} duplicate(s)
+                            </lightning-layout-item>
+                        </lightning-layout>
+                        <!-- column headers -->
+                        <lightning-layout class="slds-text-title">
+                            <lightning-layout-item padding="around-small" size="3">Merge Record</lightning-layout-item>
+                            <lightning-layout-item padding="around-small" size="2">Confidence</lightning-layout-item>
+                            <lightning-layout-item padding="around-small" size="1">Auto Merge?</lightning-layout-item>
+                            <lightning-layout-item padding="around-small" size="6">Actions</lightning-layout-item>
+                        </lightning-layout>
+                        <!-- pair rows -->
+                        <template for:each={group.pairs} for:item="pair">
+                            <lightning-layout key={pair.id} class="slds-border_top">
+                                <lightning-layout-item padding="around-small" size="3">
+                                    <lightning-formatted-url value={pair.mergeLink} label={pair.mergeName} target="_blank"></lightning-formatted-url>
+                                </lightning-layout-item>
+                                <lightning-layout-item padding="around-small" size="2">
+                                    {pair.confidenceDisplay}
+                                </lightning-layout-item>
+                                <lightning-layout-item padding="around-small" size="1">
+                                    {pair.autoMerge}
+                                </lightning-layout-item>
+                                <lightning-layout-item padding="around-small" size="6">
+                                    <lightning-button variant="neutral" label="Preview" onclick={handlePreview} class="slds-m-right_x-small" data-record={pair.id} data-keep={group.keepId}></lightning-button>
+                                    <lightning-button variant="destructive" label="Remove" onclick={handleRemove} class="slds-m-right_x-small" data-record={pair.id}></lightning-button>
+                                    <lightning-button variant="success" label="Merge" onclick={handleMerge} class="slds-m-right_x-small" data-record={pair.id}></lightning-button>
+                                    <lightning-button variant="neutral" label="Merge Accounts" onclick={handleMergeAccounts} class="slds-m-right_x-small" data-record={pair.id}></lightning-button>
+                                </lightning-layout-item>
+                            </lightning-layout>
+                        </template>
+                    </div>
                 </template>
-
-            
             </div>
         </template>
     </lightning-card>
     <template if:true={isModalOpen}>
         <template if:true={selectedRecordId}>
-            <!-- Modal/Popup Box LWC starts here -->
             <section role="dialog" tabindex="-1" aria-labelledby="modal-heading-01" aria-modal="true" aria-describedby="modal-content-id-1" class="slds-modal slds-fade-in-open">
                 <div class="slds-modal__container">
-                    <!-- Modal/Popup Box LWC header here -->
                     <header class="slds-modal__header">
                         <button class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse" title="Close" onclick={closeModal}>
-                            <lightning-icon icon-name="utility:close"
-                                alternative-text="close"
-                                variant="inverse"
-                                size="small" ></lightning-icon>
+                            <lightning-icon icon-name="utility:close" alternative-text="close" variant="inverse" size="small"></lightning-icon>
                             <span class="slds-assistive-text">Close</span>
                         </button>
                         <h2 id="modal-heading-01" class="slds-text-heading_medium slds-hyphenate">Merge Preview</h2>
                     </header>
-                    <!-- Modal/Popup Box LWC body starts here -->
                     <div class="slds-modal__content slds-p-around_medium" id="modal-content-id-1">
-                <c-merge-preview record-id={selectedRecordId} onnotify={handlePreviewNotify}></c-merge-preview>
+                        <lightning-layout>
+                            <lightning-layout-item size="3" padding="around-small">
+                                <div class="slds-text-title_caps slds-p-bottom_x-small">Duplicates</div>
+                                <template for:each={navItems} for:item="nav">
+                                    <div key={nav.id} class="slds-p-bottom_xx-small">
+                                        <lightning-button variant={nav.variant} label={nav.label} onclick={handleNavSelect} data-record={nav.id} class="slds-button_stretch"></lightning-button>
+                                    </div>
+                                </template>
+                                <div class="slds-p-top_small">
+                                    <lightning-button label="Previous" onclick={handlePrev} disabled={hasPrevDisabled} class="slds-m-right_x-small"></lightning-button>
+                                    <lightning-button label="Next" onclick={handleNext} disabled={hasNextDisabled}></lightning-button>
+                                </div>
+                            </lightning-layout-item>
+                            <lightning-layout-item size="9" padding="around-small">
+                                <c-merge-preview record-id={selectedRecordId}></c-merge-preview>
+                            </lightning-layout-item>
+                        </lightning-layout>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <button class="slds-button slds-button_neutral" onclick={closeModal} title="Cancel">Cancel</button>
+                        <button class="slds-button slds-button_destructive" onclick={handleModalRemove} title="Remove">Remove</button>
+                        <button class="slds-button slds-button_brand" onclick={handleModalMerge} title="Merge">Merge</button>
+                    </footer>
                 </div>
-                <!-- Modal/Popup Box LWC footer starts here -->
-                <footer class="slds-modal__footer">
-                    <button class="slds-button slds-button_neutral" onclick={closeModal} title="Cancel">Cancel</button>
-                    <button class="slds-button slds-button_destructive" data-record={selectedRecordId} onclick={handleModalRemove} title="Remove">Remove</button>
-                    <button class="slds-button slds-button_brand" data-record={selectedRecordId} onclick={handleModalMerge} title="Merge">Merge</button>
-                </footer>
-            </div>
             </section>
-            <div class="slds-backdrop slds-backdrop_open"></div>  
-        </template> 
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
     </template>
 </template>

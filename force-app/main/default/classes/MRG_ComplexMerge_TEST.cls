@@ -50,10 +50,10 @@ private class MRG_ComplexMerge_TEST {
 		};
 		MRG_Merge_SVC.previewFields = new List<PreviewFields__mdt>();
 
-		MergeCandidate__c mc = MRG_TestFactory.mergeCandidate(keepId, mergeId, merge2Id, 'Contact');
+		List<MergeCandidate__c> mcs = MRG_TestFactory.mergeCandidatePairs(keepId, new List<Id>{ mergeId, merge2Id }, 'Contact');
 
 		Test.startTest();
-		MRG_TestFactory.runMerge(new List<MergeCandidate__c>{ mc }, 'Contact');
+		MRG_TestFactory.runMerge(mcs, 'Contact');
 		Test.stopTest();
 
 		// the kept record should carry the winning record's street (the opted-out, newest-birthdate one)

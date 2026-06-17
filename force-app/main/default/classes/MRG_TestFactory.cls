@@ -137,34 +137,36 @@ public class MRG_TestFactory {
 	* @return MergeCandidate__c the inserted candidate
 	*/
 	public static MergeCandidate__c mergeCandidate(Id keepId, Id mergeId, String objectType) {
-		return mergeCandidate(keepId, mergeId, null, objectType);
+		return mergeCandidatePairs(keepId, new List<Id>{ mergeId }, objectType)[0];
 	}
 
 	/*******************************************************************************************************
-	* @description inserts a MergeCandidate__c for a keep + up to two merge records
+	* @description inserts one (keep, merge) MergeCandidate__c per merge id (pair-per-row model)
 	* @param keepId the record to keep
-	* @param mergeId the first record to merge
-	* @param merge2Id the second record to merge, may be null
+	* @param mergeIds the records to merge into keep, one candidate each
 	* @param objectType the SObject type
-	* @return MergeCandidate__c the inserted candidate
+	* @return List<MergeCandidate__c> the inserted candidates
 	*/
-	public static MergeCandidate__c mergeCandidate(Id keepId, Id mergeId, Id merge2Id, String objectType) {
+	public static List<MergeCandidate__c> mergeCandidatePairs(Id keepId, List<Id> mergeIds, String objectType) {
 		// KeepName__c is required on MergeCandidate__c; populate it from the kept record's Name
 		String keepName = (String) Database.query(
 			'SELECT Name FROM '+String.escapeSingleQuotes(objectType)+' WHERE Id=:keepId'
 		)[0].get('Name');
-		MergeCandidate__c mc = new MergeCandidate__c(
-			KeepRecordId__c = keepId,
-			KeepName__c = keepName,
-			MergeRecordId__c = mergeId,
-			Merge2RecordId__c = merge2Id,
-			Object__c = objectType,
-			Rule__c = 'test',
-			Status__c = 'New',
-			AutoMerge__c = true
-		);
-		insert mc;
-		return mc;
+		List<MergeCandidate__c> mcs = new List<MergeCandidate__c>();
+		for(Id mergeId:mergeIds) {
+			mcs.add(new MergeCandidate__c(
+				KeepRecordId__c = keepId,
+				KeepName__c = keepName,
+				MergeRecordId__c = mergeId,
+				PairKey__c = String.valueOf(keepId) + '-' + String.valueOf(mergeId),
+				Object__c = objectType,
+				Rule__c = 'test',
+				Status__c = 'New',
+				AutoMerge__c = true
+			));
+		}
+		insert mcs;
+		return mcs;
 	}
 
 	/*******************************************************************************************************

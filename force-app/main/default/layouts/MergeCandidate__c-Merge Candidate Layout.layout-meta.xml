@@ -56,7 +56,11 @@
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>Merge2RecordId__c</field>
+                <field>ConfidenceScore__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>PairKey__c</field>
             </layoutItems>
         </layoutColumns>
         <layoutColumns>
@@ -70,7 +74,7 @@
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>Merge2Name__c</field>
+                <field>Source__c</field>
             </layoutItems>
         </layoutColumns>
         <style>TwoColumnsLeftToRight</style>

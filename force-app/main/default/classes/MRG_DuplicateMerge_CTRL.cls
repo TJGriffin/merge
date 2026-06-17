@@ -12,10 +12,11 @@ public with sharing class MRG_DuplicateMerge_CTRL {
 	*/
     @AuraEnabled(cacheable=TRUE)
     public static Integer getCount(String objectType, String ruleName){
-        String soqlQuery= 'SELECT Count() FROM MergeCandidate__c ';
+        // count distinct keeps: the pager pages over keep groups, not individual pairs
+        String soqlQuery= 'SELECT COUNT_DISTINCT(KeepRecordId__c) keeps FROM MergeCandidate__c ';
         soqlQuery+=MRG_Duplicate_SVC.getWhereClause(objectType, ruleName);
-        Integer result = (Integer) Database.countQuery(soqlQuery);
-        return result;
+        List<AggregateResult> results = Database.query(soqlQuery);
+        return results.isEmpty() ? 0 : (Integer) results[0].get('keeps');
     }
 
 	/*******************************************************************************************************
@@ -24,19 +25,40 @@ public with sharing class MRG_DuplicateMerge_CTRL {
 	* @return  List<mergeGroup> 
 	*/
     @AuraEnabled(cacheable=TRUE)
-    public static List<mergeGroup> getMergeGroups(String objectType, String ruleName, Integer limitAmt, Integer offsetAmt){
-        system.debug('object: '+objectType+' / ruleName: '+ruleName+' / limitAmt: '+limitAmt+' / offsetAmt: '+offsetAmt);
+    public static List<keepGroup> getKeepGroups(String objectType, String ruleName, Integer limitAmt, Integer offsetAmt){
         limitAmt = limitAmt == null ? 200 : limitAmt;
-        String soqlQuery= MRG_Duplicate_SVC.getMergeCandidateFieldSOQL();
-        soqlQuery+=MRG_Duplicate_SVC.getWhereClause(objectType,ruleName);
-        soqlQuery+=' ORDER BY CreatedDate DESC, Id ASC';
-        soqlQuery+=' LIMIT '+limitAmt;
+        // page over distinct keeps, ordered by each keep's top confidence (nulls last)
+        String keepQuery = 'SELECT KeepRecordId__c keepId, MAX(ConfidenceScore__c) maxConf FROM MergeCandidate__c';
+        keepQuery += MRG_Duplicate_SVC.getWhereClause(objectType, ruleName);
+        keepQuery += ' GROUP BY KeepRecordId__c ORDER BY MAX(ConfidenceScore__c) DESC NULLS LAST';
+        keepQuery += ' LIMIT ' + limitAmt;
         if(offsetAmt != null
             && offsetAmt < 2000
             && offsetAmt > 0)
-            soqlQuery+=' OFFSET :offsetAmt';
-        List<MergeCandidate__c> mergeCandidates = (List<MergeCandidate__c>) Database.query(soqlQuery);
-        return getMergeGroupsFromCandidates(mergeCandidates);
+            keepQuery += ' OFFSET :offsetAmt';
+        List<String> keepIds = new List<String>();
+        for(AggregateResult ar:(List<AggregateResult>) Database.query(keepQuery))
+            keepIds.add((String) ar.get('keepId'));
+        if(keepIds.isEmpty())
+            return new List<keepGroup>();
+        // fetch the pairs for those keeps, ordered by confidence desc within each keep
+        String pairQuery = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL();
+        pairQuery += MRG_Duplicate_SVC.getWhereClause(objectType, ruleName);
+        pairQuery += ' AND KeepRecordId__c IN :keepIds';
+        pairQuery += ' ORDER BY ConfidenceScore__c DESC NULLS LAST, CreatedDate DESC, Id ASC';
+        Map<String, keepGroup> groupsByKeep = new Map<String, keepGroup>();
+        for(MergeCandidate__c c:(List<MergeCandidate__c>) Database.query(pairQuery)) {
+            if(!groupsByKeep.containsKey(c.KeepRecordId__c))
+                groupsByKeep.put(c.KeepRecordId__c, new keepGroup(c));
+            groupsByKeep.get(c.KeepRecordId__c).pairs.add(new mergeGroup(c));
+        }
+        // preserve the keep ordering from the paged aggregate query
+        List<keepGroup> result = new List<keepGroup>();
+        for(String keepId:keepIds) {
+            if(groupsByKeep.containsKey(keepId))
+                result.add(groupsByKeep.get(keepId));
+        }
+        return result;
     }
 	/*******************************************************************************************************
 	* @description Returns the merge fields
@@ -118,18 +140,6 @@ public with sharing class MRG_DuplicateMerge_CTRL {
     }
 	/*******************************************************************************************************
 	* @description Returns the merge fields
-	* @param  List<MergeCandidate__c> merge candidates
-	* @return  List<mergeGroup>  the mergeGroup wrapper list
-	*/
-    public static List<mergeGroup> getMergeGroupsFromCandidates(List<MergeCandidate__c> mergeCandidates){
-        List<mergeGroup> mergeGroups = new List<mergeGroup>();
-        for(MergeCandidate__c mergeCandidate:mergeCandidates){
-            mergeGroups.add(new mergeGroup(mergeCandidate));
-        }
-        return mergeGroups;
-    }
-	/*******************************************************************************************************
-	* @description Returns the merge fields
 	* @param List<mergeGroup> the mergeGroup wrapper list
 	* @return  List<MergeCandidate__c> a list of merge candidates to save
 	*/
@@ -178,6 +188,27 @@ public with sharing class MRG_DuplicateMerge_CTRL {
 	/*******************************************************************************************************
 	* @description merge group
 	*/ 
+    public class keepGroup {
+        @AuraEnabled
+        public String keepId;
+        @AuraEnabled
+        public String keepName;
+        @AuraEnabled
+        public String objectType;
+        @AuraEnabled
+        public List<mergeGroup> pairs;
+        @AuraEnabled
+        public String keepLink {
+            get { return '/' + this.keepId; }
+        }
+        public keepGroup(MergeCandidate__c mergeCandidate) {
+            this.keepId = mergeCandidate.KeepRecordId__c;
+            this.keepName = mergeCandidate.KeepName__c;
+            this.objectType = mergeCandidate.Object__c;
+            this.pairs = new List<mergeGroup>();
+        }
+    }
+
     public class mergeGroup {
         @AuraEnabled
         public String id;

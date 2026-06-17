@@ -43,6 +43,7 @@ private class MRG_Preview_TEST {
             KeepName__c = 'Test',
             MergeRecordId__c = cons[1].Id,
             MergeName__c = 'Test 2',
+            PairKey__c = String.valueOf(cons[0].Id) + '-' + String.valueOf(cons[1].Id),
             Object__c = 'Contact',
             Rule__c = 'test',
             Status__c = 'New',

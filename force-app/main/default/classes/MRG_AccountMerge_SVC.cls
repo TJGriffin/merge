@@ -65,7 +65,6 @@ public with sharing class MRG_AccountMerge_SVC {
 		List<Id> ids = new List<Id>();
 		if(String.isNotBlank(c.KeepRecordId__c)) ids.add((Id) c.KeepRecordId__c);
 		if(String.isNotBlank(c.MergeRecordId__c)) ids.add((Id) c.MergeRecordId__c);
-		if(String.isNotBlank(c.Merge2RecordId__c)) ids.add((Id) c.Merge2RecordId__c);
 		return ids;
 	}
 
@@ -78,7 +77,6 @@ public with sharing class MRG_AccountMerge_SVC {
 		List<Id> contactIds = new List<Id>();
 		if(String.isNotBlank(candidate.KeepRecordId__c)) contactIds.add((Id) candidate.KeepRecordId__c);
 		if(String.isNotBlank(candidate.MergeRecordId__c)) contactIds.add((Id) candidate.MergeRecordId__c);
-		if(String.isNotBlank(candidate.Merge2RecordId__c)) contactIds.add((Id) candidate.Merge2RecordId__c);
 
 		Map<Id, Id> accountByContact = new Map<Id, Id>();
 		for(Contact c:[SELECT Id, AccountId FROM Contact WHERE Id IN :contactIds]) {
@@ -141,13 +139,13 @@ public with sharing class MRG_AccountMerge_SVC {
 				ordered.add(a);
 		}
 		Map<Id, Account> accountsById = new Map<Id, Account>([SELECT Id, Name FROM Account WHERE Id IN :accountIds]);
+		Id mergeAccountId = ordered.size() > 1 ? ordered[1] : null;
 		MergeCandidate__c accountCandidate = new MergeCandidate__c(
 			KeepRecordId__c = ordered[0],
 			KeepName__c = accountsById.containsKey(keepAccountId) ? accountsById.get(keepAccountId).Name : 'Account',
-			MergeRecordId__c = ordered.size() > 1 ? ordered[1] : null,
-			MergeName__c = ordered.size() > 1 && accountsById.containsKey(ordered[1]) ? accountsById.get(ordered[1]).Name : null,
-			Merge2RecordId__c = ordered.size() > 2 ? ordered[2] : null,
-			Merge2Name__c = ordered.size() > 2 && accountsById.containsKey(ordered[2]) ? accountsById.get(ordered[2]).Name : null,
+			MergeRecordId__c = mergeAccountId,
+			MergeName__c = mergeAccountId != null && accountsById.containsKey(mergeAccountId) ? accountsById.get(mergeAccountId).Name : null,
+			PairKey__c = String.valueOf(ordered[0]) + '-' + String.valueOf(mergeAccountId),
 			Object__c = 'Account',
 			Rule__c = 'Contact Account Merge',
 			Status__c = 'New'
@@ -168,9 +166,10 @@ public with sharing class MRG_AccountMerge_SVC {
 		if(keepAccountId == null)
 			return null;
 		MergeCandidate__c accountCandidate = buildAccountCandidate(accountIds, keepAccountId);
-		// insert a real Account candidate so the merge is auditable and the existing machinery can
-		// map/update it by Id, then reuse the full Account merge (preserve/complex/fallback/history)
-		insert accountCandidate;
+		// upsert a real Account candidate so the merge is auditable and the existing machinery can
+		// map/update it by Id, then reuse the full Account merge (preserve/complex/fallback/history).
+		// upsert by PairKey is idempotent if the same account pair already exists (e.g. from a scan).
+		upsert accountCandidate PairKey__c;
 		MRG_Merge_SVC.processMergesFromBatch(new List<MergeCandidate__c>{ accountCandidate }, 'Account');
 		// mark the originating contact candidate; contacts are intentionally not merged
 		candidate.Status__c = STATUS_ACCOUNTS_MERGED;

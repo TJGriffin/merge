@@ -55,7 +55,7 @@ public with sharing class MRG_DuplicateScan_BATCH implements Database.Batchable<
         // pass merges their associated Accounts instead of merging the records
         MRG_AccountMerge_SVC.flagAutoMergeAccounts(mergeCandidates, objectType);
         if(mergeCandidates.size()>0)
-            upsert mergeCandidates KeepRecordId__c;
+            upsert mergeCandidates PairKey__c;
     }
 	 /*******************************************************************************************************
 	* @description batch finish method, writes out logs and kicks off next process in the chain
