@@ -3,6 +3,7 @@ import { subscribe, unsubscribe, onError, setDebugFlag, isEmpEnabled } from 'lig
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getFieldSettings from '@salesforce/apex/MRG_MergeSettings_CTRL.getAllPreviewFields';
 import savePreviewFields from '@salesforce/apex/MRG_MergeSettings_CTRL.savePreviewFieldsSettings';
+import suppressPreviewFields from '@salesforce/apex/MRG_MergeSettings_CTRL.suppressPreviewFields';
 
 export default class previewFields extends LightningElement {
     @track cols;
@@ -28,6 +29,14 @@ export default class previewFields extends LightningElement {
     notificationStyle;
     notificationTitle;
     modalLabel='Edit Preview Field';
+    // bulk "suppress a list of fields" modal
+    @track isSuppressModalOpen = false;
+    @track suppressObjectType = '';
+    @track suppressFieldNames = '';
+    suppressObjectOptions = [{label:'Account',value:'Account'},{label:'Contact',value:'Contact'}];
+    get suppressDisabled(){
+        return !this.suppressObjectType || !this.suppressFieldNames;
+    }
     // platform event
     channelName = '/event/MergeRecordSave__e';
     isSubscribeDisabled = false;
@@ -175,6 +184,35 @@ export default class previewFields extends LightningElement {
     }
     handleObjectFilterChange(event){
         this.objectType = event.detail.value;
+    }
+    openSuppressModal(){
+        this.suppressObjectType = '';
+        this.suppressFieldNames = '';
+        this.isSuppressModalOpen = true;
+    }
+    closeSuppressModal(){
+        this.isSuppressModalOpen = false;
+    }
+    handleSuppressObjectChange(event){
+        this.suppressObjectType = event.detail.value;
+    }
+    handleSuppressFieldNamesChange(event){
+        this.suppressFieldNames = event.target.value;
+    }
+    handleSuppressSubmit(){
+        suppressPreviewFields({objectType:this.suppressObjectType, fieldNames:this.suppressFieldNames})
+            .then(()=>{
+                this.isSuppressModalOpen = false;
+                this.suppressFieldNames = '';
+                this.notificationTitle = 'Suppressing Fields';
+                this.notificationStyle = 'success';
+                this.notificationBody = 'Deploying field suppression; the list refreshes when it completes.';
+                this.showNotification();
+            })
+            .catch((error)=>{
+                this.error = error;
+                this.handleError();
+            });
     }
     showNotification(){
         this.dispatchEvent(
