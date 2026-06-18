@@ -11,6 +11,13 @@ export default class FieldSelector extends LightningElement {
     @api placeholder = 'Search fields...';
     @api disabled = false;
 
+    // Retained for unlocked-package API compatibility with the prior fieldSelector component:
+    // public @api properties can't be removed once a published version exposed them. The
+    // autocomplete does not use these.
+    @api fieldSelectorLabel;
+    @api fieldSelectorStyle;
+    @api objectType;
+
     @track _options = [];
     @api
     get options() {
