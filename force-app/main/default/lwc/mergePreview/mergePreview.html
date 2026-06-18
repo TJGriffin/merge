@@ -11,6 +11,14 @@
                 </div>
             </template>
             <template if:true={hasData}>
+                <div class="slds-m-bottom_small">
+                    <lightning-input
+                        type="checkbox"
+                        label="Show matching fields"
+                        checked={showMatching}
+                        onchange={handleShowMatchingChange}>
+                    </lightning-input>
+                </div>
                 <!--
                     <lightning-datatable
                             key-field="fieldname"

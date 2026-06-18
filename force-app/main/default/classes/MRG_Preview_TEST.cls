@@ -19,23 +19,25 @@ private class MRG_Preview_TEST {
 			FirstName='Test',
 			LastName='Test',
 			Email='test@test.com',
+			Department='Sales',
 			MailingCity='Austin',
 			MailingState='TX',
 			MailingPostalCode='78751',
 			Birthdate=Date.Today().addDays(-1200)
 			)
-		);	
+		);
 		cons.add(new Contact(
 			FirstName='Test1',
 			LastName='Test1',
 			Email='tes1t@test.com',
+			Department='Sales',
 			MailingStreet='123 Main Street',
 			MailingState='CA',
 			MailingPostalCode='78754',
 			HasOptedOutOfEmail=true,
 			Birthdate=Date.Today().addDays(-500)
 			)
-		);	
+		);
 
 		insert cons;
         MergeCandidate__c mc = new MergeCandidate__c(
@@ -55,5 +57,12 @@ private class MRG_Preview_TEST {
     static testMethod void testCTRL() {
         MergeCandidate__c mc = [SELECT Id,KeepRecordId__c,MergeRecordId__c,Status__c FROM MergeCandidate__c LIMIT 1];
         MRG_MergeCandidate previewRecord = MRG_Preview_CTRL.getPreviewRecord(mc.Id);
+        system.assertNotEquals(null, previewRecord, 'a preview record is returned');
+        system.assertNotEquals(null, previewRecord.matchingFields, 'matching fields are populated');
+        // both contacts share Department='Sales' -> a matching field, not a difference
+        system.assert(previewRecord.matchingFields.contains('Department'),
+            'a field with the same value across records is reported as matching');
+        system.assert(!previewRecord.fields.contains('Department'),
+            'a matching field is not reported as a difference');
     }
 }

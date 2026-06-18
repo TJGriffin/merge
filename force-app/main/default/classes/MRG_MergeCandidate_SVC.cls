@@ -39,6 +39,7 @@ public with sharing class MRG_MergeCandidate_SVC {
         MRG_Merge_SVC.mergeHistoryResult mergeResult = MRG_Merge_SVC.getMergeHistoryResult(new List<MergeCandidate__c>{candidate},objectType);
         Map<String, Schema.SObjectField> fieldmap = Schema.getGlobalDescribe().get(objectType).getDescribe().fields.getMap();
         Set<String> fieldDifferences = new Set<String>();
+        Set<String> matchingFields = new Set<String>();
         Set<String> writeableFields = MRG_Merge_SVC.getWriteableFields(objectType);
         Map<Id, SObject> objectMap = mergeResult.objectMap;
         SObject keepRecord;
@@ -67,6 +68,18 @@ public with sharing class MRG_MergeCandidate_SVC {
             }
         }
 
-        return new MRG_MergeCandidate(candidate,keepRecord,mergeRecords,mergeResult,fieldDifferences);
+        // fields that are the same across all records (and have a value to show) are hidden in the
+        // preview by default; surface them so the UI can reveal them on demand
+        if(keepRecord != null) {
+            for(String field:writeableFields){
+                String fieldApiName = fieldmap.containsKey(field) ? fieldmap.get(field).getDescribe().getName() : field;
+                if(!fieldDifferences.contains(fieldApiName) && keepRecord.get(field) != null)
+                    matchingFields.add(fieldApiName);
+            }
+        }
+
+        MRG_MergeCandidate result = new MRG_MergeCandidate(candidate,keepRecord,mergeRecords,mergeResult,fieldDifferences);
+        result.matchingFields = new List<String>(matchingFields);
+        return result;
     }
 }
