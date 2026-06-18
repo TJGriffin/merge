@@ -1,8 +1,22 @@
 import { createElement } from 'lwc';
 import MergeSingleRecord from 'c/mergeSingleRecord';
+import getReadableObjectFields from '@salesforce/apex/MRG_MergeSettings_CTRL.getReadableObjectFields';
+
+jest.mock(
+    '@salesforce/apex/MRG_MergeSettings_CTRL.getReadableObjectFields',
+    () => {
+        const { createApexTestWireAdapter } = require('@salesforce/sfdx-lwc-jest');
+        return { default: createApexTestWireAdapter(jest.fn()) };
+    },
+    { virtual: true }
+);
 
 function flush() {
     return Promise.resolve();
+}
+function ruleCombobox(el) {
+    return Array.from(el.shadowRoot.querySelectorAll('lightning-combobox'))
+        .find(c => Array.isArray(c.options) && c.options.some(o => o.value === 'Oldest'));
 }
 function hasButton(el, label) {
     return Array.from(el.shadowRoot.querySelectorAll('lightning-button')).some(b => b.label === label);
@@ -48,6 +62,34 @@ describe('c-merge-single-record', () => {
         expect(hasButton(el, 'Add Condition')).toBe(false);
         expect(hasInput(el, 'Contains Value')).toBe(false);
         expect(hasInput(el, 'Apex Class')).toBe(false);
+    });
+
+    it('offers Combine Values only when the selected field is a multipicklist', async () => {
+        const el = createElement('c-merge-single-record', { is: MergeSingleRecord });
+        el.usedFields = [];
+        el.record = { name: 'TEMPx', type: 'p', rule: 'Newest', objectName: 'Contact', fieldName: 'Tags', conditions: [] };
+        document.body.appendChild(el);
+        getReadableObjectFields.emit([{ label: 'Tags', name: 'Tags', type: 'MULTIPICKLIST' }]);
+        await flush();
+        await flush();
+        expect(ruleCombobox(el).options.some(o => o.value === 'Combine')).toBe(true);
+    });
+
+    it('hides Combine Values for a non-multipicklist field', async () => {
+        const el = createElement('c-merge-single-record', { is: MergeSingleRecord });
+        el.usedFields = [];
+        el.record = { name: 'TEMPx', type: 'p', rule: 'Newest', objectName: 'Contact', fieldName: 'Email', conditions: [] };
+        document.body.appendChild(el);
+        getReadableObjectFields.emit([{ label: 'Email', name: 'Email', type: 'EMAIL' }]);
+        await flush();
+        await flush();
+        expect(ruleCombobox(el).options.some(o => o.value === 'Combine')).toBe(false);
+    });
+
+    it('shows the Tie-Break Rule picker in the Complex section', async () => {
+        const el = await renderWithRule('Complex');
+        const labels = Array.from(el.shadowRoot.querySelectorAll('lightning-combobox')).map(c => c.label);
+        expect(labels).toContain('Tie-Break Rule (primary)');
     });
 
     it('dispatches a save notify when Save is clicked', async () => {

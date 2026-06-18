@@ -169,6 +169,7 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public List<MRG_KeepRecordRule.condition> conditions;
 		@auraEnabled public String tieBreakField;
 		@auraEnabled public String tieBreakDirection;
+		@auraEnabled public String tieBreakRule;
 		// optional fallback target: the losing value for this field is written here (if empty)
 		@auraEnabled public String fallbackField;
 		// for rule == 'Apex Defined': the MRG_FieldKeepRule implementation that decides this field
@@ -192,6 +193,7 @@ public with sharing class MRG_Merge_SVC {
 				: new List<MRG_KeepRecordRule.condition>();
 			this.tieBreakField = mergeField.TieBreakField__r != null ? mergeField.TieBreakField__r.QualifiedAPIName : null;
 			this.tieBreakDirection = mergeField.TieBreakDirection__c;
+			this.tieBreakRule = mergeField.TieBreakRule__c;
 			this.fallbackField = mergeField.FallbackField__r != null ? mergeField.FallbackField__r.QualifiedAPIName : null;
 			this.apexClass = mergeField.ApexClass__c;
 			this.containsValue = mergeField.ContainsValue__c;
@@ -251,6 +253,7 @@ public with sharing class MRG_Merge_SVC {
 			FilterLogic__c = mfw.filterLogic,
 			Conditions__c = mfw.conditions != null && !mfw.conditions.isEmpty() ? JSON.serialize(mfw.conditions) : null,
 			TieBreakDirection__c = mfw.tieBreakDirection,
+			TieBreakRule__c = mfw.tieBreakRule,
 			ApexClass__c = mfw.apexClass,
 			ContainsValue__c = mfw.containsValue
 		);
@@ -335,6 +338,7 @@ public with sharing class MRG_Merge_SVC {
 					TieBreakField__r.QualifiedAPIName,
 					FallbackField__r.QualifiedAPIName,
 					TieBreakDirection__c,
+					TieBreakRule__c,
 					FilterLogic__c,
 					Conditions__c,
 					Type__c,
@@ -623,6 +627,7 @@ public with sharing class MRG_Merge_SVC {
 				rule.conditions = mfw.conditions == null ? new List<MRG_KeepRecordRule.condition>() : mfw.conditions;
 				rule.tieBreakField = mfw.tieBreakField;
 				rule.tieBreakDirection = mfw.tieBreakDirection;
+				rule.tieBreakRule = mfw.tieBreakRule;
 				complexRules.add(rule);
 			}
 		}
@@ -879,12 +884,24 @@ public with sharing class MRG_Merge_SVC {
 					if(mergeRecordFieldValue!= null) {
 						// if we should preserve thie value then preserve it
 						if(preserveField != null) {
-							if(isChild && masterFieldIsKept){
+							if(preserveField.rule != null && preserveField.rule.equalsIgnoreCase('Combine')) {
+								// union the multi-select picklist values across the records (only for a multipicklist)
+								if(isMultiPicklist(objectType, fieldName)) {
+									Object combined = combineMultiPicklist(keptRecordfieldValue, mergeRecordFieldValue);
+									if(!valuesAreEqual(combined, keptRecordfieldValue)) {
+										keepValue = combined;
+										mergeValue = mergeRecordFieldValue;
+										keptRec.put(fieldName, keepValue);
+										hasChange = true;
+										mergedFieldIsKept = true;
+									}
+								}
+							} else if(isChild && masterFieldIsKept){
 								keepValue = mergeRecordFieldValue;
 								mergeValue = keptRecordfieldValue;
 								keptRec.put(fieldName,keepValue);
 								hasChange=true;
-								mergedFieldIsKept=true;								
+								mergedFieldIsKept=true;
 							} else if(testValue(mergeRecordFieldValue, keptRecordfieldValue, preserveField.rule, keptRecordIsOlder, preserveField.containsValue)) {
 								keepValue = mergeRecordFieldValue;
 								mergeValue = keptRecordfieldValue;
@@ -1066,6 +1083,41 @@ public with sharing class MRG_Merge_SVC {
 				writeableFields.add(fieldRef.getDescribe().getName().toLowerCase());
 		}
 		return writeableFields;
+	}
+	/*******************************************************************************************************
+	* @description whether a field on an object is a multi-select picklist
+	* @param objectType the SObject api name
+	* @param fieldName the field api name (case-insensitive)
+	* @return Boolean
+	*/
+	public static Boolean isMultiPicklist(String objectType, String fieldName) {
+		SObjectType objType = Schema.getGlobalDescribe().get(objectType);
+		if(objType == null || String.isBlank(fieldName))
+			return false;
+		Schema.SObjectField field = objType.getDescribe().fields.getMap().get(fieldName.toLowerCase());
+		return field != null && field.getDescribe().getType() == Schema.DisplayType.MULTIPICKLIST;
+	}
+	/*******************************************************************************************************
+	* @description unions two semicolon-delimited multipicklist values, de-duplicated, preserving order
+	* @param keepVal the surviving record's value
+	* @param mergeVal the merged record's value
+	* @return String the combined value
+	*/
+	public static Object combineMultiPicklist(Object keepVal, Object mergeVal) {
+		List<String> combined = new List<String>();
+		Set<String> seen = new Set<String>();
+		for(Object value:new List<Object>{ keepVal, mergeVal }) {
+			if(value == null)
+				continue;
+			for(String part:String.valueOf(value).split(';')) {
+				String trimmed = part.trim();
+				if(String.isNotBlank(trimmed) && !seen.contains(trimmed)) {
+					seen.add(trimmed);
+					combined.add(trimmed);
+				}
+			}
+		}
+		return String.join(combined, ';');
 	}
 	/*******************************************************************************************************
 	* @description gets writeable fields for a contact record

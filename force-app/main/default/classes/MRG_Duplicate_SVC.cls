@@ -193,10 +193,11 @@ public with sharing class MRG_Duplicate_SVC {
                 if(String.isNotBlank(f)) fields.add(f.trim().toLowerCase());
             }
         }
-        // Id and CreatedDate are always present; remove to avoid duplicates then prepend
+        // Id, CreatedDate and LastModifiedDate are always present; remove to avoid duplicates then prepend
         fields.remove('id');
         fields.remove('createddate');
-        String soqlQuery = 'SELECT Id, CreatedDate';
+        fields.remove('lastmodifieddate');
+        String soqlQuery = 'SELECT Id, CreatedDate, LastModifiedDate';
         if(!fields.isEmpty())
             soqlQuery += ', ' + String.join(new List<String>(fields), ',');
         soqlQuery += ' FROM '+objectType;

@@ -15,8 +15,9 @@ public with sharing class MRG_ComplexPreserveRule {
 	@auraEnabled public String fieldName;          // the field whose value is preserved
 	@auraEnabled public String filterLogic;        // report-style logic over the conditions
 	@auraEnabled public List<MRG_KeepRecordRule.condition> conditions;
-	@auraEnabled public String tieBreakField;      // field used to rank matching records
-	@auraEnabled public String tieBreakDirection;  // 'ASC' or 'DESC' (default DESC)
+	@auraEnabled public String tieBreakField;      // field used to rank matching records (secondary)
+	@auraEnabled public String tieBreakDirection;  // 'ASC' or 'DESC' (default DESC) for the field
+	@auraEnabled public String tieBreakRule;       // primary tie-break: a standard preservation rule
 
 	public MRG_ComplexPreserveRule() {
 		this.conditions = new List<MRG_KeepRecordRule.condition>();
@@ -78,15 +79,38 @@ public with sharing class MRG_ComplexPreserveRule {
 			return null;
 		if(matches.size() == 1)
 			return matches[0];
-		// rank the matches by the tie-break field; default to created order when none is set
+		// rank by the primary tie-break rule (when set), then by the secondary tie-break field+direction
+		Boolean hasPrimary = String.isNotBlank(tieBreakRule);
+		Boolean primaryDesc = primaryDescending();
+		Boolean primaryByLength = isLengthRule();
+		Boolean secondaryDesc = tieBreakDirection == null || tieBreakDirection.equalsIgnoreCase('DESC');
 		List<rankedRecord> ranked = new List<rankedRecord>();
-		Boolean descending = tieBreakDirection == null || tieBreakDirection.equalsIgnoreCase('DESC');
 		for(SObject record:matches) {
-			Object val = String.isNotBlank(tieBreakField) ? record.get(tieBreakField) : null;
-			ranked.add(new rankedRecord(record, val, descending));
+			Object primaryVal = hasPrimary ? primaryRankValue(record) : null;
+			Object secondaryVal = String.isNotBlank(tieBreakField) ? record.get(tieBreakField) : null;
+			ranked.add(new rankedRecord(record, hasPrimary, primaryVal, primaryDesc, primaryByLength, secondaryVal, secondaryDesc));
 		}
 		ranked.sort();
 		return ranked[0].record;
+	}
+
+	/*******************************************************************************************************
+	* @description the value the primary rule ranks on: CreatedDate for Oldest/Newest, otherwise the
+	* tie-break field value (Largest/Smallest compare value, Longest/Shortest compare text length)
+	*/
+	private Object primaryRankValue(SObject record) {
+		String rule = tieBreakRule == null ? '' : tieBreakRule.toLowerCase();
+		if(rule == 'newest' || rule == 'oldest')
+			return record.get('CreatedDate');
+		return String.isNotBlank(tieBreakField) ? record.get(tieBreakField) : null;
+	}
+	private Boolean primaryDescending() {
+		String rule = tieBreakRule == null ? '' : tieBreakRule.toLowerCase();
+		return rule == 'newest' || rule == 'largest' || rule == 'longest';
+	}
+	private Boolean isLengthRule() {
+		String rule = tieBreakRule == null ? '' : tieBreakRule.toLowerCase();
+		return rule == 'longest' || rule == 'shortest';
 	}
 
 	/*******************************************************************************************************
@@ -105,45 +129,68 @@ public with sharing class MRG_ComplexPreserveRule {
 	*/
 	private class rankedRecord implements Comparable {
 		public SObject record;
-		Object value;
-		Boolean descending;
+		Boolean hasPrimary;
+		Object primaryVal;
+		Boolean primaryDesc;
+		Boolean primaryByLength;
+		Object secondaryVal;
+		Boolean secondaryDesc;
 
-		public rankedRecord(SObject record, Object value, Boolean descending) {
+		public rankedRecord(SObject record, Boolean hasPrimary, Object primaryVal, Boolean primaryDesc, Boolean primaryByLength, Object secondaryVal, Boolean secondaryDesc) {
 			this.record = record;
-			this.value = value;
-			this.descending = descending;
+			this.hasPrimary = hasPrimary;
+			this.primaryVal = primaryVal;
+			this.primaryDesc = primaryDesc;
+			this.primaryByLength = primaryByLength;
+			this.secondaryVal = secondaryVal;
+			this.secondaryDesc = secondaryDesc;
 		}
 
 		public Integer compareTo(Object compareTo) {
 			rankedRecord other = (rankedRecord) compareTo;
-			Integer cmp = compareValues(this.value, other.value);
-			return descending ? -cmp : cmp;
+			if(hasPrimary) {
+				Integer p = directedCompare(this.primaryVal, other.primaryVal, this.primaryDesc, this.primaryByLength);
+				if(p != 0)
+					return p;
+			}
+			return directedCompare(this.secondaryVal, other.secondaryVal, this.secondaryDesc, false);
 		}
+	}
 
-		// nulls sort last (so a present value wins regardless of direction-flip); otherwise compare by
-		// the runtime type, falling back to string comparison
-		private Integer compareValues(Object a, Object b) {
-			if(a == null && b == null) return 0;
-			if(a == null) return descending ? -1 : 1;   // a (null) should rank after b
-			if(b == null) return descending ? 1 : -1;   // b (null) should rank after a
-			String type = MRG_Merge_SVC.getObjectType(a);
-			switch on type {
-				when 'Date' {
-					Date da = (Date) a, db = (Date) b;
-					return da == db ? 0 : (da > db ? 1 : -1);
-				}
-				when 'Datetime' {
-					Datetime da = (Datetime) a, db = (Datetime) b;
-					return da == db ? 0 : (da > db ? 1 : -1);
-				}
-				when 'Integer', 'Long', 'Decimal', 'Double' {
-					Decimal da = Decimal.valueOf(String.valueOf(a)), db = Decimal.valueOf(String.valueOf(b));
-					return da == db ? 0 : (da > db ? 1 : -1);
-				}
-				when else {
-					String sa = String.valueOf(a), sb = String.valueOf(b);
-					return sa == sb ? 0 : (sa > sb ? 1 : -1);
-				}
+	/*******************************************************************************************************
+	* @description directional compare with nulls always last; by text length when byLength, else by value
+	*/
+	private static Integer directedCompare(Object a, Object b, Boolean descending, Boolean byLength) {
+		if(a == null && b == null) return 0;
+		if(a == null) return 1;   // nulls rank last regardless of direction
+		if(b == null) return -1;
+		Integer raw = byLength ? compareLengths(a, b) : compareValues(a, b);
+		return descending ? -raw : raw;
+	}
+	private static Integer compareLengths(Object a, Object b) {
+		Integer la = String.valueOf(a).length();
+		Integer lb = String.valueOf(b).length();
+		return la == lb ? 0 : (la > lb ? 1 : -1);
+	}
+	// raw type-aware compare of two non-null values: +1 if a>b, -1 if a<b, 0 if equal
+	private static Integer compareValues(Object a, Object b) {
+		String type = MRG_Merge_SVC.getObjectType(a);
+		switch on type {
+			when 'Date' {
+				Date da = (Date) a, db = (Date) b;
+				return da == db ? 0 : (da > db ? 1 : -1);
+			}
+			when 'Datetime' {
+				Datetime da = (Datetime) a, db = (Datetime) b;
+				return da == db ? 0 : (da > db ? 1 : -1);
+			}
+			when 'Integer', 'Long', 'Decimal', 'Double' {
+				Decimal da = Decimal.valueOf(String.valueOf(a)), db = Decimal.valueOf(String.valueOf(b));
+				return da == db ? 0 : (da > db ? 1 : -1);
+			}
+			when else {
+				String sa = String.valueOf(a), sb = String.valueOf(b);
+				return sa == sb ? 0 : (sa > sb ? 1 : -1);
 			}
 		}
 	}

@@ -38,10 +38,10 @@
                             <div key={condition.uiKey} class="slds-grid slds-gutters slds-grid_vertical-align-end slds-m-bottom_x-small">
                                 <div class="slds-col slds-size_1-of-12 slds-align-middle">{condition.conditionIndex}</div>
                                 <div class="slds-col slds-size_3-of-12">
-                                    <lightning-combobox label="Field" value={condition.fieldName} options={fieldOptions}
+                                    <c-field-selector label="Field" value={condition.fieldName} options={fieldOptions}
                                         data-rule={condition.ruleIndex} data-condition={condition.conditionIndex}
                                         onchange={handleConditionFieldChange}>
-                                    </lightning-combobox>
+                                    </c-field-selector>
                                 </div>
                                 <div class="slds-col slds-size_3-of-12">
                                     <lightning-combobox label="Aggregator" value={condition.aggregator} options={aggregatorOptions}

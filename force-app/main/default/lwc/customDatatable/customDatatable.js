@@ -9,7 +9,7 @@ export default class CustomDatatable extends LightningDatatable {
             template: pickliststatic,
             editTemplate: picklistColumn,
             standardCellLayout: true,
-            typeAttributes: ['label', 'placeholder', 'options', 'value', 'context', 'variant','name']
+            typeAttributes: ['label', 'placeholder', 'options', 'value', 'context', 'variant','name','cellStyle']
         }
     };
 }

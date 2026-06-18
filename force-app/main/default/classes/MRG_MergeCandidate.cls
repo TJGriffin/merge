@@ -30,6 +30,11 @@ public with sharing class MRG_MergeCandidate {
     */
     @AuraEnabled public List<String> fields;
 
+    /***
+    * @description collection of fields whose values match across all records (hidden by default in the preview)
+    */
+    @AuraEnabled public List<String> matchingFields;
+
     @AuraEnabled public String status;
 
     @AuraEnabled public MergeCandidate__c mergeCandidate;

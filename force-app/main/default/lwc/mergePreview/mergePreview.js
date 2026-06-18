@@ -36,6 +36,8 @@ export default class mergePreview extends LightningElement {
             })
             this.overrideMap = orMap;
         }
+        this._matchingFields = value.hasOwnProperty('matchingFields') && value.matchingFields != null ? value.matchingFields.slice().sort() : [];
+        this.fallbackFields = this.deriveFallbackFields(value.fieldHistory);
         if(fields.length > 0)
             fields.sort();
         this.rows = fields;
@@ -74,6 +76,48 @@ export default class mergePreview extends LightningElement {
     _rows;
     @track data;
     @track cols;
+    @track showMatching = false;
+    _matchingFields = [];
+    fallbackFields = [];
+
+    // system fields rendered as fixed rows (Id first; CreatedDate/LastModifiedDate last), never editable
+    systemFields = ['Id', 'CreatedDate', 'LastModifiedDate'];
+
+    deriveFallbackFields(history){
+        var targets = [];
+        if(Array.isArray(history)){
+            history.forEach(h=>{
+                if(h && h.TargetField__c && !targets.includes(h.TargetField__c))
+                    targets.push(h.TargetField__c);
+            });
+        }
+        return targets;
+    }
+
+    // ordered field list: Id first, then differing + fallback (+ matching when toggled on),
+    // then CreatedDate and LastModifiedDate last; suppressed and system fields excluded from the middle
+    get orderedFields(){
+        var ignore = Array.isArray(this.ignoreFields) ? this.ignoreFields : [];
+        var ordered = ['Id'];
+        var mid = [];
+        var add = (f)=>{
+            if(f && !mid.includes(f) && !this.systemFields.includes(f) && !ignore.includes(f))
+                mid.push(f);
+        };
+        (this.rows || []).forEach(add);
+        (this.fallbackFields || []).forEach(add);
+        if(this.showMatching)
+            (this._matchingFields || []).forEach(add);
+        mid.forEach(f=>ordered.push(f));
+        ordered.push('CreatedDate');
+        ordered.push('LastModifiedDate');
+        return ordered;
+    }
+
+    handleShowMatchingChange(event){
+        this.showMatching = event.target.checked;
+        this.createTableData();
+    }
 
     get processed(){
         return typeof this.mergeCandidate !== undefined && this.mergeCandidate != null && this.mergeCandidate.Status__c == 'Processed';
@@ -184,9 +228,10 @@ export default class mergePreview extends LightningElement {
                     type: 'picklistColumn', 
                     editable: {fieldName: 'editable'}, 
                     typeAttributes: {
-                        placeholder: 'Choose value to keep', 
-                        options: { fieldName: 'picklistOptions' }, 
-                        value: { fieldName: 'picklistValue' }
+                        placeholder: 'Choose value to keep',
+                        options: { fieldName: 'picklistOptions' },
+                        value: { fieldName: 'picklistValue' },
+                        cellStyle: { fieldName: 'mergeResultStyle' }
                     }
                 };
             } else {
@@ -215,66 +260,65 @@ export default class mergePreview extends LightningElement {
         var mergeResultRecord = this._record.hasOwnProperty('mergeResultRecord') ? this._record.mergeResultRecord : {};
         var orMap = typeof this.overrideMap === undefined || this.overrideMap == null ?  new Map() : this.overrideMap;
         
-        this.rows.forEach(field=>{
-            if(!this.ignoreFields.includes(field)){
-                var dataRow = {};
-                var picklistOptions = [];
-                var picklistValue;
+        this.orderedFields.forEach(field=>{
+            var isSystem = this.systemFields.includes(field);
+            var isFallback = (this.fallbackFields || []).includes(field);
+            var dataRow = {};
+            var picklistOptions = [];
 
-                columns.forEach(col=>{
-                    var fieldValue = null;
-                    var recordObj = {};
-                    switch(col) {
-                        case 'fieldname':
-                            fieldValue = field;
-                            break;
-                        case 'keepRecord':
-                            fieldValue = keepRecord.hasOwnProperty(field) ? keepRecord[field] : null;
-                            break;
-                        case 'mergeRecord1':
-                            fieldValue = mergeRecord1.hasOwnProperty(field) ? mergeRecord1[field] : null;
-                            break;
-                        case 'mergeRecord2':
-                            fieldValue = mergeRecord2.hasOwnProperty(field) ? mergeRecord2[field] : null;
-                            break;
-                        case 'mergeResultRecord':
-                            fieldValue = mergeResultRecord.hasOwnProperty(field) ? mergeResultRecord[field] : null;
-                            break;
+            columns.forEach(col=>{
+                var fieldValue = null;
+                switch(col) {
+                    case 'fieldname':
+                        fieldValue = field;
+                        break;
+                    case 'keepRecord':
+                        fieldValue = keepRecord.hasOwnProperty(field) ? keepRecord[field] : null;
+                        break;
+                    case 'mergeRecord1':
+                        fieldValue = mergeRecord1.hasOwnProperty(field) ? mergeRecord1[field] : null;
+                        break;
+                    case 'mergeRecord2':
+                        fieldValue = mergeRecord2.hasOwnProperty(field) ? mergeRecord2[field] : null;
+                        break;
+                    case 'mergeResultRecord':
+                        fieldValue = mergeResultRecord.hasOwnProperty(field) ? mergeResultRecord[field] : null;
+                        break;
+                }
+                if(col != 'mergeResultRecord'){
+                    // system rows (Id/CreatedDate/LastModifiedDate) are informational only -> not selectable
+                    if(!isSystem && fieldValue != null && !picklistOptions.includes(fieldValue) && col !='fieldname'){
+                        var opt = {};
+                        opt.label = fieldValue;
+                        opt.value = fieldValue;
+                        picklistOptions.push(opt);
                     }
-                    if(col != 'mergeResultRecord'){
-                        if(fieldValue != null && !picklistOptions.includes(fieldValue) && col !='fieldname'){
-                            var opt = {};
-                            opt.label = fieldValue;
-                            opt.value = fieldValue;
-                            picklistOptions.push(opt);
-                        }
-                    } else if(col == 'mergeResultRecord') {
-                        var editable = picklistOptions.length > 1;
-                        dataRow['editable'] = editable;
-                        if(picklistOptions.length > 1){
-                            var picklistFieldValue = {};
-                            picklistFieldValue.value = fieldValue;
-                            picklistFieldValue.options = picklistOptions;
-                            picklistFieldValue.placeholder = fieldValue;
-                            
-                            if(!orMap.has(field)){
-                                orMap.set(field,fieldValue);
-                            } else {
-                                var val = orMap.get(field);
-                                picklistFieldValue.value = val;
-                                fieldValue = val;
-                            }
+                } else if(col == 'mergeResultRecord') {
+                    var editable = !isSystem && picklistOptions.length > 1;
+                    dataRow['editable'] = editable;
+                    if(editable){
+                        var picklistFieldValue = {};
+                        picklistFieldValue.value = fieldValue;
+                        picklistFieldValue.options = picklistOptions;
+                        picklistFieldValue.placeholder = fieldValue;
 
-                            dataRow['picklistOptions'] = picklistFieldValue.options;
-                            dataRow['picklistValue'] = picklistFieldValue.value;
-                            
+                        if(!orMap.has(field)){
+                            orMap.set(field,fieldValue);
+                        } else {
+                            var val = orMap.get(field);
+                            picklistFieldValue.value = val;
+                            fieldValue = val;
                         }
-                        
-                    }            
-                    dataRow[col] = fieldValue;
-                });
-                dataRows.push(dataRow);
-            }
+
+                        dataRow['picklistOptions'] = picklistFieldValue.options;
+                        dataRow['picklistValue'] = picklistFieldValue.value;
+                    }
+                    // highlight fallback-routed values (they land in the merge result column)
+                    dataRow['mergeResultStyle'] = isFallback ? 'background-color:#fcf3cf;' : '';
+                }
+                dataRow[col] = fieldValue;
+            });
+            dataRows.push(dataRow);
         });
         this.data = dataRows;
         console.log('data');

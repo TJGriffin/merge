@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
-    <fullName>PreservationRule__c</fullName>
+    <fullName>TieBreakRule__c</fullName>
+    <description>Complex rule primary tie-break: a standard preservation rule (Oldest/Newest/Largest/Smallest/Longest/Shortest) used to pick the winner among matching records. Tie-Break Field + Direction act as the secondary tie-break. Largest/Smallest/Longest/Shortest rank on the Tie-Break Field; Oldest/Newest use CreatedDate.</description>
     <externalId>false</externalId>
     <fieldManageability>SubscriberControlled</fieldManageability>
-    <label>Preservation Rule</label>
+    <label>Tie Break Rule</label>
     <required>false</required>
     <type>Picklist</type>
     <valueSet>
@@ -12,7 +13,7 @@
             <sorted>false</sorted>
             <value>
                 <fullName>Oldest</fullName>
-                <default>true</default>
+                <default>false</default>
                 <label>Oldest</label>
             </value>
             <value>
@@ -33,37 +34,12 @@
             <value>
                 <fullName>Longest</fullName>
                 <default>false</default>
-                <label>Longest Text</label>
+                <label>Longest</label>
             </value>
             <value>
                 <fullName>Shortest</fullName>
                 <default>false</default>
-                <label>Shortest Text</label>
-            </value>
-            <value>
-                <fullName>Contains</fullName>
-                <default>false</default>
-                <label>Contains Text</label>
-            </value>
-            <value>
-                <fullName>Combine</fullName>
-                <default>false</default>
-                <label>Combine Values</label>
-            </value>
-            <value>
-                <fullName>Related Field</fullName>
-                <default>false</default>
-                <label>Related Field</label>
-            </value>
-            <value>
-                <fullName>Complex</fullName>
-                <default>false</default>
-                <label>Complex</label>
-            </value>
-            <value>
-                <fullName>Apex Defined</fullName>
-                <default>false</default>
-                <label>Apex Defined</label>
+                <label>Shortest</label>
             </value>
         </valueSetDefinition>
     </valueSet>

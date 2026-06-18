@@ -45,13 +45,13 @@
                 <lightning-layout-item padding="around-small" size="2">
                     <template if:true={objectType}>
                         <template if:true={fieldResults}>
-                            <lightning-combobox
-                                name="Field"
+                            <c-field-selector
+                                label="Field"
                                 value={previewField.fieldName}
-                                placeholder="Select Field"
+                                placeholder="Search fields..."
                                 options={fieldResults}
                                 onchange={handleFieldSelect}
-                            ></lightning-combobox>
+                            ></c-field-selector>
                         </template>
                     </template>
                 </lightning-layout-item>

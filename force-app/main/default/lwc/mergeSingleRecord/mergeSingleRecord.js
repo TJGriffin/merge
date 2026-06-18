@@ -33,7 +33,30 @@ export default class mergeSingleRecord extends LightningElement {
         return type;
     }
     trackOptions = [{label:'Track Fields',value:'t'},{label:'Preserve Fields',value:'p'}];
-    ruleOptions = [{label:'Oldest Record',value:'Oldest'},{label:'Newest Record',value:'Newest'},{label:'Largest Field Value',value:'Largest'},{label:'Smallest Field Value',value:'Smallest'},{label:'Longest Text Value',value:'Longest'},{label:'Shortest Text Value',value:'Shortest'},{label:'Contains Text',value:'Contains'},{label:'Related Field Value',value:'Related Field'},{label:'Complex Rule',value:'Complex'},{label:'Apex Defined Rule',value:'Apex Defined'}];
+    // 'Combine Values' is appended only when the selected field is a multi-select picklist
+    get ruleOptions() {
+        const options = [
+            {label:'Oldest Record',value:'Oldest'},
+            {label:'Newest Record',value:'Newest'},
+            {label:'Largest Field Value',value:'Largest'},
+            {label:'Smallest Field Value',value:'Smallest'},
+            {label:'Longest Text Value',value:'Longest'},
+            {label:'Shortest Text Value',value:'Shortest'},
+            {label:'Contains Text',value:'Contains'},
+            {label:'Related Field Value',value:'Related Field'},
+            {label:'Complex Rule',value:'Complex'},
+            {label:'Apex Defined Rule',value:'Apex Defined'}
+        ];
+        if(this.isMultiPicklistField){
+            options.push({label:'Combine Values',value:'Combine'});
+        }
+        return options;
+    }
+    get isMultiPicklistField() {
+        return this.mergeRecord != null && this.mergeRecord.fieldName != null
+            && this.fieldTypeByName[this.mergeRecord.fieldName] === 'MULTIPICKLIST';
+    }
+    tieBreakRuleOptions = [{label:'(none)',value:''},{label:'Oldest',value:'Oldest'},{label:'Newest',value:'Newest'},{label:'Largest',value:'Largest'},{label:'Smallest',value:'Smallest'},{label:'Longest',value:'Longest'},{label:'Shortest',value:'Shortest'}];
     operatorOptions = [
         {label:'equals',value:'equals'},
         {label:'not equals',value:'notEquals'},
@@ -231,6 +254,10 @@ export default class mergeSingleRecord extends LightningElement {
 
     handleTieBreakFieldSelect(event){
         this.mergeRecord.tieBreakField = event.detail.value;
+    }
+
+    handleTieBreakRuleSelect(event){
+        this.mergeRecord.tieBreakRule = event.detail.value;
     }
 
     handleTieBreakDirectionSelect(event){
