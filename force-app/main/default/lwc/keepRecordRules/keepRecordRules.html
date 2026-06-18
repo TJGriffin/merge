@@ -41,14 +41,14 @@
                                     {condition.conditionIndex}
                                 </div>
                                 <div class="slds-col slds-size_4-of-12">
-                                    <lightning-combobox
+                                    <c-field-selector
                                         label="Field"
                                         value={condition.fieldName}
                                         options={fieldOptions}
                                         data-rule={condition.ruleIndex}
                                         data-condition={condition.conditionIndex}
                                         onchange={handleFieldChange}>
-                                    </lightning-combobox>
+                                    </c-field-selector>
                                 </div>
                                 <div class="slds-col slds-size_3-of-12">
                                     <lightning-combobox

@@ -58,13 +58,13 @@
                             </template>
                             <template if:false={mergeRecord.fieldName}>
                                 <template if:true={fieldResults}>
-                                    <lightning-combobox
-                                        name="Field"
+                                    <c-field-selector
+                                        label="Field"
                                         value={mergeRecord.fieldName}
-                                        placeholder="Select Field"
+                                        placeholder="Search fields..."
                                         options={fieldResults}
                                         onchange={handleFieldSelect}
-                                    ></lightning-combobox>
+                                    ></c-field-selector>
                                 </template>
                             </template>
                         </template>
@@ -90,13 +90,13 @@
                             <template if:true={objectType}>
                                 <template if:true={fieldResults}>
                                     <template if:true={isRelatedField}>
-                                        <lightning-combobox
-                                            name="Field"
+                                        <c-field-selector
+                                            label="Related Field"
                                             value={mergeRecord.relatedField}
-                                            placeholder="Select Field"
+                                            placeholder="Search fields..."
                                             options={relatedFieldResults}
                                             onchange={handleRelatedFieldSelect}
-                                        ></lightning-combobox>
+                                        ></c-field-selector>
                                     </template>
                                 </template>
                             </template>
@@ -119,13 +119,13 @@
                                 this field instead (only if it is empty). The routed value is recorded in Merge
                                 Field History with the target field.
                             </p>
-                            <lightning-combobox
-                                name="Fallback Field"
+                            <c-field-selector
+                                label="Fallback Field"
                                 value={mergeRecord.fallbackField}
-                                placeholder="Select Fallback Field"
+                                placeholder="Search fields..."
                                 options={fieldResults}
                                 onchange={handleFallbackFieldSelect}
-                            ></lightning-combobox>
+                            ></c-field-selector>
                         </div>
                     </template>
                 </template>
@@ -142,13 +142,13 @@
                             <div key={condition.conditionIndex} class="slds-grid slds-gutters slds-grid_vertical-align-end slds-m-bottom_x-small">
                                 <div class="slds-col slds-size_1-of-12 slds-text-body_small slds-align-middle">{condition.conditionIndex}</div>
                                 <div class="slds-col slds-size_4-of-12">
-                                    <lightning-combobox
+                                    <c-field-selector
                                         label="Field"
                                         value={condition.fieldName}
                                         options={allFieldOptions}
                                         data-condition={condition.conditionIndex}
                                         onchange={handleConditionFieldSelect}>
-                                    </lightning-combobox>
+                                    </c-field-selector>
                                 </div>
                                 <div class="slds-col slds-size_3-of-12">
                                     <lightning-combobox
@@ -187,14 +187,18 @@
                             value={mergeRecord.filterLogic} onchange={handleFilterLogicChange}>
                         </lightning-input>
 
+                        <lightning-combobox label="Tie-Break Rule (primary)" value={mergeRecord.tieBreakRule}
+                            placeholder="Select Rule" options={tieBreakRuleOptions} onchange={handleTieBreakRuleSelect}
+                            class="slds-m-top_x-small">
+                        </lightning-combobox>
                         <div class="slds-grid slds-gutters slds-m-top_x-small">
                             <div class="slds-col slds-size_6-of-12">
-                                <lightning-combobox label="Tie-Break Field" value={mergeRecord.tieBreakField}
-                                    placeholder="Select Field" options={allFieldOptions} onchange={handleTieBreakFieldSelect}>
-                                </lightning-combobox>
+                                <c-field-selector label="Tie-Break Field (secondary)" value={mergeRecord.tieBreakField}
+                                    placeholder="Search fields..." options={allFieldOptions} onchange={handleTieBreakFieldSelect}>
+                                </c-field-selector>
                             </div>
                             <div class="slds-col slds-size_6-of-12">
-                                <lightning-combobox label="Tie-Break Direction" value={mergeRecord.tieBreakDirection}
+                                <lightning-combobox label="Secondary Direction" value={mergeRecord.tieBreakDirection}
                                     options={directionOptions} onchange={handleTieBreakDirectionSelect}>
                                 </lightning-combobox>
                             </div>

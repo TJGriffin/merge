@@ -1,0 +1,31 @@
+<template>
+    <div class="slds-form-element">
+        <template if:true={label}>
+            <label class="slds-form-element__label">{label}</label>
+        </template>
+        <div class="slds-form-element__control slds-combobox_container slds-is-relative">
+            <lightning-input
+                type="search"
+                variant="label-hidden"
+                value={query}
+                placeholder={placeholder}
+                disabled={disabled}
+                onfocus={handleFocus}
+                oninput={handleInput}
+                onblur={handleBlur}>
+            </lightning-input>
+            <template if:true={hasResults}>
+                <ul class="slds-listbox slds-listbox_vertical slds-dropdown slds-dropdown_fluid slds-dropdown_length-7" role="listbox">
+                    <template for:each={filtered} for:item="opt">
+                        <li key={opt.value} role="presentation" class="slds-listbox__item">
+                            <div class="slds-listbox__option slds-listbox__option_plain field-option"
+                                role="option" data-value={opt.value} onmousedown={handleSelect}>
+                                {opt.display}
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+        </div>
+    </div>
+</template>

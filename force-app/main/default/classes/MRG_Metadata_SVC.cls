@@ -223,6 +223,7 @@ public with sharing class MRG_Metadata_SVC {
 		fieldKeyValues.put('FilterLogic__c', mergeField.FilterLogic__c);
 		fieldKeyValues.put('Conditions__c', mergeField.Conditions__c);
 		fieldKeyValues.put('TieBreakDirection__c', mergeField.TieBreakDirection__c);
+		fieldKeyValues.put('TieBreakRule__c', mergeField.TieBreakRule__c);
 		fieldKeyValues.put('TieBreakField__c', mergeField.TieBreakField__r != null ? mergeField.TieBreakField__r.QualifiedAPIName : null);
 		// fallback field (re-homed #34)
 		fieldKeyValues.put('FallbackField__c', mergeField.FallbackField__r != null ? mergeField.FallbackField__r.QualifiedAPIName : null);

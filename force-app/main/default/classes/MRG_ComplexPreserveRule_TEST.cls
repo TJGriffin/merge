@@ -91,6 +91,63 @@ private class MRG_ComplexPreserveRule_TEST {
 		system.assertEquals('has-date', (String) rule.winningValue(recs), 'record with a tie-break value should win over a null');
 	}
 
+	// build a Contact with a read-only CreatedDate set (via JSON) for Oldest/Newest tie-break tests
+	private static Contact contactWithCreated(String last, Boolean optedOut, String street, Datetime created, Date bday) {
+		Map<String, Object> m = new Map<String, Object>{
+			'attributes' => new Map<String, Object>{ 'type' => 'Contact' },
+			'LastName' => last,
+			'HasOptedOutOfEmail' => optedOut,
+			'MailingStreet' => street,
+			'CreatedDate' => created,
+			'Birthdate' => bday
+		};
+		return (Contact) JSON.deserialize(JSON.serialize(m), Contact.class);
+	}
+
+	static testMethod void testTieBreakRuleLargest() {
+		List<Account> recs = new List<Account>{
+			new Account(Name='small', NumberOfEmployees=10),
+			new Account(Name='big', NumberOfEmployees=500)
+		};
+		MRG_ComplexPreserveRule rule = new MRG_ComplexPreserveRule();
+		rule.fieldName = 'Name';
+		rule.filterLogic = '1';
+		rule.conditions = new List<MRG_KeepRecordRule.condition>{ cond('NumberOfEmployees','greaterThan','0') };
+		rule.tieBreakRule = 'Largest';
+		rule.tieBreakField = 'NumberOfEmployees';
+		system.assertEquals('big', (String) rule.winningValue(recs), 'Largest rule picks the larger NumberOfEmployees');
+	}
+
+	static testMethod void testTieBreakRuleLongest() {
+		List<Contact> recs = new List<Contact>{
+			new Contact(LastName='A', HasOptedOutOfEmail=true, MailingStreet='123 Main Street, Suite 400'),
+			new Contact(LastName='B', HasOptedOutOfEmail=true, MailingStreet='1 Elm')
+		};
+		MRG_ComplexPreserveRule rule = new MRG_ComplexPreserveRule();
+		rule.fieldName = 'LastName';
+		rule.filterLogic = '1';
+		rule.conditions = new List<MRG_KeepRecordRule.condition>{ cond('HasOptedOutOfEmail','equals','true') };
+		rule.tieBreakRule = 'Longest';
+		rule.tieBreakField = 'MailingStreet';
+		system.assertEquals('A', (String) rule.winningValue(recs), 'Longest rule picks the record with the longer MailingStreet');
+	}
+
+	static testMethod void testTieBreakRuleThenSecondaryField() {
+		Datetime same = Datetime.newInstance(2020, 1, 1, 0, 0, 0);
+		List<Contact> recs = new List<Contact>{
+			contactWithCreated('A', true, 'a', same, Date.newInstance(1980,1,1)),
+			contactWithCreated('B', true, 'b', same, Date.newInstance(2000,1,1))
+		};
+		MRG_ComplexPreserveRule rule = new MRG_ComplexPreserveRule();
+		rule.fieldName = 'MailingStreet';
+		rule.filterLogic = '1';
+		rule.conditions = new List<MRG_KeepRecordRule.condition>{ cond('HasOptedOutOfEmail','equals','true') };
+		rule.tieBreakRule = 'Newest';       // primary: CreatedDate (tied here)
+		rule.tieBreakField = 'Birthdate';   // secondary
+		rule.tieBreakDirection = 'DESC';
+		system.assertEquals('b', (String) rule.winningValue(recs), 'CreatedDate tie falls back to the secondary Birthdate DESC');
+	}
+
 	static testMethod void testEmptyConditionsNeverMatch() {
 		MRG_ComplexPreserveRule rule = new MRG_ComplexPreserveRule();
 		rule.fieldName = 'MailingStreet';
