@@ -1,5 +1,5 @@
 import { createElement } from 'lwc';
-import FieldSelector from 'c/fieldSelector';
+import MergeFieldSelector from 'c/mergeFieldSelector';
 
 const OPTIONS = [
     { label: 'Email', value: 'Email' },
@@ -20,7 +20,7 @@ function optionEl(el, value) {
     return Array.from(el.shadowRoot.querySelectorAll('.field-option')).find(o => o.dataset.value === value);
 }
 
-describe('c-field-selector', () => {
+describe('c-merge-field-selector', () => {
     afterEach(() => {
         while (document.body.firstChild) {
             document.body.removeChild(document.body.firstChild);
@@ -28,7 +28,7 @@ describe('c-field-selector', () => {
     });
 
     async function render() {
-        const el = createElement('c-field-selector', { is: FieldSelector });
+        const el = createElement('c-merge-field-selector', { is: MergeFieldSelector });
         el.options = OPTIONS;
         document.body.appendChild(el);
         await flush();

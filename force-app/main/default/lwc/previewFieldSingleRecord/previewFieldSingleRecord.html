@@ -45,13 +45,13 @@
                 <lightning-layout-item padding="around-small" size="2">
                     <template if:true={objectType}>
                         <template if:true={fieldResults}>
-                            <c-field-selector
+                            <c-merge-field-selector
                                 label="Field"
                                 value={previewField.fieldName}
                                 placeholder="Search fields..."
                                 options={fieldResults}
                                 onchange={handleFieldSelect}
-                            ></c-field-selector>
+                            ></c-merge-field-selector>
                         </template>
                     </template>
                 </lightning-layout-item>

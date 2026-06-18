@@ -6,17 +6,10 @@ import { LightningElement, api, track } from 'lwc';
  * name), so it is a drop-in replacement for a field lightning-combobox (parent handlers read
  * event.detail.value and event.target.dataset.*).
  */
-export default class FieldSelector extends LightningElement {
+export default class MergeFieldSelector extends LightningElement {
     @api label;
     @api placeholder = 'Search fields...';
     @api disabled = false;
-
-    // Retained for unlocked-package API compatibility with the prior fieldSelector component:
-    // public @api properties can't be removed once a published version exposed them. The
-    // autocomplete does not use these.
-    @api fieldSelectorLabel;
-    @api fieldSelectorStyle;
-    @api objectType;
 
     @track _options = [];
     @api
