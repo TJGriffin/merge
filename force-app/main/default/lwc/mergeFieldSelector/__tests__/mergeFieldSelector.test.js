@@ -11,7 +11,7 @@ function flush() {
     return Promise.resolve();
 }
 function input(el) {
-    return el.shadowRoot.querySelector('lightning-input');
+    return el.shadowRoot.querySelector('input');
 }
 function optionText(el) {
     return Array.from(el.shadowRoot.querySelectorAll('.field-option')).map(o => o.textContent.trim());
@@ -35,32 +35,35 @@ describe('c-merge-field-selector', () => {
         return el;
     }
 
-    it('lists options as "label (api name)" when focused', async () => {
-        const el = await render();
-        input(el).dispatchEvent(new CustomEvent('focus'));
-        await flush();
-        expect(optionText(el)).toEqual(
-            expect.arrayContaining(['Email (Email)', 'Mailing Street (MailingStreet)', 'Phone (Phone)'])
-        );
-    });
-
-    it('filters by label', async () => {
-        const el = await render();
-        input(el).dispatchEvent(new CustomEvent('focus'));
+    async function type(el, text) {
         const field = input(el);
-        field.value = 'mailing';
+        field.value = text;
         field.dispatchEvent(new CustomEvent('input'));
         await flush();
+    }
+
+    it('shows no results until at least 3 characters are typed', async () => {
+        const el = await render();
+        input(el).dispatchEvent(new CustomEvent('focus'));
+        await flush();
+        expect(optionText(el)).toEqual([]); // focus alone shows nothing
+
+        await type(el, 'ph');
+        expect(optionText(el)).toEqual([]); // 2 chars -> still nothing
+
+        await type(el, 'pho');
+        expect(optionText(el)).toEqual(['Phone (Phone)']); // 3 chars -> results
+    });
+
+    it('filters by label (contains)', async () => {
+        const el = await render();
+        await type(el, 'street');
         expect(optionText(el)).toEqual(['Mailing Street (MailingStreet)']);
     });
 
-    it('filters by API name', async () => {
+    it('filters by API name (contains)', async () => {
         const el = await render();
-        input(el).dispatchEvent(new CustomEvent('focus'));
-        const field = input(el);
-        field.value = 'MailingStreet';
-        field.dispatchEvent(new CustomEvent('input'));
-        await flush();
+        await type(el, 'mailingstreet');
         expect(optionText(el)).toEqual(['Mailing Street (MailingStreet)']);
     });
 
@@ -68,8 +71,7 @@ describe('c-merge-field-selector', () => {
         const el = await render();
         const handler = jest.fn();
         el.addEventListener('change', handler);
-        input(el).dispatchEvent(new CustomEvent('focus'));
-        await flush();
+        await type(el, 'pho');
         optionEl(el, 'Phone').dispatchEvent(new CustomEvent('mousedown'));
         expect(handler.mock.calls[0][0].detail.value).toBe('Phone');
     });
