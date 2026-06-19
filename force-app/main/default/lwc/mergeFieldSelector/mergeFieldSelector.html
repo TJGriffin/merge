@@ -4,18 +4,18 @@
             <label class="slds-form-element__label">{label}</label>
         </template>
         <div class="slds-form-element__control slds-combobox_container slds-is-relative">
-            <lightning-input
-                type="search"
-                variant="label-hidden"
-                value={query}
+            <input
+                type="text"
+                class="slds-input"
                 placeholder={placeholder}
                 disabled={disabled}
+                autocomplete="off"
+                role="combobox"
                 onfocus={handleFocus}
                 oninput={handleInput}
-                onblur={handleBlur}>
-            </lightning-input>
+                onblur={handleBlur} />
             <template if:true={hasResults}>
-                <ul class="slds-listbox slds-listbox_vertical slds-dropdown slds-dropdown_fluid slds-dropdown_length-7" role="listbox">
+                <ul class="slds-listbox slds-listbox_vertical slds-dropdown slds-dropdown_fluid slds-dropdown_length-7 field-selector-dropdown" role="listbox">
                     <template for:each={filtered} for:item="opt">
                         <li key={opt.value} role="presentation" class="slds-listbox__item">
                             <div class="slds-listbox__option slds-listbox__option_plain field-option"
