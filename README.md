@@ -11,16 +11,16 @@ The Merge Control app provides SF Administrators with the following tools relate
 
 ## Installation
 
-Current release: **2.4.3** (unlocked package, `04tKb000000EgzHIAS`)
+Current release: **2.4.4** (unlocked package, `04tKb000000EgzMIAS`)
 
 Install via URL:
-- Production / Developer Edition: https://login.salesforce.com/packaging/installPackage.apexp?p0=04tKb000000EgzHIAS
-- Sandbox: https://test.salesforce.com/packaging/installPackage.apexp?p0=04tKb000000EgzHIAS
+- Production / Developer Edition: https://login.salesforce.com/packaging/installPackage.apexp?p0=04tKb000000EgzMIAS
+- Sandbox: https://test.salesforce.com/packaging/installPackage.apexp?p0=04tKb000000EgzMIAS
 
 Or with the Salesforce CLI:
 
 ```
-sf package install --package 04tKb000000EgzHIAS --target-org <org-alias> --wait 10
+sf package install --package 04tKb000000EgzMIAS --target-org <org-alias> --wait 10
 ```
 
 After installing, assign the **Merge Control Administrator** permission set to administrators.
