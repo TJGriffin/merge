@@ -1,0 +1,13 @@
+/* Advanced section: visually set apart from the main field row so it is clear you are in the
+   expanded configuration view */
+.advanced-card {
+    border-left: 4px solid #1b96ff;
+    background-color: #f3f9ff;
+    border-radius: 0.25rem;
+}
+
+.advanced-toggle {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 700;
+}
