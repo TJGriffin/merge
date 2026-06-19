@@ -38,6 +38,28 @@ export default class MergeFieldSelector extends LightningElement {
     query = '';
     open = false;
     _pendingDisplaySync = false;
+    _mouseInside = false;
+
+    connectedCallback() {
+        // close the list on an outside click (not on blur — blur fires when the user grabs the
+        // dropdown's scrollbar, which would wrongly close it)
+        this._onDocumentMouseDown = () => {
+            if (!this._mouseInside) {
+                this.open = false;
+            }
+            this._mouseInside = false;
+        };
+        document.addEventListener('mousedown', this._onDocumentMouseDown);
+    }
+
+    disconnectedCallback() {
+        document.removeEventListener('mousedown', this._onDocumentMouseDown);
+    }
+
+    // a mousedown anywhere within this component (input, list or its scrollbar) is "inside"
+    handleRootMouseDown() {
+        this._mouseInside = true;
+    }
 
     // text shown for the current selection ("label (api name)")
     get displayValue() {
@@ -96,10 +118,6 @@ export default class MergeFieldSelector extends LightningElement {
         this.query = event.target.value;
         this.open = true;
     }
-    handleBlur() {
-        this.open = false;
-    }
-    // mousedown fires before the input's blur, so the selection registers before the list closes
     handleSelect(event) {
         const value = event.currentTarget.dataset.value;
         this._value = value;

@@ -1,5 +1,5 @@
 <template>
-    <div class="slds-form-element">
+    <div class="slds-form-element" onmousedown={handleRootMouseDown}>
         <template if:true={label}>
             <label class="slds-form-element__label">{label}</label>
         </template>
@@ -12,8 +12,7 @@
                 autocomplete="off"
                 role="combobox"
                 onfocus={handleFocus}
-                oninput={handleInput}
-                onblur={handleBlur} />
+                oninput={handleInput} />
             <template if:true={hasResults}>
                 <ul class="slds-listbox slds-listbox_vertical slds-dropdown slds-dropdown_fluid slds-dropdown_length-7 field-selector-dropdown" role="listbox">
                     <template for:each={filtered} for:item="opt">

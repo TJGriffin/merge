@@ -75,4 +75,21 @@ describe('c-merge-field-selector', () => {
         optionEl(el, 'Phone').dispatchEvent(new CustomEvent('mousedown'));
         expect(handler.mock.calls[0][0].detail.value).toBe('Phone');
     });
+
+    it('stays open when interacting inside (e.g. the scrollbar) and closes on an outside click', async () => {
+        const el = await render();
+        await type(el, 'pho');
+        expect(optionText(el)).toEqual(['Phone (Phone)']);
+
+        // a mousedown inside the component (root handler sets the flag) must NOT close it
+        el.shadowRoot.querySelector('.slds-form-element').dispatchEvent(new CustomEvent('mousedown'));
+        document.dispatchEvent(new CustomEvent('mousedown'));
+        await flush();
+        expect(optionText(el)).toEqual(['Phone (Phone)']);
+
+        // a document mousedown with no preceding inside-mousedown closes it
+        document.dispatchEvent(new CustomEvent('mousedown'));
+        await flush();
+        expect(optionText(el)).toEqual([]);
+    });
 });
