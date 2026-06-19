@@ -11,7 +11,9 @@ public with sharing class MRG_AutoMergeAccounts_CTRL {
 	* @param objectType the SObject api name
 	* @return List<MRG_AutoMergeAccountsRule>
 	*/
-	@auraEnabled(cacheable=true)
+	// not cacheable: rules are edited in this same UI and re-loaded right after a save, so a cached
+	// (pre-save) result would make the freshly saved rules appear to be missing
+	@auraEnabled
 	public static List<MRG_AutoMergeAccountsRule> getRules(String objectType) {
 		if(String.isBlank(objectType))
 			return new List<MRG_AutoMergeAccountsRule>();
