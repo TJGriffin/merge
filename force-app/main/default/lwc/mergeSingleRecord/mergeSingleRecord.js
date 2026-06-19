@@ -10,7 +10,11 @@ export default class mergeSingleRecord extends LightningElement {
         this.mergeRecord = JSON.parse(JSON.stringify(value));
         this.objectType = this.mergeRecord.objectName;
         this.isEdit = this.mergeRecord !== undefined && this.mergeRecord != null && this.mergeRecord.name.includes('TEMP');
-    }   
+        // Advanced opens automatically for an advanced rule; Filter Logic expands if it has a value
+        this.advancedOpen = this.isAdvancedRule;
+        this.activeTab = this.firstTabKey;
+        this.filterLogicOpen = !!(this.mergeRecord && this.mergeRecord.filterLogic);
+    }
     get record(){
         return this.mergeRecord;
     }
@@ -21,6 +25,9 @@ export default class mergeSingleRecord extends LightningElement {
     @track error;
     @track isEdit = false;
     @track action;
+    advancedOpen = false;
+    filterLogicOpen = false;
+    activeTab = 'fallback';
     get isActive() {
         return this.record != null && !this.record.disable;
     }
@@ -120,6 +127,64 @@ export default class mergeSingleRecord extends LightningElement {
         return this.mergeRecord !== undefined && this.mergeRecord != null && this.preserve && this.mergeRecord.rule == 'Contains';
     }
 
+    // rules that need configuration beyond the simple ones -> auto-open the Advanced section
+    get isAdvancedRule(){
+        return this.isRelatedField || this.isContains || this.isComplex || this.isApex;
+    }
+    // Advanced (incl. the always-present Fallback tab) is available once an object is chosen
+    get showAdvanced(){
+        return this.objectType != null && this.objectType !== '';
+    }
+    get advancedChevron(){
+        return this.advancedOpen ? 'utility:chevrondown' : 'utility:chevronright';
+    }
+    get filterLogicChevron(){
+        return this.filterLogicOpen ? 'utility:chevrondown' : 'utility:chevronright';
+    }
+    // the first (default-active) tab for the current rule
+    get firstTabKey(){
+        if(this.isRelatedField) return 'related';
+        if(this.isContains) return 'contains';
+        if(this.isComplex) return 'ruleDef';
+        if(this.isApex) return 'apex';
+        return 'fallback';
+    }
+    // nav tabs: the rule-specific tab(s) first, Fallback Field always last
+    get tabs(){
+        const t = [];
+        if(this.isRelatedField) t.push({key:'related', label:'Related Field'});
+        else if(this.isContains) t.push({key:'contains', label:'Contains Value'});
+        else if(this.isComplex){ t.push({key:'ruleDef', label:'Rule Definition'}); t.push({key:'tieBreak', label:'Tie-Break'}); }
+        else if(this.isApex) t.push({key:'apex', label:'Apex Class'});
+        t.push({key:'fallback', label:'Fallback Field'});
+        return t.map(tab=>({
+            key: tab.key,
+            label: tab.label,
+            liClass: 'slds-tabs_default__item' + (tab.key === this.activeTab ? ' slds-is-active' : '')
+        }));
+    }
+    // per-panel visibility classes (all panels for the rule render; only the active one is shown)
+    get panelClass(){
+        const cls = key => 'slds-tabs_default__content slds-p-around_small ' + (this.activeTab === key ? 'slds-show' : 'slds-hide');
+        return {
+            related: cls('related'),
+            contains: cls('contains'),
+            ruleDef: cls('ruleDef'),
+            tieBreak: cls('tieBreak'),
+            apex: cls('apex'),
+            fallback: cls('fallback')
+        };
+    }
+    toggleAdvanced(){
+        this.advancedOpen = !this.advancedOpen;
+    }
+    toggleFilterLogic(){
+        this.filterLogicOpen = !this.filterLogicOpen;
+    }
+    selectTab(event){
+        this.activeTab = event.currentTarget.dataset.tab;
+    }
+
     // re-derive each condition's value input type from its selected field, and add row indices
     refreshConditionInputTypes(){
         if(this.mergeRecord && Array.isArray(this.mergeRecord.conditions)){
@@ -217,7 +282,13 @@ export default class mergeSingleRecord extends LightningElement {
             this.mergeRecord.filterLogic = this.mergeRecord.filterLogic || '';
             this.mergeRecord.tieBreakDirection = this.mergeRecord.tieBreakDirection || 'DESC';
             this.refreshConditionInputTypes();
+            this.filterLogicOpen = !!this.mergeRecord.filterLogic;
         }
+        // choosing an advanced rule opens the Advanced section; move to that rule's first tab
+        if(this.isAdvancedRule){
+            this.advancedOpen = true;
+        }
+        this.activeTab = this.firstTabKey;
     }
 
     addCondition(){

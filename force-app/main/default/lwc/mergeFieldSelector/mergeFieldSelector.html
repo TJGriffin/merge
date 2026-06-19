@@ -14,7 +14,7 @@
                 onfocus={handleFocus}
                 oninput={handleInput} />
             <template if:true={hasResults}>
-                <ul class="slds-listbox slds-listbox_vertical slds-dropdown slds-dropdown_fluid slds-dropdown_length-7 field-selector-dropdown" role="listbox">
+                <ul class="slds-listbox slds-listbox_vertical slds-dropdown slds-dropdown_left slds-dropdown_fluid slds-dropdown_length-7 field-selector-dropdown" role="listbox">
                     <template for:each={filtered} for:item="opt">
                         <li key={opt.value} role="presentation" class="slds-listbox__item">
                             <div class="slds-listbox__option slds-listbox__option_plain field-option"

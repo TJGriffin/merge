@@ -1,10 +1,17 @@
-/* anchor the results dropdown directly below the input instead of overlapping it */
+/* anchor the results dropdown directly below the input instead of overlapping it.
+   .slds-dropdown defaults to center alignment (left:50% + translateX(-50%)); neutralize that
+   so the list lines up under the input rather than shifting off to the left. */
 .field-selector-dropdown {
     position: absolute;
     top: 100%;
+    bottom: auto;
     left: 0;
-    right: 0;
+    right: auto;
     width: 100%;
+    min-width: 100%;
+    max-width: 100%;
     margin-top: 2px;
+    transform: none;
+    float: none;
     z-index: 9001;
 }
