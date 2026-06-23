@@ -1,0 +1,106 @@
+<template>
+    <div class="slds-box slds-box_x-small slds-m-around_x-small">
+        <!-- toolbar -->
+        <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end slds-wrap slds-m-bottom_small">
+            <div class="slds-grid slds-gutters_x-small slds-grid_vertical-align-end slds-wrap">
+                <div class="slds-col" style="min-width:7rem;">
+                    <lightning-combobox
+                        label="Per Page"
+                        value={pageSizeValue}
+                        options={pageSizeOptions}
+                        onchange={handlePageSizeChange}></lightning-combobox>
+                </div>
+                <div class="slds-col slds-align-bottom">
+                    <lightning-button label="Configure Fields" icon-name="utility:settings" onclick={toggleFieldPanel}></lightning-button>
+                </div>
+            </div>
+            <div class="slds-col slds-align-bottom">
+                <lightning-button label="Merge" variant="success" disabled={actionsDisabled} onclick={handleMergeSelected} class="slds-m-right_xx-small"></lightning-button>
+                <lightning-button label="Merge Accounts" disabled={actionsDisabled} onclick={handleMergeAccountsSelected} class="slds-m-right_xx-small"></lightning-button>
+                <lightning-button label="Remove" variant="destructive" disabled={actionsDisabled} onclick={handleRemoveSelected}></lightning-button>
+            </div>
+        </div>
+
+        <template if:true={cappedNotice}>
+            <div class="slds-text-color_weak slds-text-body_small slds-m-bottom_x-small">{cappedNotice}</div>
+        </template>
+        <template if:true={showSpinner}>
+            <div class="slds-is-relative slds-p-around_medium">
+                <lightning-spinner variant="brand" size="medium" alternative-text="Loading..."></lightning-spinner>
+            </div>
+        </template>
+        <template if:true={hasPager}>
+            <c-pager total-pages={totalPages} current-page={pageNumber} onpage={handlePage}></c-pager>
+        </template>
+
+        <div class="slds-grid slds-gutters">
+            <div class="slds-col">
+                <table class="slds-table slds-table_bordered slds-table_cell-buffer slds-table_fixed-layout grid-table">
+                    <thead>
+                        <tr class="slds-line-height_reset">
+                            <th class="slds-text-title_caps" scope="col" style="width:6rem;"><span title="Row">Row</span></th>
+                            <template for:each={columns} for:item="col">
+                                <th key={col.name} class="slds-text-title_caps" scope="col"><span title={col.label}>{col.label}</span></th>
+                            </template>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={groups} for:item="group">
+                            <tr key={group.keepId} class="slds-theme_shade">
+                                <th colspan={columnSpan} scope="row" class="slds-p-vertical_xx-small">
+                                    <strong>Keep:&nbsp;{group.keepName}</strong>
+                                </th>
+                            </tr>
+                            <template for:each={group.rows} for:item="row">
+                                <tr key={row.key} class={row.rowClass}>
+                                    <td>
+                                        <template if:true={row.selectable}>
+                                            <lightning-input
+                                                type="checkbox"
+                                                variant="label-hidden"
+                                                label="Select duplicate"
+                                                checked={row.checked}
+                                                data-candidate={row.candidateId}
+                                                onchange={handleRowSelect}></lightning-input>
+                                        </template>
+                                        <span class="slds-text-body_small slds-text-color_weak">{row.rowLabel}</span>
+                                    </td>
+                                    <template for:each={row.cells} for:item="cell">
+                                        <td key={cell.key}>
+                                            <div class="slds-truncate" title={cell.value}>{cell.value}</div>
+                                        </td>
+                                    </template>
+                                </tr>
+                            </template>
+                        </template>
+                    </tbody>
+                </table>
+                <template if:false={hasGroups}>
+                    <div class="slds-p-around_medium slds-text-color_weak">No merge candidates match the current filters.</div>
+                </template>
+            </div>
+
+            <template if:true={showFieldPanel}>
+                <div class="slds-col slds-size_1-of-4 grid-field-panel slds-box slds-theme_default">
+                    <div class="slds-text-title_caps slds-m-bottom_x-small">Show Fields</div>
+                    <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">
+                        Id, Created Date, Last Modified Date and the first columns always appear.
+                    </p>
+                    <template for:each={optionalFields} for:item="opt">
+                        <div key={opt.name} class="slds-p-bottom_xx-small">
+                            <lightning-input
+                                type="checkbox"
+                                label={opt.label}
+                                checked={opt.selected}
+                                data-field={opt.name}
+                                onchange={handleFieldToggle}></lightning-input>
+                        </div>
+                    </template>
+                    <template if:false={hasOptionalFields}>
+                        <div class="slds-text-color_weak slds-text-body_small">No additional fields available.</div>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </div>
+</template>

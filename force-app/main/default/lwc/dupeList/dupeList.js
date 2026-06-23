@@ -3,6 +3,7 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getKeepGroups from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getKeepGroups';
 import getDuplicateRules from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getRules';
 import getCount from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getCount';
+import getStatusOptions from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getStatusOptions';
 import doMergeRecord from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeRecord';
 import doRemoveRecord from '@salesforce/apex/MRG_DuplicateMerge_CTRL.removeRecord';
 import doMergeAccounts from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeAccounts';
@@ -13,6 +14,13 @@ import doMergeAccounts from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeAccou
 const CAP = 2000;
 const GROUPS_PER_PAGE = 10;
 const PAIRS_PER_PAGE = 5;
+// last-used filters are remembered across sessions (#83)
+const FILTER_STORAGE_KEY = 'mergeControl.dupeList.filters';
+const AUTO_MERGE_OPTIONS = [
+    {label:'Any', value:''},
+    {label:'Yes', value:'true'},
+    {label:'No', value:'false'}
+];
 
 export default class DupeList extends LightningElement {
     @track objectType;
@@ -26,20 +34,33 @@ export default class DupeList extends LightningElement {
     @track isModalOpen = false;
     @track showSpinner = false;
     @track ruleOptions;
+    // filters (#83)
+    confidenceMin;
+    confidenceMax;
+    autoMerge = '';
+    statuses = ['New'];
+    statusOptions = [];
+    view = 'list';
+    // the candidateFilter-shaped object passed to the Apex wires; reassigned to re-fire the wire
+    filterParam = {objectType:'Contact', ruleName:null, statuses:['New']};
 
+    autoMergeOptions = AUTO_MERGE_OPTIONS;
     objectOptions = [{label:'Account',value:'Account'},{label:'Contact', value:'Contact'}];
     notificationBody;
     notificationStyle;
     notificationTitle;
 
     connectedCallback(){
+        this.restoreFilters();
         if(this.objectType == null || this.objectType === undefined){
             this.objectType = 'Contact';
-            this.fetchRules();
         }
+        this.fetchStatusOptions();
+        this.fetchRules();
+        this.rebuildFilter();
     }
 
-    @wire(getKeepGroups, {objectType:'$objectType', ruleName:'$rule', limitAmt: CAP, offsetAmt: 0})
+    @wire(getKeepGroups, {filter:'$filterParam', limitAmt: CAP, offsetAmt: 0})
         getRowData({error, data}) {
             if(data){
                 this.allGroups = this.decorate(data);
@@ -81,6 +102,15 @@ export default class DupeList extends LightningElement {
         return this.ruleOptions;
     }
 
+    // ---- list / grid view toggle (#84) ----
+    get isListView(){ return this.view !== 'grid'; }
+    get isGridView(){ return this.view === 'grid'; }
+    get toggleViewLabel(){ return this.isGridView ? 'List View' : 'Grid View'; }
+    handleToggleView(){
+        this.view = this.isGridView ? 'list' : 'grid';
+        this.persistFilters();
+    }
+
     get hasGroups(){
         return this.allGroups != null && this.allGroups.length > 0;
     }
@@ -117,7 +147,7 @@ export default class DupeList extends LightningElement {
     }
 
     fetchCount(){
-        getCount({objectType:this.objectType,ruleName:this.rule})
+        getCount({filter:this.filterParam})
             .then(result=>{ this.totalDuplicates = result != null ? Number(result) : null; })
             .catch(error=>{ this.error=error; this.handleError(); });
     }
@@ -126,18 +156,85 @@ export default class DupeList extends LightningElement {
             .then(result=>{ this.rules = result; })
             .catch(error=>{ this.error=error; this.handleError(); });
     }
+    fetchStatusOptions(){
+        getStatusOptions()
+            .then(result=>{ this.statusOptions = result || []; })
+            .catch(error=>{ this.error=error; this.handleError(); });
+    }
+
+    // ---- filter handling (#83) ----
+    // builds the candidateFilter-shaped object the wires consume, re-firing the wire, and remembers it
+    rebuildFilter(){
+        this.filterParam = {
+            objectType: this.objectType,
+            ruleName: this.rule || null,
+            confidenceMin: (this.confidenceMin === '' || this.confidenceMin == null) ? null : Number(this.confidenceMin),
+            confidenceMax: (this.confidenceMax === '' || this.confidenceMax == null) ? null : Number(this.confidenceMax),
+            autoMerge: this.autoMerge === '' ? null : (this.autoMerge === 'true'),
+            statuses: (this.statuses && this.statuses.length) ? this.statuses : ['New']
+        };
+        this.currentGroupPage = 1;
+        this.persistFilters();
+    }
+    persistFilters(){
+        try {
+            window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({
+                objectType:this.objectType, rule:this.rule,
+                confidenceMin:this.confidenceMin, confidenceMax:this.confidenceMax,
+                autoMerge:this.autoMerge, statuses:this.statuses, view:this.view
+            }));
+        } catch(e){ /* storage unavailable — filters simply won't persist this session */ }
+    }
+    restoreFilters(){
+        try {
+            var saved = JSON.parse(window.localStorage.getItem(FILTER_STORAGE_KEY));
+            if(saved){
+                this.objectType = saved.objectType || this.objectType;
+                this.rule = saved.rule || null;
+                this.confidenceMin = saved.confidenceMin;
+                this.confidenceMax = saved.confidenceMax;
+                this.autoMerge = saved.autoMerge == null ? '' : saved.autoMerge;
+                this.statuses = (saved.statuses && saved.statuses.length) ? saved.statuses : ['New'];
+                this.view = saved.view === 'grid' ? 'grid' : 'list';
+            }
+        } catch(e){ /* nothing saved or storage unavailable */ }
+    }
 
     handleRuleFilterChange(event){
         this.rule = event.detail.value;
-        this.currentGroupPage = 1;
+        this.rebuildFilter();
     }
     handleObjectFilterChange(event){
         if(this.objectType != event.detail.value){
-            this.currentGroupPage = 1;
             this.objectType = event.detail.value;
-            this.fetchRules();
             this.rule = null;
+            this.fetchRules();
+            this.rebuildFilter();
         }
+    }
+    handleConfidenceMinChange(event){
+        this.confidenceMin = event.detail.value;
+        this.rebuildFilter();
+    }
+    handleConfidenceMaxChange(event){
+        this.confidenceMax = event.detail.value;
+        this.rebuildFilter();
+    }
+    handleAutoMergeChange(event){
+        this.autoMerge = event.detail.value;
+        this.rebuildFilter();
+    }
+    handleStatusChange(event){
+        this.statuses = event.detail.value;
+        this.rebuildFilter();
+    }
+    handleClearFilters(){
+        this.rule = null;
+        this.confidenceMin = null;
+        this.confidenceMax = null;
+        this.autoMerge = '';
+        this.statuses = ['New'];
+        this.rebuildFilter();
     }
     handleGroupPage(event){
         this.currentGroupPage = Number(event.detail);

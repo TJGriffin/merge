@@ -11,13 +11,189 @@ public with sharing class MRG_DuplicateMerge_CTRL {
 	* @return  List<mergeGroup> 
 	*/
     @AuraEnabled(cacheable=TRUE)
-    public static Integer getCount(String objectType, String ruleName){
+    public static Integer getCount(MRG_Duplicate_SVC.candidateFilter filter){
         // count candidate pairs (the list pages over pairs, grouped for display). COUNT_DISTINCT and
         // GROUP BY aggregate every matching row and throw an uncatchable "Too many query rows" once a
         // candidate set exceeds 50k; a plain COUNT() is governor-safe (uses a single query row).
+        // locals below are the bind targets referenced by getWhereClause(filter)
+        MRG_Duplicate_SVC.candidateFilter f = filter == null ? new MRG_Duplicate_SVC.candidateFilter() : filter;
+        String objectType = f.objectType;
+        String ruleName = f.ruleName;
+        Decimal confidenceMin = f.confidenceMin;
+        Decimal confidenceMax = f.confidenceMax;
+        Boolean autoMerge = f.autoMerge;
+        List<String> statuses = f.safeStatuses();
         String soqlQuery= 'SELECT COUNT() FROM MergeCandidate__c ';
-        soqlQuery+=MRG_Duplicate_SVC.getWhereClause(objectType, ruleName);
+        soqlQuery+=MRG_Duplicate_SVC.getWhereClause(f);
         return Database.countQuery(soqlQuery);
+    }
+	/*******************************************************************************************************
+	* @description the selectable Status__c filter values (Status__c is Text, not a picklist; deriving
+	* values via GROUP BY would re-trip the 50k row limit, so the supported set is enumerated here)
+	* @return List<Map<String,String>> label/value option list
+	*/
+    @AuraEnabled(cacheable=TRUE)
+    public static List<Map<String,String>> getStatusOptions(){
+        return new List<Map<String,String>>{
+            new Map<String,String>{'label'=>'New','value'=>'New'},
+            new Map<String,String>{'label'=>'Processed','value'=>'Processed'},
+            new Map<String,String>{'label'=>'Accounts Merged','value'=>MRG_AccountMerge_SVC.STATUS_ACCOUNTS_MERGED}
+        };
+    }
+	/*******************************************************************************************************
+	* @description the field set selectable for the grid display (#84): Id is always first, CreatedDate +
+	* LastModifiedDate always last, the first 10 object fields lead by default, and any field hidden via
+	* the preview field settings is excluded entirely.
+	* @param objectType the SObject type
+	* @return gridFieldOptions lead/optional/trail field buckets
+	*/
+    @AuraEnabled(cacheable=TRUE)
+    public static gridFieldOptions getGridFieldOptions(String objectType){
+        gridFieldOptions result = new gridFieldOptions();
+        result.leadFields = new List<gridFieldOption>();
+        result.optionalFields = new List<gridFieldOption>();
+        result.trailFields = new List<gridFieldOption>();
+        if(String.isBlank(objectType) || Schema.getGlobalDescribe().get(objectType) == null)
+            return result;
+        Map<String, Schema.SObjectField> fmap = Schema.getGlobalDescribe().get(objectType).getDescribe().fields.getMap();
+        Set<String> hidden = hiddenPreviewFields(objectType);
+        Set<String> system3 = new Set<String>{'id','createddate','lastmodifieddate'};
+        List<gridFieldOption> selectable = new List<gridFieldOption>();
+        for(MRG_Merge_SVC.objectField fld:MRG_MergeSettings_CTRL.getObjectFields(objectType, true)){
+            String lname = fld.name.toLowerCase();
+            if(hidden.contains(lname) || system3.contains(lname))
+                continue;
+            gridFieldOption o = new gridFieldOption();
+            o.name = fld.name; o.label = fld.label; o.type = fld.type;
+            selectable.add(o);
+        }
+        selectable.sort();
+        result.leadFields.add(fieldOption(fmap,'Id'));
+        Integer firstCount = Math.min(10, selectable.size());
+        for(Integer i=0;i<selectable.size();i++){
+            if(i < firstCount)
+                result.leadFields.add(selectable[i]);
+            else
+                result.optionalFields.add(selectable[i]);
+        }
+        result.trailFields.add(fieldOption(fmap,'CreatedDate'));
+        result.trailFields.add(fieldOption(fmap,'LastModifiedDate'));
+        return result;
+    }
+	/*******************************************************************************************************
+	* @description grid data (#84): a page of candidates grouped by kept record, each group showing the
+	* kept record, its duplicate(s) and the simulated merge result, for the requested display fields.
+	* The simulated result reuses the bulk preview engine (MRG_Merge_SVC.getMergeHistoryResult) so up to
+	* a page of candidates is computed in a single call.
+	* @param filter the candidate filter
+	* @param fields the ordered display field API names (Id/CreatedDate/LastModifiedDate handled as well)
+	* @param pageSize candidates per page (clamped 10..200, default 50)
+	* @param pageNumber 1-based page number (bounded to the top 2000 confidence-ranked candidates)
+	* @return gridResponse columns + grouped rows
+	*/
+    @AuraEnabled
+    public static gridResponse getGridData(MRG_Duplicate_SVC.candidateFilter filter, List<String> fields, Integer pageSize, Integer pageNumber){
+        MRG_Duplicate_SVC.candidateFilter f = filter == null ? new MRG_Duplicate_SVC.candidateFilter() : filter;
+        // locals below are the bind targets referenced by getWhereClause(filter)
+        String objectType = f.objectType;
+        String ruleName = f.ruleName;
+        Decimal confidenceMin = f.confidenceMin;
+        Decimal confidenceMax = f.confidenceMax;
+        Boolean autoMerge = f.autoMerge;
+        List<String> statuses = f.safeStatuses();
+        // clamp page size + offset (OFFSET maxes at 2000, matching the list's top-2000 window)
+        pageSize = pageSize == null ? 50 : pageSize;
+        if(pageSize < 10) pageSize = 10;
+        if(pageSize > 200) pageSize = 200;
+        if(pageNumber == null || pageNumber < 1) pageNumber = 1;
+        Integer offsetAmt = (pageNumber - 1) * pageSize;
+        if(offsetAmt < 0) offsetAmt = 0;
+        if(offsetAmt > 2000) offsetAmt = 2000;
+
+        gridResponse resp = new gridResponse();
+        resp.columns = new List<gridFieldOption>();
+        resp.groups = new List<gridGroup>();
+        if(String.isBlank(objectType) || Schema.getGlobalDescribe().get(objectType) == null)
+            return resp;
+        Map<String, Schema.SObjectField> fmap = Schema.getGlobalDescribe().get(objectType).getDescribe().fields.getMap();
+
+        // resolve display fields (defensive: always Id; drop hidden + unknown fields)
+        Set<String> hidden = hiddenPreviewFields(objectType);
+        List<String> displayFields = new List<String>{'Id'};
+        Set<String> displaySet = new Set<String>{'id'};
+        if(fields != null){
+            for(String fld:fields){
+                if(String.isBlank(fld))
+                    continue;
+                String l = fld.toLowerCase();
+                if(displaySet.contains(l) || hidden.contains(l) || !fmap.containsKey(l))
+                    continue;
+                displayFields.add(fmap.get(l).getDescribe().getName());
+                displaySet.add(l);
+            }
+        }
+        for(String fld:displayFields)
+            resp.columns.add(fieldOption(fmap, fld));
+
+        // page of candidates (highest confidence first)
+        String pairQuery = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL();
+        pairQuery += MRG_Duplicate_SVC.getWhereClause(f);
+        pairQuery += ' ORDER BY ConfidenceScore__c DESC NULLS LAST, KeepRecordId__c, CreatedDate DESC, Id ASC';
+        pairQuery += ' LIMIT ' + pageSize;
+        if(offsetAmt > 0)
+            pairQuery += ' OFFSET :offsetAmt';
+        List<MergeCandidate__c> pageCandidates = (List<MergeCandidate__c>) Database.query(pairQuery);
+        if(pageCandidates.isEmpty())
+            return resp;
+
+        // bulk fetch the display values for the kept + duplicate records
+        Set<Id> recordIds = new Set<Id>();
+        for(MergeCandidate__c c:pageCandidates){
+            if(String.isNotBlank(c.KeepRecordId__c)) recordIds.add(c.KeepRecordId__c);
+            if(String.isNotBlank(c.MergeRecordId__c)) recordIds.add(c.MergeRecordId__c);
+            if(String.isNotBlank(c.Merge2RecordId__c)) recordIds.add(c.Merge2RecordId__c);
+        }
+        Map<Id, SObject> displayMap = new Map<Id, SObject>(
+            Database.query('SELECT ' + String.join(displayFields, ',') + ' FROM ' + objectType + ' WHERE Id IN :recordIds'));
+
+        // simulate the merges once for the whole page; map the result records by kept id
+        MRG_Merge_SVC.mergeHistoryResult mr = MRG_Merge_SVC.getMergeHistoryResult(pageCandidates, objectType);
+        Map<Id, Map<String,Object>> resultByKeepId = new Map<Id, Map<String,Object>>();
+        if(mr != null && mr.updateRecords != null){
+            for(SObject u:mr.updateRecords){
+                if(u.get('Id') != null)
+                    resultByKeepId.put((Id) u.get('Id'), lowerKeyed(u));
+            }
+        }
+
+        // group by kept record, preserving the confidence order
+        Map<String, gridGroup> byKeep = new Map<String, gridGroup>();
+        List<String> keepOrder = new List<String>();
+        for(MergeCandidate__c c:pageCandidates){
+            String keepId = c.KeepRecordId__c;
+            if(!byKeep.containsKey(keepId)){
+                gridGroup g = new gridGroup();
+                g.keepId = keepId;
+                g.keepName = c.KeepName__c;
+                g.objectType = objectType;
+                g.rows = new List<gridRow>();
+                if(displayMap.containsKey(keepId))
+                    g.rows.add(buildRow('keep', keepId, null, false, displayFields, displayMap.get(keepId)));
+                byKeep.put(keepId, g);
+                keepOrder.add(keepId);
+            }
+            gridGroup g = byKeep.get(keepId);
+            if(String.isNotBlank(c.MergeRecordId__c) && displayMap.containsKey(c.MergeRecordId__c))
+                g.rows.add(buildRow('duplicate', c.MergeRecordId__c, c.Id, true, displayFields, displayMap.get(c.MergeRecordId__c)));
+            if(String.isNotBlank(c.Merge2RecordId__c) && displayMap.containsKey(c.Merge2RecordId__c))
+                g.rows.add(buildRow('duplicate', c.Merge2RecordId__c, c.Id, true, displayFields, displayMap.get(c.Merge2RecordId__c)));
+        }
+        for(String keepId:keepOrder){
+            gridGroup g = byKeep.get(keepId);
+            g.rows.add(buildResultRow(displayFields, displayMap.get(keepId), resultByKeepId.get(Id.valueOf(keepId))));
+            resp.groups.add(g);
+        }
+        return resp;
     }
 
 	/*******************************************************************************************************
@@ -26,13 +202,21 @@ public with sharing class MRG_DuplicateMerge_CTRL {
 	* @return  List<mergeGroup> 
 	*/
     @AuraEnabled(cacheable=TRUE)
-    public static List<keepGroup> getKeepGroups(String objectType, String ruleName, Integer limitAmt, Integer offsetAmt){
+    public static List<keepGroup> getKeepGroups(MRG_Duplicate_SVC.candidateFilter filter, Integer limitAmt, Integer offsetAmt){
         limitAmt = limitAmt == null ? 200 : limitAmt;
         // page over the candidate pairs directly (highest confidence first) and group them by kept
         // record for display. Avoids GROUP BY/COUNT_DISTINCT, which aggregate every matching row and
         // throw an uncatchable "Too many query rows" once a candidate set exceeds 50k.
+        // locals below are the bind targets referenced by getWhereClause(filter)
+        MRG_Duplicate_SVC.candidateFilter f = filter == null ? new MRG_Duplicate_SVC.candidateFilter() : filter;
+        String objectType = f.objectType;
+        String ruleName = f.ruleName;
+        Decimal confidenceMin = f.confidenceMin;
+        Decimal confidenceMax = f.confidenceMax;
+        Boolean autoMerge = f.autoMerge;
+        List<String> statuses = f.safeStatuses();
         String pairQuery = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL();
-        pairQuery += MRG_Duplicate_SVC.getWhereClause(objectType, ruleName);
+        pairQuery += MRG_Duplicate_SVC.getWhereClause(f);
         pairQuery += ' ORDER BY ConfidenceScore__c DESC NULLS LAST, KeepRecordId__c, CreatedDate DESC, Id ASC';
         pairQuery += ' LIMIT ' + limitAmt;
         if(offsetAmt != null
@@ -131,6 +315,64 @@ public with sharing class MRG_DuplicateMerge_CTRL {
             response = e.getMessage();
         }
         return response;
+    }
+	/*******************************************************************************************************
+	* @description merges several candidates at once (grid multi-select, #84)
+	* @param recordIds the merge candidate recordIds
+	* @return String response
+	*/
+    @AuraEnabled
+    public static String mergeRecords(List<Id> recordIds){
+        if(recordIds == null || recordIds.isEmpty())
+            return 'No records selected';
+        String soqlQuery = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL() + ' WHERE Id IN :recordIds';
+        List<MergeCandidate__c> candidates = (List<MergeCandidate__c>) Database.query(soqlQuery);
+        Map<String, List<MergeCandidate__c>> byObject = new Map<String, List<MergeCandidate__c>>();
+        for(MergeCandidate__c c:candidates){
+            if(!byObject.containsKey(c.Object__c))
+                byObject.put(c.Object__c, new List<MergeCandidate__c>());
+            byObject.get(c.Object__c).add(c);
+        }
+        for(String objType:byObject.keySet())
+            MRG_Merge_SVC.processMergesFromBatch(byObject.get(objType), objType, false);
+        return candidates.size() + ' record(s) merged';
+    }
+	/*******************************************************************************************************
+	* @description marks several candidates as not-a-duplicate at once (grid multi-select, #84)
+	* @param recordIds the merge candidate recordIds
+	* @return String response
+	*/
+    @AuraEnabled
+    public static String removeRecords(List<Id> recordIds){
+        if(recordIds == null || recordIds.isEmpty())
+            return 'No records selected';
+        List<MergeCandidate__c> updates = new List<MergeCandidate__c>();
+        for(Id rid:recordIds)
+            updates.add(new MergeCandidate__c(Id=rid, NotADuplicate__c=true));
+        try {
+            update updates;
+            return updates.size() + ' record(s) set to not a duplicate';
+        } catch(Exception e){
+            return e.getMessage();
+        }
+    }
+	/*******************************************************************************************************
+	* @description merges the Accounts for several contact candidates at once (grid multi-select, #84)
+	* @param recordIds the merge candidate recordIds
+	* @return String response
+	*/
+    @AuraEnabled
+    public static String mergeAccountsBulk(List<Id> recordIds){
+        if(recordIds == null || recordIds.isEmpty())
+            return 'No records selected';
+        String soqlQuery = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL() + ' WHERE Id IN :recordIds';
+        List<MergeCandidate__c> candidates = (List<MergeCandidate__c>) Database.query(soqlQuery);
+        Integer merged = 0;
+        for(MergeCandidate__c c:candidates){
+            if(MRG_AccountMerge_SVC.mergeAccounts(c) != null)
+                merged++;
+        }
+        return merged + ' account merge(s) completed';
     }
 	/*******************************************************************************************************
 	* @description Returns the merge fields
@@ -291,6 +533,128 @@ public with sharing class MRG_DuplicateMerge_CTRL {
                 this.recordIds.add(this.mergeId);
             if(String.isNotBlank(this.merge2Id))
                 this.recordIds.add(this.merge2Id);
-        }      
+        }
+    }
+
+    // ---- grid helpers (#84) ----
+	/*******************************************************************************************************
+	* @description the set of field API names (lower-cased) hidden from the preview for an object
+	*/
+    private static Set<String> hiddenPreviewFields(String objectType){
+        Set<String> hidden = new Set<String>();
+        for(MRG_MergeSettings_CTRL.previewField pf:MRG_MergeSettings_CTRL.getAllPreviewFields(objectType)){
+            if(pf.hidden && String.isNotBlank(pf.fieldName))
+                hidden.add(pf.fieldName.toLowerCase());
+        }
+        return hidden;
+    }
+	/*******************************************************************************************************
+	* @description resolves a field's label/type from the object's describe map (falls back to the name)
+	*/
+    private static gridFieldOption fieldOption(Map<String, Schema.SObjectField> fmap, String name){
+        gridFieldOption o = new gridFieldOption();
+        o.name = name;
+        if(fmap.containsKey(name.toLowerCase())){
+            Schema.DescribeFieldResult dfr = fmap.get(name.toLowerCase()).getDescribe();
+            o.name = dfr.getName();
+            o.label = dfr.getLabel();
+            o.type = String.valueOf(dfr.getType());
+        } else {
+            o.label = name;
+            o.type = 'STRING';
+        }
+        return o;
+    }
+	/*******************************************************************************************************
+	* @description a row of display-field cells for a queried record (fields were queried, so get() is safe)
+	*/
+    private static gridRow buildRow(String rowType, String recordId, String candidateId, Boolean selectable, List<String> fields, SObject rec){
+        gridRow row = new gridRow();
+        row.rowType = rowType;
+        row.recordId = recordId;
+        row.candidateId = candidateId;
+        row.selectable = selectable;
+        row.cells = new List<gridCell>();
+        for(String fld:fields){
+            gridCell cell = new gridCell();
+            cell.name = fld;
+            cell.value = rec != null ? toStr(rec.get(fld)) : '';
+            row.cells.add(cell);
+        }
+        return row;
+    }
+	/*******************************************************************************************************
+	* @description the simulated result row: the kept record's value overlaid with any field the merge
+	* engine changed (read from the serialized result map so unqueried fields don't throw)
+	*/
+    private static gridRow buildResultRow(List<String> fields, SObject keepRec, Map<String,Object> resultMap){
+        gridRow row = new gridRow();
+        row.rowType = 'result';
+        row.recordId = keepRec != null ? (String) keepRec.get('Id') : null;
+        row.candidateId = null;
+        row.selectable = false;
+        row.cells = new List<gridCell>();
+        for(String fld:fields){
+            gridCell cell = new gridCell();
+            cell.name = fld;
+            String lf = fld.toLowerCase();
+            Object val = (resultMap != null && resultMap.containsKey(lf)) ? resultMap.get(lf)
+                : (keepRec != null ? keepRec.get(fld) : null);
+            cell.value = toStr(val);
+            row.cells.add(cell);
+        }
+        return row;
+    }
+	/*******************************************************************************************************
+	* @description an SObject as a lower-cased-key value map (only populated/queried fields are present)
+	*/
+    private static Map<String,Object> lowerKeyed(SObject rec){
+        Map<String,Object> out = new Map<String,Object>();
+        Map<String,Object> m = (Map<String,Object>) JSON.deserializeUntyped(JSON.serialize(rec));
+        for(String k:m.keySet())
+            out.put(k.toLowerCase(), m.get(k));
+        return out;
+    }
+    private static String toStr(Object val){
+        return val == null ? '' : String.valueOf(val);
+    }
+
+    // ---- grid wrappers (#84) ----
+    public class gridFieldOptions {
+        @AuraEnabled public List<gridFieldOption> leadFields;
+        @AuraEnabled public List<gridFieldOption> optionalFields;
+        @AuraEnabled public List<gridFieldOption> trailFields;
+    }
+    public class gridFieldOption implements Comparable {
+        @AuraEnabled public String name;
+        @AuraEnabled public String label;
+        @AuraEnabled public String type;
+        public Integer compareTo(Object o){
+            gridFieldOption other = (gridFieldOption) o;
+            String a = this.label == null ? '' : this.label.toLowerCase();
+            String b = other.label == null ? '' : other.label.toLowerCase();
+            return a.compareTo(b);
+        }
+    }
+    public class gridResponse {
+        @AuraEnabled public List<gridFieldOption> columns;
+        @AuraEnabled public List<gridGroup> groups;
+    }
+    public class gridGroup {
+        @AuraEnabled public String keepId;
+        @AuraEnabled public String keepName;
+        @AuraEnabled public String objectType;
+        @AuraEnabled public List<gridRow> rows;
+    }
+    public class gridRow {
+        @AuraEnabled public String rowType;
+        @AuraEnabled public String recordId;
+        @AuraEnabled public String candidateId;
+        @AuraEnabled public Boolean selectable;
+        @AuraEnabled public List<gridCell> cells;
+    }
+    public class gridCell {
+        @AuraEnabled public String name;
+        @AuraEnabled public String value;
     }
 }

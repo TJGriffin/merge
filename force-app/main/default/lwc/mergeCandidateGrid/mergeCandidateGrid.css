@@ -1,0 +1,17 @@
+.grid-table {
+    font-size: 0.8rem;
+}
+.grid-row_keep td {
+    background-color: #f3f9ff;
+}
+.grid-row_result td {
+    background-color: #f3faf6;
+    font-weight: 600;
+}
+.grid-row_duplicate td {
+    background-color: #ffffff;
+}
+.grid-field-panel {
+    max-height: 30rem;
+    overflow-y: auto;
+}

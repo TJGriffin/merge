@@ -41,16 +41,65 @@ public with sharing class MRG_Duplicate_SVC {
     public static String getWhereClause(String objectType, String ruleName, Boolean showIgnored){
 
         String whereClause = getWhereClause();
-        
+
         if(String.isNotBlank(objectType))
             whereClause+=' AND Object__c=:objectType';
-        
+
         if(String.isNotBlank(ruleName))
             whereClause+=' AND Rule__c=:ruleName';
-        
+
         whereClause += showIgnored ? '' : ' AND NotADuplicate__c=false';
-        
+
         return whereClause;
+    }
+	/*******************************************************************************************************
+	* @description builds a WHERE clause from a candidateFilter. The bind tokens it emits
+	* (statuses, objectType, ruleName, confidenceMin, confidenceMax, autoMerge) must exist as local
+	* variables at the point Database.query/countQuery is called (see MRG_DuplicateMerge_CTRL).
+	* @param f the candidate filter
+	* @return String where clause for merge candidate
+	********************************************************************************************************/
+    public static String getWhereClause(candidateFilter f){
+        List<String> clauses = new List<String>();
+        clauses.add('Status__c IN :statuses');
+        if(String.isNotBlank(f.objectType))
+            clauses.add('Object__c = :objectType');
+        if(String.isNotBlank(f.ruleName))
+            clauses.add('Rule__c = :ruleName');
+        if(f.confidenceMin != null)
+            clauses.add('ConfidenceScore__c >= :confidenceMin');
+        if(f.confidenceMax != null)
+            clauses.add('ConfidenceScore__c <= :confidenceMax');
+        if(f.autoMerge != null)
+            clauses.add('AutoMerge__c = :autoMerge');
+        if(f.showIgnored != true)
+            clauses.add('NotADuplicate__c = false');
+        return ' WHERE ' + String.join(clauses, ' AND ');
+    }
+	/*******************************************************************************************************
+	* @description filter for the merge candidate list / grid. Passed from the LWC as a typed object;
+	* statuses defaults to {'New'} (use safeStatuses() to guard against a null/empty list from the client).
+	********************************************************************************************************/
+    public class candidateFilter {
+        @AuraEnabled public String objectType {get;set;}
+        @AuraEnabled public String ruleName {get;set;}
+        @AuraEnabled public Decimal confidenceMin {get;set;}
+        @AuraEnabled public Decimal confidenceMax {get;set;}
+        @AuraEnabled public Boolean autoMerge {get;set;}
+        @AuraEnabled public List<String> statuses {get;set;}
+        @AuraEnabled public Boolean showIgnored {get;set;}
+
+        public candidateFilter(){
+            this.statuses = new List<String>{'New'};
+        }
+        public candidateFilter(String objectType, String ruleName){
+            this();
+            this.objectType = objectType;
+            this.ruleName = ruleName;
+        }
+        public List<String> safeStatuses(){
+            return (statuses == null || statuses.isEmpty()) ? new List<String>{'New'} : statuses;
+        }
     }
 	/*******************************************************************************************************
 	* @description get active duplicate rules for Object type

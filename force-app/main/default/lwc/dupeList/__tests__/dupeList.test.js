@@ -20,6 +20,15 @@ jest.mock(
     () => ({ default: jest.fn(() => Promise.resolve(1)) }),
     { virtual: true }
 );
+jest.mock(
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.getStatusOptions',
+    () => ({ default: jest.fn(() => Promise.resolve([
+        { label: 'New', value: 'New' },
+        { label: 'Processed', value: 'Processed' },
+        { label: 'Accounts Merged', value: 'Accounts Merged' }
+    ])) }),
+    { virtual: true }
+);
 const mockMergeRecord = jest.fn(() => Promise.resolve('Records merged'));
 jest.mock(
     '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeRecord',
@@ -33,6 +42,32 @@ jest.mock(
 );
 jest.mock(
     '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeAccounts',
+    () => ({ default: jest.fn(() => Promise.resolve('merged')) }),
+    { virtual: true }
+);
+// the grid child (rendered in grid view) statically imports these; provide stubs
+jest.mock(
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridFieldOptions',
+    () => ({ default: jest.fn(() => Promise.resolve({ leadFields: [{ name: 'Id', label: 'Record ID', type: 'id' }], optionalFields: [], trailFields: [] })) }),
+    { virtual: true }
+);
+jest.mock(
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridData',
+    () => ({ default: jest.fn(() => Promise.resolve({ columns: [], groups: [] })) }),
+    { virtual: true }
+);
+jest.mock(
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeRecords',
+    () => ({ default: jest.fn(() => Promise.resolve('merged')) }),
+    { virtual: true }
+);
+jest.mock(
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.removeRecords',
+    () => ({ default: jest.fn(() => Promise.resolve('removed')) }),
+    { virtual: true }
+);
+jest.mock(
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeAccountsBulk',
     () => ({ default: jest.fn(() => Promise.resolve('merged')) }),
     { virtual: true }
 );
@@ -136,5 +171,18 @@ describe('c-dupe-list', () => {
         ip.dispatchEvent(new CustomEvent('page', { detail: 2, bubbles: true }));
         await flush();
         expect(previewButtons(el).length).toBe(2); // remaining 2 duplicates
+    });
+
+    it('toggles to the grid view and renders the grid component', async () => {
+        const el = await render();
+        const toggle = Array.from(el.shadowRoot.querySelectorAll('lightning-button'))
+            .find(b => b.label === 'Grid View');
+        expect(toggle).toBeTruthy();
+        expect(el.shadowRoot.querySelector('c-merge-candidate-grid')).toBeNull();
+
+        toggle.dispatchEvent(new CustomEvent('click'));
+        await flush();
+        await flush();
+        expect(el.shadowRoot.querySelector('c-merge-candidate-grid')).toBeTruthy();
     });
 });
