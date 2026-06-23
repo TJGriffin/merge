@@ -15,3 +15,6 @@
     max-height: 30rem;
     overflow-y: auto;
 }
+.grid-field-save {
+    font-size: 0.75rem;
+}

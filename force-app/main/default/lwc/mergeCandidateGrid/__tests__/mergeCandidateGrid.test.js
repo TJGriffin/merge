@@ -132,7 +132,7 @@ describe('c-merge-candidate-grid', () => {
         expect(optional).toBeTruthy();
     });
 
-    it('saves the selection server-side when a field is toggled', async () => {
+    it('batches toggles and saves the selection only when Save is clicked', async () => {
         const el = await render();
         buttonByLabel(el, 'Configure Fields').dispatchEvent(new CustomEvent('click'));
         await flush();
@@ -140,6 +140,10 @@ describe('c-merge-candidate-grid', () => {
             .find(i => i.dataset.field === 'Phone');
         phone.checked = true;
         phone.dispatchEvent(new CustomEvent('change'));
+        await flush();
+        expect(mockSaveConfig).not.toHaveBeenCalled(); // toggles are batched, not saved yet
+
+        buttonByLabel(el, 'Save').dispatchEvent(new CustomEvent('click'));
         await flush();
         // Email (default-selected) + Phone (just added)
         expect(mockSaveConfig).toHaveBeenCalledWith({ objectType: 'Contact', fields: ['Email', 'Phone'] });

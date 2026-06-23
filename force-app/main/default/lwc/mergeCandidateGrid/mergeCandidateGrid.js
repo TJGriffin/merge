@@ -39,6 +39,7 @@ export default class MergeCandidateGrid extends LightningElement {
     leadFields = [];
     trailFields = [];
     filterText = '';
+    fieldsDirty = false;
     selectedCandidateIds = [];
     pageSize = DEFAULT_PAGE_SIZE;
     pageNumber = 1;
@@ -163,15 +164,24 @@ export default class MergeCandidateGrid extends LightningElement {
     handleFilterChange(event){
         this.filterText = event.detail.value;
     }
+    // toggles only update local state so the user can check/uncheck several fields before saving
     handleFieldToggle(event){
         var name = event.currentTarget.dataset.field;
         var checked = event.target.checked;
         this.allFields = this.allFields.map(f=> f.name === name ? Object.assign({}, f, {selected:checked}) : f);
-        // persist the selection for this object, shared across all users, then refresh the grid columns
+        this.fieldsDirty = true;
+    }
+    get saveFieldsDisabled(){ return !this.fieldsDirty; }
+    // persist the (multi-field) selection for this object, shared across all users, then refresh the grid
+    handleSaveFields(){
         saveGridFieldConfig({objectType:this.objectType, fields:this.selectedNames})
+            .then(()=>{
+                this.fieldsDirty = false;
+                this.pageNumber = 1;
+                this.reload();
+                this.toast('Fields saved', 'Grid fields updated.', 'success');
+            })
             .catch(error=>this.handleError(error));
-        this.pageNumber = 1;
-        this.reload();
     }
 
     // ---- paging ----

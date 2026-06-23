@@ -82,9 +82,17 @@
 
             <template if:true={showFieldPanel}>
                 <div class="slds-col slds-size_1-of-4 grid-field-panel slds-box slds-theme_default">
-                    <div class="slds-text-title_caps slds-m-bottom_x-small">Show Fields</div>
+                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-bottom_x-small">
+                        <div class="slds-text-title_caps">Show Fields</div>
+                        <lightning-button
+                            label="Save"
+                            variant="brand"
+                            disabled={saveFieldsDisabled}
+                            onclick={handleSaveFields}
+                            class="grid-field-save"></lightning-button>
+                    </div>
                     <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small">
-                        Id, Created Date and Last Modified Date always appear. Selections are saved for this object for all users.
+                        Id, Created Date and Last Modified Date always appear. Check or uncheck fields, then Save (shared for this object for all users).
                     </p>
                     <lightning-input
                         type="search"
@@ -107,6 +115,14 @@
                     <template if:false={hasOptionalFields}>
                         <div class="slds-text-color_weak slds-text-body_small">No additional fields available.</div>
                     </template>
+                    <div class="slds-m-top_x-small slds-border_top slds-p-top_x-small">
+                        <lightning-button
+                            label="Save"
+                            variant="brand"
+                            disabled={saveFieldsDisabled}
+                            onclick={handleSaveFields}
+                            class="grid-field-save"></lightning-button>
+                    </div>
                 </div>
             </template>
         </div>
