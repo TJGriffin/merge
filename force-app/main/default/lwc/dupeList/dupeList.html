@@ -29,12 +29,17 @@
                 <lightning-spinner variant="brand" size="large" alternative-text="Processing..."></lightning-spinner>
             </div>
         </template>
+        <template if:true={cappedNotice}>
+            <div class="slds-m-horizontal_medium slds-m-bottom_small slds-text-color_weak slds-text-body_small">
+                {cappedNotice}
+            </div>
+        </template>
         <template if:true={hasGroups}>
-            <template if:true={hasPager}>
-                <c-pager total-pages={totalPages} current-page={currentPage} onpage={handlePager}></c-pager>
+            <template if:true={hasGroupPager}>
+                <c-pager total-pages={groupTotalPages} current-page={currentGroupPage} onpage={handleGroupPage}></c-pager>
             </template>
             <div class="slds-m-around_medium">
-                <template for:each={keepGroups} for:item="group">
+                <template for:each={pagedGroups} for:item="group">
                     <div key={group.keepId} class="slds-box slds-box_x-small slds-m-bottom_small">
                         <!-- keep header -->
                         <lightning-layout class="slds-text-title_caps slds-p-around_x-small slds-theme_shade">
@@ -57,7 +62,7 @@
                             <lightning-layout-item padding="around-small" size="6">Actions</lightning-layout-item>
                         </lightning-layout>
                         <!-- pair rows -->
-                        <template for:each={group.pairs} for:item="pair">
+                        <template for:each={group.visiblePairs} for:item="pair">
                             <lightning-layout key={pair.id} class="slds-border_top">
                                 <lightning-layout-item padding="around-small" size="3">
                                     <lightning-formatted-url value={pair.mergeLink} label={pair.mergeName} target="_blank"></lightning-formatted-url>
@@ -75,6 +80,12 @@
                                     <lightning-button variant="neutral" label="Merge Accounts" onclick={handleMergeAccounts} class="slds-m-right_x-small" data-record={pair.id}></lightning-button>
                                 </lightning-layout-item>
                             </lightning-layout>
+                        </template>
+                        <!-- inner pager: duplicates within this group -->
+                        <template if:true={group.showPairPager}>
+                            <div class="slds-border_top slds-p-top_x-small">
+                                <c-pager total-pages={group.pairTotalPages} current-page={group.pairPage} onpage={handlePairPage} data-keep={group.keepId}></c-pager>
+                            </div>
                         </template>
                     </div>
                 </template>

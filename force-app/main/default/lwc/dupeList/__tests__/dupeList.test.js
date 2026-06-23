@@ -58,6 +58,29 @@ function mergeButton(el, recordId) {
     return Array.from(el.shadowRoot.querySelectorAll('lightning-button'))
         .find(b => b.label === 'Merge' && b.dataset.record === recordId);
 }
+function groupPager(el) {
+    return Array.from(el.shadowRoot.querySelectorAll('c-pager')).find(p => !p.dataset.keep);
+}
+function pairPager(el) {
+    return Array.from(el.shadowRoot.querySelectorAll('c-pager')).find(p => p.dataset.keep);
+}
+function makeGroups(n, pairsEach) {
+    return Array.from({ length: n }, (_, i) => ({
+        keepId: 'k' + i, keepName: 'Keep' + i, objectType: 'Account', keepLink: '/k' + i,
+        pairs: Array.from({ length: pairsEach }, (_, j) => ({
+            id: 'k' + i + 'p' + j, mergeId: 'm' + i + j, mergeName: 'M' + i + j, mergeLink: '/m' + i + j,
+            confidenceScore: 90 - j, autoMerge: false
+        }))
+    }));
+}
+async function renderGroups(groups) {
+    const el = createElement('c-dupe-list', { is: DupeList });
+    document.body.appendChild(el);
+    getKeepGroups.emit(groups);
+    await Promise.resolve();
+    await Promise.resolve();
+    return el;
+}
 
 describe('c-dupe-list', () => {
     afterEach(() => {
@@ -92,5 +115,26 @@ describe('c-dupe-list', () => {
 
         expect(mockMergeRecord).toHaveBeenCalledWith({ recordId: 'p1' });
         expect(previewButtons(el).length).toBe(1); // the other pair survives
+    });
+
+    it('pages through duplicate groups with the outer pager (10 per page)', async () => {
+        const el = await renderGroups(makeGroups(12, 1));
+        expect(groupPager(el)).toBeTruthy();
+        expect(previewButtons(el).length).toBe(10); // first page of groups
+
+        groupPager(el).dispatchEvent(new CustomEvent('page', { detail: 2, bubbles: true }));
+        await flush();
+        expect(previewButtons(el).length).toBe(2); // remaining 2 groups
+    });
+
+    it('pages through duplicates within a group with the inner pager (5 per page)', async () => {
+        const el = await renderGroups(makeGroups(1, 7));
+        expect(previewButtons(el).length).toBe(5); // first page of duplicates
+        const ip = pairPager(el);
+        expect(ip).toBeTruthy();
+
+        ip.dispatchEvent(new CustomEvent('page', { detail: 2, bubbles: true }));
+        await flush();
+        expect(previewButtons(el).length).toBe(2); // remaining 2 duplicates
     });
 });
