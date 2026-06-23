@@ -1,4 +1,4 @@
-import { LightningElement, api, track, wire } from 'lwc';
+import { LightningElement, track, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getKeepGroups from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getKeepGroups';
 import getDuplicateRules from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getRules';
@@ -7,35 +7,63 @@ import doMergeRecord from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeRecord'
 import doRemoveRecord from '@salesforce/apex/MRG_DuplicateMerge_CTRL.removeRecord';
 import doMergeAccounts from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeAccounts';
 
+// the highest-confidence duplicates are fetched in one governor-safe query (no GROUP BY /
+// COUNT_DISTINCT, which throw past 50k candidates), then paged client-side: an outer pager over
+// duplicate groups and an inner pager over the duplicates within each group.
+const CAP = 2000;
+const GROUPS_PER_PAGE = 10;
+const PAIRS_PER_PAGE = 5;
+
 export default class DupeList extends LightningElement {
     @track objectType;
-    @track keepGroups;
     @track rule;
     @track error;
-    @track limitAmt = 100;
-    @track offsetAmt;
-    @track totalRows;
-    @track totalPages;
-    @track currentPage;
+    @track allGroups = [];
+    @track currentGroupPage = 1;
+    @track totalDuplicates;
     @track selectedRecordId;
     @track navItems = [];
     @track isModalOpen = false;
     @track showSpinner = false;
+    @track ruleOptions;
 
-    get hasPager(){
-        return this.totalPages != null && this.totalPages !== undefined;
-    }
-    get hasGroups(){
-        return this.keepGroups != null && this.keepGroups.length > 0;
+    objectOptions = [{label:'Account',value:'Account'},{label:'Contact', value:'Contact'}];
+    notificationBody;
+    notificationStyle;
+    notificationTitle;
+
+    connectedCallback(){
+        if(this.objectType == null || this.objectType === undefined){
+            this.objectType = 'Contact';
+            this.fetchRules();
+        }
     }
 
-    set countValue(value){
-        this.totalRows = value != null ? Number(value) : null;
-        this.totalPages = this.totalRows !== undefined && this.totalRows != null && this.totalRows > this.limitAmt ? Number(Math.ceil(this.totalRows / this.limitAmt)) : 1;
-        this.currentPage = this.currentPage === undefined || this.currentPage == null ? 1 : this.currentPage;
-    }
-    get countValue(){
-        return this.totalRows;
+    @wire(getKeepGroups, {objectType:'$objectType', ruleName:'$rule', limitAmt: CAP, offsetAmt: 0})
+        getRowData({error, data}) {
+            if(data){
+                this.allGroups = this.decorate(data);
+                this.currentGroupPage = 1;
+                this.showSpinner = false;
+                this.fetchCount();
+            } else if(error){
+                this.showSpinner = false;
+                this.allGroups = [];
+                this.error = error;
+                this.handleError();
+            }
+        }
+
+    decorate(data){
+        return JSON.parse(JSON.stringify(data)).map(group=>{
+            group.pairs = (group.pairs || []).map(pair=>{
+                pair.confidenceDisplay = (pair.confidenceScore != null && pair.confidenceScore !== undefined) ? pair.confidenceScore : '—';
+                return pair;
+            });
+            group.pairCount = group.pairs.length;
+            group.pairPage = 1;
+            return group;
+        });
     }
 
     set rules(value) {
@@ -52,51 +80,45 @@ export default class DupeList extends LightningElement {
     get rules(){
         return this.ruleOptions;
     }
-    @track ruleOptions;
 
-    objectOptions = [{label:'Account',value:'Account'},{label:'Contact', value:'Contact'}];
-    notificationBody;
-    notificationStyle;
-    notificationTitle;
-
-    connectedCallback(){
-        var objectisNull = this.objectType == null || this.objectType === undefined;
-        this.limitAmt = this.limitAmt == null || this.limitAmt === undefined ? 100 : Number(this.limitAmt);
-        this.offsetAmt = this.offsetAmt == null || this.offsetAmt === undefined ? 0 : this.offsetAmt;
-        this.objectType = objectisNull ? 'Contact' : this.objectType;
-        if(objectisNull){
-            this.fetchRules();
-        }
+    get hasGroups(){
+        return this.allGroups != null && this.allGroups.length > 0;
     }
-
-    @wire(getKeepGroups, {objectType:'$objectType',ruleName:'$rule',limitAmt:'$limitAmt',offsetAmt:'$offsetAmt'})
-        getRowData({error, data}) {
-            if(data){
-                this.keepGroups = this.decorate(data);
-                this.showSpinner = false;
-                this.fetchCount();
-            } else if(error){
-                this.showSpinner = false;
-                this.keepGroups = undefined;
-                this.error = error;
-                this.handleError();
-            }
-        }
-
-    decorate(data){
-        return JSON.parse(JSON.stringify(data)).map(group=>{
-            group.pairs = (group.pairs || []).map(pair=>{
-                pair.confidenceDisplay = (pair.confidenceScore != null && pair.confidenceScore !== undefined) ? pair.confidenceScore : '—';
-                return pair;
-            });
-            group.pairCount = group.pairs.length;
-            return group;
+    get groupTotalPages(){
+        return Math.max(1, Math.ceil(this.allGroups.length / GROUPS_PER_PAGE));
+    }
+    get hasGroupPager(){
+        return this.allGroups.length > GROUPS_PER_PAGE;
+    }
+    // the groups on the current outer page, each sliced to its current inner (duplicates) page
+    get pagedGroups(){
+        const start = (this.currentGroupPage - 1) * GROUPS_PER_PAGE;
+        return this.allGroups.slice(start, start + GROUPS_PER_PAGE).map(g=>{
+            const pairPage = g.pairPage || 1;
+            return {
+                keepId: g.keepId,
+                keepName: g.keepName,
+                keepLink: g.keepLink,
+                objectType: g.objectType,
+                pairCount: g.pairCount,
+                pairPage: pairPage,
+                pairTotalPages: Math.max(1, Math.ceil(g.pairs.length / PAIRS_PER_PAGE)),
+                showPairPager: g.pairs.length > PAIRS_PER_PAGE,
+                visiblePairs: g.pairs.slice((pairPage - 1) * PAIRS_PER_PAGE, pairPage * PAIRS_PER_PAGE)
+            };
         });
+    }
+    // when more duplicates exist than the fetched cap, tell the user this is the top slice
+    get cappedNotice(){
+        return (this.totalDuplicates != null && this.totalDuplicates > CAP)
+            ? 'Showing the ' + CAP + ' highest-confidence duplicates of ' + this.totalDuplicates +
+              ' total. Work the top matches, then refresh for the next set.'
+            : null;
     }
 
     fetchCount(){
         getCount({objectType:this.objectType,ruleName:this.rule})
-            .then(result=>{ this.countValue = result; })
+            .then(result=>{ this.totalDuplicates = result != null ? Number(result) : null; })
             .catch(error=>{ this.error=error; this.handleError(); });
     }
     fetchRules(){
@@ -107,28 +129,30 @@ export default class DupeList extends LightningElement {
 
     handleRuleFilterChange(event){
         this.rule = event.detail.value;
-        this.totalRows = null;
-        this.currentPage = null;
+        this.currentGroupPage = 1;
     }
     handleObjectFilterChange(event){
         if(this.objectType != event.detail.value){
-            this.totalRows = null;
-            this.currentPage = null;
+            this.currentGroupPage = 1;
             this.objectType = event.detail.value;
             this.fetchRules();
             this.rule = null;
         }
     }
-    handlePager(event){
-        this.currentPage = Number(event.detail);
-        this.offsetAmt = Number((this.currentPage - 1) * Number(this.limitAmt));
+    handleGroupPage(event){
+        this.currentGroupPage = Number(event.detail);
+    }
+    handlePairPage(event){
+        const keepId = event.currentTarget.dataset.keep;
+        const page = Number(event.detail);
+        this.allGroups = this.allGroups.map(g=> g.keepId == keepId ? Object.assign({}, g, { pairPage: page }) : g);
     }
 
     // ---- preview modal + in-group navigation ----
     handlePreview(event){
         var pairId = event.currentTarget.dataset.record;
         var keepId = event.currentTarget.dataset.keep;
-        var group = (this.keepGroups || []).find(g=>g.keepId == keepId);
+        var group = (this.allGroups || []).find(g=>g.keepId == keepId);
         this.navItems = group ? group.pairs.map(pair=>this.toNavItem(pair, pairId)) : [];
         this.selectedRecordId = pairId;
         this.isModalOpen = true;
@@ -220,15 +244,22 @@ export default class DupeList extends LightningElement {
     removeSelectedPair(){
         var id = this.selectedRecordId;
         var groups = [];
-        (this.keepGroups || []).forEach(group=>{
+        (this.allGroups || []).forEach(group=>{
             var pairs = (group.pairs || []).filter(pair=>pair.id != id);
             if(pairs.length > 0){
                 group.pairs = pairs;
                 group.pairCount = pairs.length;
+                var maxPage = Math.max(1, Math.ceil(pairs.length / PAIRS_PER_PAGE));
+                if((group.pairPage || 1) > maxPage){
+                    group.pairPage = maxPage;
+                }
                 groups.push(group);
             }
         });
-        this.keepGroups = groups;
+        this.allGroups = groups;
+        if(this.currentGroupPage > this.groupTotalPages){
+            this.currentGroupPage = this.groupTotalPages;
+        }
         this.selectedRecordId = null;
     }
 

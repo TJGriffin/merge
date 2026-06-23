@@ -12,11 +12,12 @@ public with sharing class MRG_DuplicateMerge_CTRL {
 	*/
     @AuraEnabled(cacheable=TRUE)
     public static Integer getCount(String objectType, String ruleName){
-        // count distinct keeps: the pager pages over keep groups, not individual pairs
-        String soqlQuery= 'SELECT COUNT_DISTINCT(KeepRecordId__c) keeps FROM MergeCandidate__c ';
+        // count candidate pairs (the list pages over pairs, grouped for display). COUNT_DISTINCT and
+        // GROUP BY aggregate every matching row and throw an uncatchable "Too many query rows" once a
+        // candidate set exceeds 50k; a plain COUNT() is governor-safe (uses a single query row).
+        String soqlQuery= 'SELECT COUNT() FROM MergeCandidate__c ';
         soqlQuery+=MRG_Duplicate_SVC.getWhereClause(objectType, ruleName);
-        List<AggregateResult> results = Database.query(soqlQuery);
-        return results.isEmpty() ? 0 : (Integer) results[0].get('keeps');
+        return Database.countQuery(soqlQuery);
     }
 
 	/*******************************************************************************************************
@@ -27,37 +28,30 @@ public with sharing class MRG_DuplicateMerge_CTRL {
     @AuraEnabled(cacheable=TRUE)
     public static List<keepGroup> getKeepGroups(String objectType, String ruleName, Integer limitAmt, Integer offsetAmt){
         limitAmt = limitAmt == null ? 200 : limitAmt;
-        // page over distinct keeps, ordered by each keep's top confidence (nulls last)
-        String keepQuery = 'SELECT KeepRecordId__c keepId, MAX(ConfidenceScore__c) maxConf FROM MergeCandidate__c';
-        keepQuery += MRG_Duplicate_SVC.getWhereClause(objectType, ruleName);
-        keepQuery += ' GROUP BY KeepRecordId__c ORDER BY MAX(ConfidenceScore__c) DESC NULLS LAST';
-        keepQuery += ' LIMIT ' + limitAmt;
+        // page over the candidate pairs directly (highest confidence first) and group them by kept
+        // record for display. Avoids GROUP BY/COUNT_DISTINCT, which aggregate every matching row and
+        // throw an uncatchable "Too many query rows" once a candidate set exceeds 50k.
+        String pairQuery = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL();
+        pairQuery += MRG_Duplicate_SVC.getWhereClause(objectType, ruleName);
+        pairQuery += ' ORDER BY ConfidenceScore__c DESC NULLS LAST, KeepRecordId__c, CreatedDate DESC, Id ASC';
+        pairQuery += ' LIMIT ' + limitAmt;
         if(offsetAmt != null
             && offsetAmt < 2000
             && offsetAmt > 0)
-            keepQuery += ' OFFSET :offsetAmt';
-        List<String> keepIds = new List<String>();
-        for(AggregateResult ar:(List<AggregateResult>) Database.query(keepQuery))
-            keepIds.add((String) ar.get('keepId'));
-        if(keepIds.isEmpty())
-            return new List<keepGroup>();
-        // fetch the pairs for those keeps, ordered by confidence desc within each keep
-        String pairQuery = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL();
-        pairQuery += MRG_Duplicate_SVC.getWhereClause(objectType, ruleName);
-        pairQuery += ' AND KeepRecordId__c IN :keepIds';
-        pairQuery += ' ORDER BY ConfidenceScore__c DESC NULLS LAST, CreatedDate DESC, Id ASC';
+            pairQuery += ' OFFSET :offsetAmt';
+        // group the page's pairs by kept record, preserving first-seen (confidence) order
         Map<String, keepGroup> groupsByKeep = new Map<String, keepGroup>();
+        List<String> keepOrder = new List<String>();
         for(MergeCandidate__c c:(List<MergeCandidate__c>) Database.query(pairQuery)) {
-            if(!groupsByKeep.containsKey(c.KeepRecordId__c))
+            if(!groupsByKeep.containsKey(c.KeepRecordId__c)) {
                 groupsByKeep.put(c.KeepRecordId__c, new keepGroup(c));
+                keepOrder.add(c.KeepRecordId__c);
+            }
             groupsByKeep.get(c.KeepRecordId__c).pairs.add(new mergeGroup(c));
         }
-        // preserve the keep ordering from the paged aggregate query
         List<keepGroup> result = new List<keepGroup>();
-        for(String keepId:keepIds) {
-            if(groupsByKeep.containsKey(keepId))
-                result.add(groupsByKeep.get(keepId));
-        }
+        for(String keepId:keepOrder)
+            result.add(groupsByKeep.get(keepId));
         return result;
     }
 	/*******************************************************************************************************
