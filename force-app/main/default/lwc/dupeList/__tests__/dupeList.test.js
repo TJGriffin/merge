@@ -48,12 +48,17 @@ jest.mock(
 // the grid child (rendered in grid view) statically imports these; provide stubs
 jest.mock(
     '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridFieldOptions',
-    () => ({ default: jest.fn(() => Promise.resolve({ leadFields: [{ name: 'Id', label: 'Record ID', type: 'id' }], optionalFields: [], trailFields: [] })) }),
+    () => ({ default: jest.fn(() => Promise.resolve({ leadFields: [{ name: 'Id', label: 'Record ID', type: 'id' }], fields: [], trailFields: [] })) }),
     { virtual: true }
 );
 jest.mock(
     '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridData',
     () => ({ default: jest.fn(() => Promise.resolve({ columns: [], groups: [] })) }),
+    { virtual: true }
+);
+jest.mock(
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.saveGridFieldConfig',
+    () => ({ default: jest.fn(() => Promise.resolve()) }),
     { virtual: true }
 );
 jest.mock(

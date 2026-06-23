@@ -3,10 +3,13 @@ import MergeCandidateGrid from 'c/mergeCandidateGrid';
 
 const FIELD_OPTIONS = {
     leadFields: [{ name: 'Id', label: 'Record ID', type: 'id' }],
-    optionalFields: [{ name: 'Phone', label: 'Phone', type: 'phone' }],
     trailFields: [
         { name: 'CreatedDate', label: 'Created Date', type: 'datetime' },
         { name: 'LastModifiedDate', label: 'Last Modified Date', type: 'datetime' }
+    ],
+    fields: [
+        { name: 'Email', label: 'Email', type: 'email', displayLabel: 'Email (Email)', selected: true },
+        { name: 'Phone', label: 'Phone', type: 'phone', displayLabel: 'Phone (Phone)', selected: false }
     ]
 };
 const GRID_DATA = {
@@ -42,6 +45,12 @@ jest.mock(
 jest.mock(
     '@salesforce/apex/MRG_DuplicateMerge_CTRL.getCount',
     () => ({ default: jest.fn(() => Promise.resolve(1)) }),
+    { virtual: true }
+);
+const mockSaveConfig = jest.fn(() => Promise.resolve());
+jest.mock(
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.saveGridFieldConfig',
+    () => ({ default: (...args) => mockSaveConfig(...args) }),
     { virtual: true }
 );
 const mockMergeRecords = jest.fn(() => Promise.resolve('1 record(s) merged'));
@@ -111,7 +120,7 @@ describe('c-merge-candidate-grid', () => {
         expect(mockMergeRecords).toHaveBeenCalledWith({ recordIds: ['mc1'] });
     });
 
-    it('reveals optional field checkboxes when the field panel is toggled', async () => {
+    it('reveals selectable field checkboxes when the field panel is toggled', async () => {
         const el = await render();
         expect(el.shadowRoot.querySelector('.grid-field-panel')).toBeNull();
         buttonByLabel(el, 'Configure Fields').dispatchEvent(new CustomEvent('click'));
@@ -121,5 +130,32 @@ describe('c-merge-candidate-grid', () => {
         const optional = Array.from(panel.querySelectorAll('lightning-input'))
             .find(i => i.dataset.field === 'Phone');
         expect(optional).toBeTruthy();
+    });
+
+    it('saves the selection server-side when a field is toggled', async () => {
+        const el = await render();
+        buttonByLabel(el, 'Configure Fields').dispatchEvent(new CustomEvent('click'));
+        await flush();
+        const phone = Array.from(el.shadowRoot.querySelectorAll('.grid-field-panel lightning-input'))
+            .find(i => i.dataset.field === 'Phone');
+        phone.checked = true;
+        phone.dispatchEvent(new CustomEvent('change'));
+        await flush();
+        // Email (default-selected) + Phone (just added)
+        expect(mockSaveConfig).toHaveBeenCalledWith({ objectType: 'Contact', fields: ['Email', 'Phone'] });
+    });
+
+    it('filters the field list by label or api name', async () => {
+        const el = await render();
+        buttonByLabel(el, 'Configure Fields').dispatchEvent(new CustomEvent('click'));
+        await flush();
+        const search = Array.from(el.shadowRoot.querySelectorAll('lightning-input'))
+            .find(i => i.type === 'search');
+        search.dispatchEvent(new CustomEvent('change', { detail: { value: 'phone' } }));
+        await flush();
+        const checks = Array.from(el.shadowRoot.querySelectorAll('.grid-field-panel lightning-input'))
+            .filter(i => i.type === 'checkbox');
+        expect(checks.length).toBe(1);
+        expect(checks[0].dataset.field).toBe('Phone');
     });
 });

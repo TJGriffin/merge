@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Stores the merge-candidate grid field selection per object type, shared across all users.</description>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>true</enableBulkApi>
+    <enableFeeds>false</enableFeeds>
+    <enableHistory>false</enableHistory>
+    <enableReports>false</enableReports>
+    <enableSearch>false</enableSearch>
+    <enableSharing>true</enableSharing>
+    <enableStreamingApi>true</enableStreamingApi>
+    <label>Merge Grid Config</label>
+    <nameField>
+        <displayFormat>MGC-{0000}</displayFormat>
+        <label>Merge Grid Config Name</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Merge Grid Configs</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

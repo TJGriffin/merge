@@ -41,18 +41,20 @@ public with sharing class MRG_DuplicateMerge_CTRL {
         };
     }
 	/*******************************************************************************************************
-	* @description the field set selectable for the grid display (#84): Id is always first, CreatedDate +
-	* LastModifiedDate always last, the first 10 object fields lead by default, and any field hidden via
-	* the preview field settings is excluded entirely.
+	* @description the field set selectable for the grid display (#84). Id is always first and
+	* CreatedDate + LastModifiedDate always last (system columns); every other accessible field is
+	* selectable (any field hidden via the preview settings is excluded entirely). Each selectable field
+	* carries its current selected state: the saved per-object configuration if one exists, otherwise the
+	* first 10 fields by label. Selection is shared across users via MergeGridConfig__c.
 	* @param objectType the SObject type
-	* @return gridFieldOptions lead/optional/trail field buckets
+	* @return gridFieldOptions system lead/trail columns + the selectable field list
 	*/
     @AuraEnabled(cacheable=TRUE)
     public static gridFieldOptions getGridFieldOptions(String objectType){
         gridFieldOptions result = new gridFieldOptions();
         result.leadFields = new List<gridFieldOption>();
-        result.optionalFields = new List<gridFieldOption>();
         result.trailFields = new List<gridFieldOption>();
+        result.fields = new List<gridFieldOption>();
         if(String.isBlank(objectType) || Schema.getGlobalDescribe().get(objectType) == null)
             return result;
         Map<String, Schema.SObjectField> fmap = Schema.getGlobalDescribe().get(objectType).getDescribe().fields.getMap();
@@ -65,20 +67,53 @@ public with sharing class MRG_DuplicateMerge_CTRL {
                 continue;
             gridFieldOption o = new gridFieldOption();
             o.name = fld.name; o.label = fld.label; o.type = fld.type;
+            o.displayLabel = fld.label + ' (' + fld.name + ')';
             selectable.add(o);
         }
         selectable.sort();
-        result.leadFields.add(fieldOption(fmap,'Id'));
-        Integer firstCount = Math.min(10, selectable.size());
-        for(Integer i=0;i<selectable.size();i++){
-            if(i < firstCount)
-                result.leadFields.add(selectable[i]);
-            else
-                result.optionalFields.add(selectable[i]);
+        // selected set: saved config (if any), else the first 10 by label (excludes hidden by construction)
+        List<String> saved = getSavedFields(objectType);
+        Set<String> selectedSet = new Set<String>();
+        if(saved != null){
+            for(String s:saved)
+                selectedSet.add(s.toLowerCase());
+        } else {
+            for(Integer i=0;i<Math.min(10, selectable.size());i++)
+                selectedSet.add(selectable[i].name.toLowerCase());
         }
+        for(gridFieldOption o:selectable)
+            o.selected = selectedSet.contains(o.name.toLowerCase());
+        result.leadFields.add(fieldOption(fmap,'Id'));
+        result.fields = selectable;
         result.trailFields.add(fieldOption(fmap,'CreatedDate'));
         result.trailFields.add(fieldOption(fmap,'LastModifiedDate'));
         return result;
+    }
+	/*******************************************************************************************************
+	* @description saves the grid field selection for an object type, shared across all users (#84)
+	* @param objectType the SObject type
+	* @param fields the selected field API names
+	*/
+    @AuraEnabled
+    public static void saveGridFieldConfig(String objectType, List<String> fields){
+        if(String.isBlank(objectType))
+            return;
+        MergeGridConfig__c cfg = new MergeGridConfig__c(
+            ObjectType__c = objectType,
+            Fields__c = JSON.serialize(fields == null ? new List<String>() : fields)
+        );
+        upsert cfg ObjectType__c;
+    }
+	/*******************************************************************************************************
+	* @description the saved grid field selection for an object type, or null if none saved
+	*/
+    private static List<String> getSavedFields(String objectType){
+        List<MergeGridConfig__c> cfgs = [
+            SELECT Fields__c FROM MergeGridConfig__c WHERE ObjectType__c =:objectType LIMIT 1
+        ];
+        if(cfgs.isEmpty() || String.isBlank(cfgs[0].Fields__c))
+            return null;
+        return (List<String>) JSON.deserialize(cfgs[0].Fields__c, List<String>.class);
     }
 	/*******************************************************************************************************
 	* @description grid data (#84): a page of candidates grouped by kept record, each group showing the
@@ -622,13 +657,15 @@ public with sharing class MRG_DuplicateMerge_CTRL {
     // ---- grid wrappers (#84) ----
     public class gridFieldOptions {
         @AuraEnabled public List<gridFieldOption> leadFields;
-        @AuraEnabled public List<gridFieldOption> optionalFields;
+        @AuraEnabled public List<gridFieldOption> fields;
         @AuraEnabled public List<gridFieldOption> trailFields;
     }
     public class gridFieldOption implements Comparable {
         @AuraEnabled public String name;
         @AuraEnabled public String label;
         @AuraEnabled public String type;
+        @AuraEnabled public String displayLabel;
+        @AuraEnabled public Boolean selected;
         public Integer compareTo(Object o){
             gridFieldOption other = (gridFieldOption) o;
             String a = this.label == null ? '' : this.label.toLowerCase();

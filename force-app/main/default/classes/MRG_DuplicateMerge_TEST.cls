@@ -201,6 +201,29 @@ private class MRG_DuplicateMerge_TEST {
 			trailNames.add(o.name);
 		system.assert(trailNames.contains('CreatedDate'), 'CreatedDate should be a trailing field');
 		system.assert(trailNames.contains('LastModifiedDate'), 'LastModifiedDate should be a trailing field');
+		system.assert(!opts.fields.isEmpty(), 'selectable fields should be returned');
+		Integer defaultSelected = 0;
+		for(MRG_DuplicateMerge_CTRL.gridFieldOption o:opts.fields)
+			if(o.selected == true) defaultSelected++;
+		system.assert(defaultSelected > 0, 'with no saved config the first fields should be selected by default');
+	}
+
+	static testMethod void testGridFieldConfigSaveLoad(){
+		MRG_DuplicateMerge_CTRL.saveGridFieldConfig('Contact', new List<String>{'Email'});
+		MRG_DuplicateMerge_CTRL.gridFieldOptions opts = MRG_DuplicateMerge_CTRL.getGridFieldOptions('Contact');
+		Integer selectedCount = 0;
+		Boolean emailSelected = false;
+		for(MRG_DuplicateMerge_CTRL.gridFieldOption o:opts.fields){
+			if(o.selected == true){
+				selectedCount++;
+				if(o.name == 'Email') emailSelected = true;
+			}
+		}
+		system.assertEquals(1, selectedCount, 'only the saved field should be selected');
+		system.assert(emailSelected, 'the saved Email field should be selected');
+		// upsert by external id: saving again updates the same record rather than erroring
+		MRG_DuplicateMerge_CTRL.saveGridFieldConfig('Contact', new List<String>{'Email','Phone'});
+		system.assertEquals(1, [SELECT COUNT() FROM MergeGridConfig__c WHERE ObjectType__c='Contact'], 'one config record per object type');
 	}
 
 	static testMethod void testGridData(){

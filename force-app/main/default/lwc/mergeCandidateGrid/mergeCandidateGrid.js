@@ -3,21 +3,21 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getGridData from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridData';
 import getGridFieldOptions from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridFieldOptions';
 import getCount from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getCount';
+import saveGridFieldConfig from '@salesforce/apex/MRG_DuplicateMerge_CTRL.saveGridFieldConfig';
 import mergeRecords from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeRecords';
 import removeRecords from '@salesforce/apex/MRG_DuplicateMerge_CTRL.removeRecords';
 import mergeAccountsBulk from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeAccountsBulk';
 
 // the grid shows a page of candidates grouped by kept record (keep / duplicate(s) / simulated result),
-// for a configurable field set. The first columns + Id/Created/LastModified always appear; extra fields
-// are toggled in the side panel. Paging is bounded to the top 2000 confidence-ranked candidates, matching
-// the list view.
+// for a configurable field set. Only Id/Created/LastModified always appear; every other field is toggled
+// in the side panel and the selection is saved per object for all users. Paging is bounded to the top
+// 2000 confidence-ranked candidates, matching the list view.
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_RECORDS = 2000;
 const PAGE_SIZE_OPTIONS = [
     {label:'10', value:'10'}, {label:'25', value:'25'}, {label:'50', value:'50'},
     {label:'100', value:'100'}, {label:'200', value:'200'}
 ];
-const FIELD_STORAGE_PREFIX = 'mergeControl.grid.fields.';
 
 export default class MergeCandidateGrid extends LightningElement {
     @api objectType;
@@ -35,10 +35,10 @@ export default class MergeCandidateGrid extends LightningElement {
 
     @track columns = [];
     @track groups = [];
-    @track optionalFields = [];
+    @track allFields = [];
     leadFields = [];
     trailFields = [];
-    selectedOptional = [];
+    filterText = '';
     selectedCandidateIds = [];
     pageSize = DEFAULT_PAGE_SIZE;
     pageNumber = 1;
@@ -60,18 +60,22 @@ export default class MergeCandidateGrid extends LightningElement {
             .then(result=>{
                 this.leadFields = result.leadFields || [];
                 this.trailFields = result.trailFields || [];
-                this.optionalFields = (result.optionalFields || []).map(o=>Object.assign({}, o, {selected:false}));
-                this.restoreFieldSelection();
+                // server returns every selectable field (label-sorted) with its saved/default selected state
+                this.allFields = (result.fields || []).map(o=>Object.assign({}, o));
                 this._loaded = true;
                 this.reload();
             })
             .catch(error=>this.handleError(error));
     }
 
-    // the ordered field API names sent to the server: lead (Id + first 10), chosen optionals, trail
+    // selected field API names, in label order (allFields arrives label-sorted from the server)
+    get selectedNames(){
+        return this.allFields.filter(f=>f.selected).map(f=>f.name);
+    }
+    // the ordered field API names sent to the server: Id, selected fields (label order), Created/Last Modified
     get fieldNames(){
         var names = this.leadFields.map(f=>f.name);
-        names = names.concat(this.selectedOptional);
+        names = names.concat(this.selectedNames);
         names = names.concat(this.trailFields.map(f=>f.name));
         return names;
     }
@@ -146,32 +150,28 @@ export default class MergeCandidateGrid extends LightningElement {
 
     // ---- field side panel ----
     toggleFieldPanel(){ this.showFieldPanel = !this.showFieldPanel; }
-    get hasOptionalFields(){ return this.optionalFields.length > 0; }
+    get hasOptionalFields(){ return this.allFields.length > 0; }
+    // selected fields first (label order), then the rest (label order), filtered by label or api name
+    get visibleFields(){
+        var text = (this.filterText || '').toLowerCase();
+        var matched = this.allFields.filter(f=>
+            !text
+            || (f.label || '').toLowerCase().indexOf(text) !== -1
+            || (f.name || '').toLowerCase().indexOf(text) !== -1);
+        return matched.filter(f=>f.selected).concat(matched.filter(f=>!f.selected));
+    }
+    handleFilterChange(event){
+        this.filterText = event.detail.value;
+    }
     handleFieldToggle(event){
         var name = event.currentTarget.dataset.field;
         var checked = event.target.checked;
-        var set = new Set(this.selectedOptional);
-        if(checked) set.add(name); else set.delete(name);
-        this.selectedOptional = Array.from(set);
-        this.optionalFields = this.optionalFields.map(o=>Object.assign({}, o, {selected:this.selectedOptional.includes(o.name)}));
-        this.persistFieldSelection();
+        this.allFields = this.allFields.map(f=> f.name === name ? Object.assign({}, f, {selected:checked}) : f);
+        // persist the selection for this object, shared across all users, then refresh the grid columns
+        saveGridFieldConfig({objectType:this.objectType, fields:this.selectedNames})
+            .catch(error=>this.handleError(error));
         this.pageNumber = 1;
         this.reload();
-    }
-    persistFieldSelection(){
-        try {
-            window.localStorage.setItem(FIELD_STORAGE_PREFIX + this.objectType, JSON.stringify(this.selectedOptional));
-        } catch(e){ /* storage unavailable */ }
-    }
-    restoreFieldSelection(){
-        try {
-            var saved = JSON.parse(window.localStorage.getItem(FIELD_STORAGE_PREFIX + this.objectType));
-            if(Array.isArray(saved)){
-                var available = this.optionalFields.map(o=>o.name);
-                this.selectedOptional = saved.filter(n=>available.includes(n));
-                this.optionalFields = this.optionalFields.map(o=>Object.assign({}, o, {selected:this.selectedOptional.includes(o.name)}));
-            }
-        } catch(e){ /* nothing saved or storage unavailable */ }
     }
 
     // ---- paging ----

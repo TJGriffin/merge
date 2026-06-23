@@ -83,14 +83,22 @@
             <template if:true={showFieldPanel}>
                 <div class="slds-col slds-size_1-of-4 grid-field-panel slds-box slds-theme_default">
                     <div class="slds-text-title_caps slds-m-bottom_x-small">Show Fields</div>
-                    <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">
-                        Id, Created Date, Last Modified Date and the first columns always appear.
+                    <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small">
+                        Id, Created Date and Last Modified Date always appear. Selections are saved for this object for all users.
                     </p>
-                    <template for:each={optionalFields} for:item="opt">
+                    <lightning-input
+                        type="search"
+                        label="Find fields"
+                        variant="label-hidden"
+                        placeholder="Filter by label or API name"
+                        value={filterText}
+                        onchange={handleFilterChange}
+                        class="slds-m-bottom_x-small"></lightning-input>
+                    <template for:each={visibleFields} for:item="opt">
                         <div key={opt.name} class="slds-p-bottom_xx-small">
                             <lightning-input
                                 type="checkbox"
-                                label={opt.label}
+                                label={opt.displayLabel}
                                 checked={opt.selected}
                                 data-field={opt.name}
                                 onchange={handleFieldToggle}></lightning-input>
