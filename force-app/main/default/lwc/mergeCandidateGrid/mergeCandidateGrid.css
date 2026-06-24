@@ -1,3 +1,12 @@
+/* fill the available width as a block so the host doesn't size to the (wide) table content */
+:host {
+    display: block;
+}
+/* flex items default to min-width:auto and won't shrink below their content; min-width:0 lets the
+   table column stay within the available width so the scroll happens inside .grid-scroll, not the page */
+.grid-main {
+    min-width: 0;
+}
 .grid-scroll {
     overflow-x: auto;
     width: 100%;
