@@ -71,20 +71,39 @@ public with sharing class MRG_DuplicateMerge_CTRL {
             selectable.add(o);
         }
         selectable.sort();
-        // selected set: saved config (if any), else the first 10 by label (excludes hidden by construction)
-        List<String> saved = getSavedFields(objectType);
-        Set<String> selectedSet = new Set<String>();
-        if(saved != null){
-            for(String s:saved)
-                selectedSet.add(s.toLowerCase());
-        } else {
-            for(Integer i=0;i<Math.min(10, selectable.size());i++)
-                selectedSet.add(selectable[i].name.toLowerCase());
-        }
         for(gridFieldOption o:selectable)
-            o.selected = selectedSet.contains(o.name.toLowerCase());
+            o.selected = false;
+        Map<String, gridFieldOption> byName = new Map<String, gridFieldOption>();
+        for(gridFieldOption o:selectable)
+            byName.put(o.name.toLowerCase(), o);
+        // selected fields first, in their saved order (preserves the user's column ordering); when no
+        // config is saved, default to the first 10 by label. Unselected fields follow, ordered by label.
+        List<String> saved = getSavedFields(objectType);
+        List<gridFieldOption> ordered = new List<gridFieldOption>();
+        Set<String> used = new Set<String>();
+        if(saved != null){
+            for(String s:saved){
+                String sl = s.toLowerCase();
+                if(byName.containsKey(sl) && !used.contains(sl)){
+                    gridFieldOption o = byName.get(sl);
+                    o.selected = true;
+                    ordered.add(o);
+                    used.add(sl);
+                }
+            }
+        } else {
+            for(Integer i=0;i<Math.min(10, selectable.size());i++){
+                selectable[i].selected = true;
+                ordered.add(selectable[i]);
+                used.add(selectable[i].name.toLowerCase());
+            }
+        }
+        for(gridFieldOption o:selectable){
+            if(!used.contains(o.name.toLowerCase()))
+                ordered.add(o);
+        }
         result.leadFields.add(fieldOption(fmap,'Id'));
-        result.fields = selectable;
+        result.fields = ordered;
         result.trailFields.add(fieldOption(fmap,'CreatedDate'));
         result.trailFields.add(fieldOption(fmap,'LastModifiedDate'));
         return result;

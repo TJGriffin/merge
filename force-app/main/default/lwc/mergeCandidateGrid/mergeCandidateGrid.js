@@ -35,7 +35,7 @@ export default class MergeCandidateGrid extends LightningElement {
 
     @track columns = [];
     @track groups = [];
-    @track allFields = [];
+    @track panelFields = [];
     leadFields = [];
     trailFields = [];
     filterText = '';
@@ -61,17 +61,17 @@ export default class MergeCandidateGrid extends LightningElement {
             .then(result=>{
                 this.leadFields = result.leadFields || [];
                 this.trailFields = result.trailFields || [];
-                // server returns every selectable field (label-sorted) with its saved/default selected state
-                this.allFields = (result.fields || []).map(o=>Object.assign({}, o));
+                // server returns selected fields first (in saved order), then the rest by label
+                this.panelFields = (result.fields || []).map(o=>Object.assign({}, o));
                 this._loaded = true;
                 this.reload();
             })
             .catch(error=>this.handleError(error));
     }
 
-    // selected field API names, in label order (allFields arrives label-sorted from the server)
+    // selected field API names, in the panel's current (user-defined) order
     get selectedNames(){
-        return this.allFields.filter(f=>f.selected).map(f=>f.name);
+        return this.panelFields.filter(f=>f.selected).map(f=>f.name);
     }
     // the ordered field API names sent to the server: Id, selected fields (label order), Created/Last Modified
     get fieldNames(){
@@ -151,15 +151,21 @@ export default class MergeCandidateGrid extends LightningElement {
 
     // ---- field side panel ----
     toggleFieldPanel(){ this.showFieldPanel = !this.showFieldPanel; }
-    get hasOptionalFields(){ return this.allFields.length > 0; }
-    // selected fields first (label order), then the rest (label order), filtered by label or api name
+    get hasOptionalFields(){ return this.panelFields.length > 0; }
+    // the panel keeps its current order while editing (selected fields only float to the top on Save);
+    // filtered by label or api name (contains). Each item carries move-up/down enablement for reordering.
     get visibleFields(){
         var text = (this.filterText || '').toLowerCase();
-        var matched = this.allFields.filter(f=>
-            !text
-            || (f.label || '').toLowerCase().indexOf(text) !== -1
-            || (f.name || '').toLowerCase().indexOf(text) !== -1);
-        return matched.filter(f=>f.selected).concat(matched.filter(f=>!f.selected));
+        var selected = this.panelFields.filter(f=>f.selected);
+        return this.panelFields
+            .filter(f=>
+                !text
+                || (f.label || '').toLowerCase().indexOf(text) !== -1
+                || (f.name || '').toLowerCase().indexOf(text) !== -1)
+            .map(f=>Object.assign({}, f, {
+                disableMoveUp: !(f.selected && selected.indexOf(f) > 0),
+                disableMoveDown: !(f.selected && selected.indexOf(f) < selected.length - 1)
+            }));
     }
     handleFilterChange(event){
         this.filterText = event.detail.value;
@@ -168,20 +174,48 @@ export default class MergeCandidateGrid extends LightningElement {
     handleFieldToggle(event){
         var name = event.currentTarget.dataset.field;
         var checked = event.target.checked;
-        this.allFields = this.allFields.map(f=> f.name === name ? Object.assign({}, f, {selected:checked}) : f);
+        this.panelFields = this.panelFields.map(f=> f.name === name ? Object.assign({}, f, {selected:checked}) : f);
+        this.fieldsDirty = true;
+    }
+    handleMoveUp(event){ this.moveSelected(event.currentTarget.dataset.field, -1); }
+    handleMoveDown(event){ this.moveSelected(event.currentTarget.dataset.field, 1); }
+    // swaps a selected field with its adjacent selected field (reorders the display columns)
+    moveSelected(name, dir){
+        var arr = this.panelFields.slice();
+        var i = arr.findIndex(f=>f.name === name);
+        if(i < 0 || !arr[i].selected)
+            return;
+        var j = i + dir;
+        while(j >= 0 && j < arr.length && !arr[j].selected)
+            j += dir;
+        if(j < 0 || j >= arr.length)
+            return;
+        var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+        this.panelFields = arr;
         this.fieldsDirty = true;
     }
     get saveFieldsDisabled(){ return !this.fieldsDirty; }
-    // persist the (multi-field) selection for this object, shared across all users, then refresh the grid
+    // persist the (multi-field, ordered) selection for this object across all users, refresh the grid,
+    // float selected fields to the top of the panel and close it
     handleSaveFields(){
         saveGridFieldConfig({objectType:this.objectType, fields:this.selectedNames})
             .then(()=>{
                 this.fieldsDirty = false;
+                this.resortPanel();
+                this.showFieldPanel = false;
                 this.pageNumber = 1;
                 this.reload();
                 this.toast('Fields saved', 'Grid fields updated.', 'success');
             })
             .catch(error=>this.handleError(error));
+    }
+    // after save: selected fields first (in their chosen order), then unselected by label
+    resortPanel(){
+        var selected = this.panelFields.filter(f=>f.selected);
+        var unselected = this.panelFields.filter(f=>!f.selected)
+            .slice()
+            .sort((a,b)=>(a.label || '').toLowerCase().localeCompare((b.label || '').toLowerCase()));
+        this.panelFields = selected.concat(unselected);
     }
 
     // ---- paging ----

@@ -35,7 +35,8 @@
 
         <div class="slds-grid slds-gutters">
             <div class="slds-col">
-                <table class="slds-table slds-table_bordered slds-table_cell-buffer slds-table_fixed-layout grid-table">
+                <div class="grid-scroll">
+                <table class="slds-table slds-table_bordered slds-table_cell-buffer grid-table">
                     <thead>
                         <tr class="slds-line-height_reset">
                             <th class="slds-text-title_caps" scope="col" style="width:6rem;"><span title="Row">Row</span></th>
@@ -75,6 +76,7 @@
                         </template>
                     </tbody>
                 </table>
+                </div>
                 <template if:false={hasGroups}>
                     <div class="slds-p-around_medium slds-text-color_weak">No merge candidates match the current filters.</div>
                 </template>
@@ -92,7 +94,7 @@
                             class="grid-field-save"></lightning-button>
                     </div>
                     <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small">
-                        Id, Created Date and Last Modified Date always appear. Check or uncheck fields, then Save (shared for this object for all users).
+                        Id, Created Date and Last Modified Date always appear. Check or uncheck fields and use the arrows to order the columns, then Save (shared for this object for all users).
                     </p>
                     <lightning-input
                         type="search"
@@ -103,13 +105,37 @@
                         onchange={handleFilterChange}
                         class="slds-m-bottom_x-small"></lightning-input>
                     <template for:each={visibleFields} for:item="opt">
-                        <div key={opt.name} class="slds-p-bottom_xx-small">
-                            <lightning-input
-                                type="checkbox"
-                                label={opt.displayLabel}
-                                checked={opt.selected}
-                                data-field={opt.name}
-                                onchange={handleFieldToggle}></lightning-input>
+                        <div key={opt.name} class="slds-grid slds-grid_vertical-align-center slds-p-bottom_xx-small">
+                            <span class="slds-col">
+                                <lightning-input
+                                    type="checkbox"
+                                    label={opt.displayLabel}
+                                    checked={opt.selected}
+                                    data-field={opt.name}
+                                    onchange={handleFieldToggle}></lightning-input>
+                            </span>
+                            <template if:true={opt.selected}>
+                                <span class="slds-shrink-none">
+                                    <lightning-button-icon
+                                        icon-name="utility:up"
+                                        variant="bare"
+                                        size="small"
+                                        alternative-text="Move up"
+                                        title="Move up"
+                                        disabled={opt.disableMoveUp}
+                                        data-field={opt.name}
+                                        onclick={handleMoveUp}></lightning-button-icon>
+                                    <lightning-button-icon
+                                        icon-name="utility:down"
+                                        variant="bare"
+                                        size="small"
+                                        alternative-text="Move down"
+                                        title="Move down"
+                                        disabled={opt.disableMoveDown}
+                                        data-field={opt.name}
+                                        onclick={handleMoveDown}></lightning-button-icon>
+                                </span>
+                            </template>
                         </div>
                     </template>
                     <template if:false={hasOptionalFields}>

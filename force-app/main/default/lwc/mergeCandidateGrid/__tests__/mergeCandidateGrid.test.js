@@ -132,7 +132,7 @@ describe('c-merge-candidate-grid', () => {
         expect(optional).toBeTruthy();
     });
 
-    it('batches toggles and saves the selection only when Save is clicked', async () => {
+    it('batches toggles, saves on Save, and closes the panel', async () => {
         const el = await render();
         buttonByLabel(el, 'Configure Fields').dispatchEvent(new CustomEvent('click'));
         await flush();
@@ -147,6 +147,28 @@ describe('c-merge-candidate-grid', () => {
         await flush();
         // Email (default-selected) + Phone (just added)
         expect(mockSaveConfig).toHaveBeenCalledWith({ objectType: 'Contact', fields: ['Email', 'Phone'] });
+        expect(el.shadowRoot.querySelector('.grid-field-panel')).toBeNull(); // save closes the panel
+    });
+
+    it('reorders selected fields and persists the new column order', async () => {
+        const el = await render();
+        buttonByLabel(el, 'Configure Fields').dispatchEvent(new CustomEvent('click'));
+        await flush();
+        // select Phone so both Email and Phone are selected
+        const phone = Array.from(el.shadowRoot.querySelectorAll('.grid-field-panel lightning-input'))
+            .find(i => i.dataset.field === 'Phone');
+        phone.checked = true;
+        phone.dispatchEvent(new CustomEvent('change'));
+        await flush();
+        // move Phone above Email
+        const phoneUp = Array.from(el.shadowRoot.querySelectorAll('lightning-button-icon'))
+            .find(b => b.dataset.field === 'Phone' && b.iconName === 'utility:up');
+        expect(phoneUp).toBeTruthy();
+        phoneUp.dispatchEvent(new CustomEvent('click'));
+        await flush();
+        buttonByLabel(el, 'Save').dispatchEvent(new CustomEvent('click'));
+        await flush();
+        expect(mockSaveConfig).toHaveBeenCalledWith({ objectType: 'Contact', fields: ['Phone', 'Email'] });
     });
 
     it('filters the field list by label or api name', async () => {

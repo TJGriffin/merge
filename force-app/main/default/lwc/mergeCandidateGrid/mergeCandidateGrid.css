@@ -1,5 +1,15 @@
+.grid-scroll {
+    overflow-x: auto;
+    width: 100%;
+}
 .grid-table {
     font-size: 0.8rem;
+    width: auto;
+}
+.grid-table th,
+.grid-table td {
+    min-width: 8rem;
+    white-space: nowrap;
 }
 .grid-row_keep td {
     background-color: #f3f9ff;
