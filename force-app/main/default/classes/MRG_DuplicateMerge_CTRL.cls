@@ -135,39 +135,24 @@ public with sharing class MRG_DuplicateMerge_CTRL {
         return (List<String>) JSON.deserialize(cfgs[0].Fields__c, List<String>.class);
     }
 	/*******************************************************************************************************
-	* @description grid data (#84): a page of candidates grouped by kept record, each group showing the
-	* kept record, its duplicate(s) and the simulated merge result, for the requested display fields.
-	* The simulated result reuses the bulk preview engine (MRG_Merge_SVC.getMergeHistoryResult) so up to
-	* a page of candidates is computed in a single call.
-	* @param filter the candidate filter
+	* @description grid rows (#84) for a set of candidates (the duplicates of the groups currently in
+	* view): each kept record's group shows the kept record, its duplicate(s) and the simulated merge
+	* result, for the requested display fields. The simulated result reuses the bulk preview engine
+	* (MRG_Merge_SVC.getMergeHistoryResult) so a page of visible groups is computed in a single call.
+	* Group/within-group paging is handled client-side over getKeepGroups, so only the visible groups'
+	* candidates are passed here.
+	* @param objectType the SObject type
 	* @param fields the ordered display field API names (Id/CreatedDate/LastModifiedDate handled as well)
-	* @param pageSize candidates per page (clamped 10..200, default 50)
-	* @param pageNumber 1-based page number (bounded to the top 2000 confidence-ranked candidates)
+	* @param candidateIds the merge candidate ids whose groups are currently in view
 	* @return gridResponse columns + grouped rows
 	*/
     @AuraEnabled
-    public static gridResponse getGridData(MRG_Duplicate_SVC.candidateFilter filter, List<String> fields, Integer pageSize, Integer pageNumber){
-        MRG_Duplicate_SVC.candidateFilter f = filter == null ? new MRG_Duplicate_SVC.candidateFilter() : filter;
-        // locals below are the bind targets referenced by getWhereClause(filter)
-        String objectType = f.objectType;
-        String ruleName = f.ruleName;
-        Decimal confidenceMin = f.confidenceMin;
-        Decimal confidenceMax = f.confidenceMax;
-        Boolean autoMerge = f.autoMerge;
-        List<String> statuses = f.safeStatuses();
-        // clamp page size + offset (OFFSET maxes at 2000, matching the list's top-2000 window)
-        pageSize = pageSize == null ? 50 : pageSize;
-        if(pageSize < 10) pageSize = 10;
-        if(pageSize > 200) pageSize = 200;
-        if(pageNumber == null || pageNumber < 1) pageNumber = 1;
-        Integer offsetAmt = (pageNumber - 1) * pageSize;
-        if(offsetAmt < 0) offsetAmt = 0;
-        if(offsetAmt > 2000) offsetAmt = 2000;
-
+    public static gridResponse getGridRows(String objectType, List<String> fields, List<Id> candidateIds){
         gridResponse resp = new gridResponse();
         resp.columns = new List<gridFieldOption>();
         resp.groups = new List<gridGroup>();
-        if(String.isBlank(objectType) || Schema.getGlobalDescribe().get(objectType) == null)
+        if(String.isBlank(objectType) || candidateIds == null || candidateIds.isEmpty()
+            || Schema.getGlobalDescribe().get(objectType) == null)
             return resp;
         Map<String, Schema.SObjectField> fmap = Schema.getGlobalDescribe().get(objectType).getDescribe().fields.getMap();
 
@@ -189,20 +174,14 @@ public with sharing class MRG_DuplicateMerge_CTRL {
         for(String fld:displayFields)
             resp.columns.add(fieldOption(fmap, fld));
 
-        // page of candidates (highest confidence first)
-        String pairQuery = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL();
-        pairQuery += MRG_Duplicate_SVC.getWhereClause(f);
-        pairQuery += ' ORDER BY ConfidenceScore__c DESC NULLS LAST, KeepRecordId__c, CreatedDate DESC, Id ASC';
-        pairQuery += ' LIMIT ' + pageSize;
-        if(offsetAmt > 0)
-            pairQuery += ' OFFSET :offsetAmt';
-        List<MergeCandidate__c> pageCandidates = (List<MergeCandidate__c>) Database.query(pairQuery);
-        if(pageCandidates.isEmpty())
+        String soqlQuery = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL() + ' WHERE Id IN :candidateIds';
+        List<MergeCandidate__c> candidates = (List<MergeCandidate__c>) Database.query(soqlQuery);
+        if(candidates.isEmpty())
             return resp;
 
         // bulk fetch the display values for the kept + duplicate records
         Set<Id> recordIds = new Set<Id>();
-        for(MergeCandidate__c c:pageCandidates){
+        for(MergeCandidate__c c:candidates){
             if(String.isNotBlank(c.KeepRecordId__c)) recordIds.add(c.KeepRecordId__c);
             if(String.isNotBlank(c.MergeRecordId__c)) recordIds.add(c.MergeRecordId__c);
             if(String.isNotBlank(c.Merge2RecordId__c)) recordIds.add(c.Merge2RecordId__c);
@@ -210,8 +189,8 @@ public with sharing class MRG_DuplicateMerge_CTRL {
         Map<Id, SObject> displayMap = new Map<Id, SObject>(
             Database.query('SELECT ' + String.join(displayFields, ',') + ' FROM ' + objectType + ' WHERE Id IN :recordIds'));
 
-        // simulate the merges once for the whole page; map the result records by kept id
-        MRG_Merge_SVC.mergeHistoryResult mr = MRG_Merge_SVC.getMergeHistoryResult(pageCandidates, objectType);
+        // simulate the merges once for these candidates; map the result records by kept id
+        MRG_Merge_SVC.mergeHistoryResult mr = MRG_Merge_SVC.getMergeHistoryResult(candidates, objectType);
         Map<Id, Map<String,Object>> resultByKeepId = new Map<Id, Map<String,Object>>();
         if(mr != null && mr.updateRecords != null){
             for(SObject u:mr.updateRecords){
@@ -220,10 +199,10 @@ public with sharing class MRG_DuplicateMerge_CTRL {
             }
         }
 
-        // group by kept record, preserving the confidence order
+        // group by kept record (client controls group ordering/paging)
         Map<String, gridGroup> byKeep = new Map<String, gridGroup>();
         List<String> keepOrder = new List<String>();
-        for(MergeCandidate__c c:pageCandidates){
+        for(MergeCandidate__c c:candidates){
             String keepId = c.KeepRecordId__c;
             if(!byKeep.containsKey(keepId)){
                 gridGroup g = new gridGroup();
@@ -248,6 +227,18 @@ public with sharing class MRG_DuplicateMerge_CTRL {
             resp.groups.add(g);
         }
         return resp;
+    }
+	/*******************************************************************************************************
+	* @description runs a grid action (merge / mergeAccounts / remove) over EVERY candidate matching the
+	* filter, in the background (#84 "select all maximum"). Returns the AsyncApexJob id.
+	* @param filter the candidate filter
+	* @param action 'merge' | 'mergeAccounts' | 'remove'
+	* @return Id the batch AsyncApexJob id
+	*/
+    @AuraEnabled
+    public static Id runActionOverFilter(MRG_Duplicate_SVC.candidateFilter filter, String action){
+        Integer scopeSize = action == 'remove' ? 200 : 20;
+        return Database.executeBatch(new MRG_GridAction_BATCH(filter, action), scopeSize);
     }
 
 	/*******************************************************************************************************

@@ -29,6 +29,10 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
+        <apexClass>MRG_GridAction_BATCH</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>MRG_DuplicateScan_TEST</apexClass>
         <enabled>true</enabled>
     </classAccesses>

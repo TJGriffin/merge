@@ -1,22 +1,23 @@
 import { LightningElement, api, track } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import getGridData from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridData';
+import getKeepGroups from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getKeepGroups';
+import getGridRows from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridRows';
 import getGridFieldOptions from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridFieldOptions';
 import getCount from '@salesforce/apex/MRG_DuplicateMerge_CTRL.getCount';
 import saveGridFieldConfig from '@salesforce/apex/MRG_DuplicateMerge_CTRL.saveGridFieldConfig';
 import mergeRecords from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeRecords';
 import removeRecords from '@salesforce/apex/MRG_DuplicateMerge_CTRL.removeRecords';
 import mergeAccountsBulk from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeAccountsBulk';
+import runActionOverFilter from '@salesforce/apex/MRG_DuplicateMerge_CTRL.runActionOverFilter';
 
-// the grid shows a page of candidates grouped by kept record (keep / duplicate(s) / simulated result),
-// for a configurable field set. Only Id/Created/LastModified always appear; every other field is toggled
-// in the side panel and the selection is saved per object for all users. Paging is bounded to the top
-// 2000 confidence-ranked candidates, matching the list view.
-const DEFAULT_PAGE_SIZE = 50;
-const MAX_RECORDS = 2000;
-const PAGE_SIZE_OPTIONS = [
-    {label:'10', value:'10'}, {label:'25', value:'25'}, {label:'50', value:'50'},
-    {label:'100', value:'100'}, {label:'200', value:'200'}
+// the grid mirrors the list view's two-level paging: it loads the working set of groups (up to CAP)
+// via getKeepGroups, pages groups (outer) and duplicates within a group (inner) client-side, and lazily
+// fetches the field values + simulated merge result for only the groups currently in view (getGridRows).
+const CAP = 2000;
+const PAIRS_PER_PAGE = 5;
+const DEFAULT_GROUPS_PER_PAGE = 10;
+const GROUP_PAGE_OPTIONS = [
+    {label:'5', value:'5'}, {label:'10', value:'10'}, {label:'25', value:'25'}, {label:'50', value:'50'}
 ];
 
 export default class MergeCandidateGrid extends LightningElement {
@@ -27,33 +28,40 @@ export default class MergeCandidateGrid extends LightningElement {
     get filter(){ return this._filter; }
     set filter(value){
         this._filter = value;
-        this.pageNumber = 1;
-        this.selectedCandidateIds = [];
+        this.clearSelection();
         if(this._loaded)
-            this.reload();
+            this.load();
     }
 
+    @track allGroups = [];
     @track columns = [];
-    @track groups = [];
+    @track rowsByKeep = {};
     @track panelFields = [];
     leadFields = [];
     trailFields = [];
     filterText = '';
     fieldsDirty = false;
-    selectedCandidateIds = [];
-    pageSize = DEFAULT_PAGE_SIZE;
-    pageNumber = 1;
+    currentGroupPage = 1;
+    groupsPerPage = DEFAULT_GROUPS_PER_PAGE;
     totalCandidates = 0;
+    selectedCandidateIds = [];
+    selectAllMax = false;
     showFieldPanel = false;
-    showSpinner = false;
-    pageSizeOptions = PAGE_SIZE_OPTIONS;
-    error;
+    loadingGroups = false;
+    rowsLoading = false;
+    // preview modal
+    isModalOpen = false;
+    selectedRecordId;
+    @track navItems = [];
+
+    groupPageOptions = GROUP_PAGE_OPTIONS;
     _loaded = false;
 
     connectedCallback(){
         this.loadFieldOptions();
     }
 
+    // ---- field options + selection persistence ----
     loadFieldOptions(){
         if(!this.objectType)
             return;
@@ -61,102 +69,217 @@ export default class MergeCandidateGrid extends LightningElement {
             .then(result=>{
                 this.leadFields = result.leadFields || [];
                 this.trailFields = result.trailFields || [];
-                // server returns selected fields first (in saved order), then the rest by label
                 this.panelFields = (result.fields || []).map(o=>Object.assign({}, o));
                 this._loaded = true;
-                this.reload();
+                this.load();
             })
             .catch(error=>this.handleError(error));
     }
-
-    // selected field API names, in the panel's current (user-defined) order
     get selectedNames(){
         return this.panelFields.filter(f=>f.selected).map(f=>f.name);
     }
-    // the ordered field API names sent to the server: Id, selected fields (label order), Created/Last Modified
     get fieldNames(){
-        var names = this.leadFields.map(f=>f.name);
-        names = names.concat(this.selectedNames);
-        names = names.concat(this.trailFields.map(f=>f.name));
-        return names;
+        return this.leadFields.map(f=>f.name)
+            .concat(this.selectedNames)
+            .concat(this.trailFields.map(f=>f.name));
     }
 
-    reload(){
+    // ---- load groups (working set) + counts ----
+    load(){
         if(!this.objectType || !this._filter)
             return;
-        this.showSpinner = true;
+        this.loadingGroups = true;
         Promise.all([
-            getGridData({filter:this._filter, fields:this.fieldNames, pageSize:this.pageSize, pageNumber:this.pageNumber}),
+            getKeepGroups({filter:this._filter, limitAmt:CAP, offsetAmt:0}),
             getCount({filter:this._filter})
         ]).then(results=>{
-            var grid = results[0];
-            var count = results[1];
-            this.columns = (grid && grid.columns) ? grid.columns : [];
-            this.groups = this.decorateGroups((grid && grid.groups) ? grid.groups : []);
-            this.totalCandidates = count != null ? Number(count) : 0;
-            this.showSpinner = false;
-        }).catch(error=>{ this.showSpinner = false; this.handleError(error); });
+            this.allGroups = (results[0] || []).map(g=>Object.assign({}, g, {pairPage:1}));
+            this.totalCandidates = results[1] != null ? Number(results[1]) : 0;
+            this.currentGroupPage = 1;
+            this.loadingGroups = false;
+            this.loadVisibleRows();
+        }).catch(error=>{ this.loadingGroups = false; this.handleError(error); });
+    }
+    // the groups on the current outer page
+    get currentGroups(){
+        const start = (this.currentGroupPage - 1) * this.groupsPerPage;
+        return this.allGroups.slice(start, start + this.groupsPerPage);
+    }
+    // fetch field values + simulated result for the groups currently in view only
+    loadVisibleRows(){
+        const ids = [];
+        this.currentGroups.forEach(g=>(g.pairs || []).forEach(p=>ids.push(p.id)));
+        if(!ids.length){
+            this.rowsByKeep = {};
+            this.columns = [];
+            return;
+        }
+        this.rowsLoading = true;
+        getGridRows({objectType:this.objectType, fields:this.fieldNames, candidateIds:ids})
+            .then(resp=>{
+                this.columns = (resp && resp.columns) ? resp.columns : [];
+                this.rowsByKeep = this.indexRows((resp && resp.groups) ? resp.groups : []);
+                this.rowsLoading = false;
+            })
+            .catch(error=>{ this.rowsLoading = false; this.handleError(error); });
+    }
+    indexRows(groups){
+        const map = {};
+        groups.forEach(g=>{
+            const entry = { keepCells: [], resultCells: [], dupByCandidate: {} };
+            (g.rows || []).forEach(r=>{
+                if(r.rowType === 'keep') entry.keepCells = r.cells;
+                else if(r.rowType === 'result') entry.resultCells = r.cells;
+                else if(r.rowType === 'duplicate'){
+                    if(!entry.dupByCandidate[r.candidateId]) entry.dupByCandidate[r.candidateId] = [];
+                    entry.dupByCandidate[r.candidateId].push({ recordId: r.recordId, cells: r.cells });
+                }
+            });
+            map[g.keepId] = entry;
+        });
+        return map;
     }
 
-    decorateGroups(groups){
-        return groups.map(g=>({
-            keepId: g.keepId,
-            keepName: g.keepName,
-            objectType: g.objectType,
-            rows: (g.rows || []).map((r, idx)=>this.decorateRow(g.keepId, r, idx))
-        }));
+    // ---- rendered groups (structure + lazily-loaded rows, sliced to inner page) ----
+    get pagedGroups(){
+        const selected = new Set(this.selectedCandidateIds);
+        return this.currentGroups.map(g=>{
+            const rows = this.rowsByKeep[g.keepId];
+            const pairPage = g.pairPage || 1;
+            const pairs = g.pairs || [];
+            const visiblePairs = pairs.slice((pairPage - 1) * PAIRS_PER_PAGE, pairPage * PAIRS_PER_PAGE);
+            const displayRows = [];
+            if(rows){
+                displayRows.push(this.staticRow(g.keepId, 'keep', 'Keep', 'grid-row_keep', rows.keepCells));
+                visiblePairs.forEach(p=>{
+                    const checked = this.selectAllMax || selected.has(p.id);
+                    (rows.dupByCandidate[p.id] || []).forEach((d, di)=>{
+                        displayRows.push({
+                            key: g.keepId + '-dup-' + p.id + '-' + di,
+                            rowType: 'duplicate', rowLabel: 'Duplicate', rowClass: 'grid-row_duplicate',
+                            selectable: true, candidateId: p.id, keepId: g.keepId, checked: checked, cells: d.cells
+                        });
+                    });
+                });
+                displayRows.push(this.staticRow(g.keepId, 'result', 'Result', 'grid-row_result', rows.resultCells));
+            }
+            return {
+                keepId: g.keepId,
+                keepName: g.keepName,
+                pairCount: pairs.length,
+                pairPage: pairPage,
+                pairTotalPages: Math.max(1, Math.ceil(pairs.length / PAIRS_PER_PAGE)),
+                showPairPager: pairs.length > PAIRS_PER_PAGE,
+                hasRows: !!rows,
+                displayRows: displayRows
+            };
+        });
     }
-    decorateRow(keepId, r, idx){
-        return {
-            key: keepId + '|' + r.rowType + '|' + (r.recordId || '') + '|' + idx,
-            rowType: r.rowType,
-            rowLabel: this.rowLabel(r.rowType),
-            recordId: r.recordId,
-            candidateId: r.candidateId,
-            selectable: r.selectable,
-            checked: r.candidateId ? this.selectedCandidateIds.includes(r.candidateId) : false,
-            rowClass: this.rowClass(r.rowType),
-            cells: (r.cells || []).map(c=>({ key: r.rowType + '|' + (r.recordId || '') + '|' + c.name, name: c.name, value: c.value }))
-        };
+    staticRow(keepId, rowType, rowLabel, rowClass, cells){
+        return { key: keepId + '-' + rowType, rowType: rowType, rowLabel: rowLabel, rowClass: rowClass,
+            selectable: false, candidateId: null, keepId: keepId, checked: false, cells: cells || [] };
     }
-    rowLabel(rowType){
-        if(rowType === 'keep') return 'Keep';
-        if(rowType === 'result') return 'Result';
-        return 'Duplicate';
+    get hasGroups(){ return this.allGroups.length > 0; }
+    get showSpinner(){ return this.loadingGroups || this.rowsLoading; }
+
+    // ---- outer (group) + inner (within-group) paging ----
+    get groupTotalPages(){ return Math.max(1, Math.ceil(this.allGroups.length / this.groupsPerPage)); }
+    get hasGroupPager(){ return this.allGroups.length > this.groupsPerPage; }
+    handleGroupPage(event){
+        this.currentGroupPage = Number(event.detail);
+        this.loadVisibleRows();
     }
-    rowClass(rowType){
-        if(rowType === 'keep') return 'slds-hint-parent grid-row_keep';
-        if(rowType === 'result') return 'slds-hint-parent grid-row_result';
-        return 'slds-hint-parent grid-row_duplicate';
+    handlePairPage(event){
+        const keepId = event.currentTarget.dataset.keep;
+        const page = Number(event.detail);
+        this.allGroups = this.allGroups.map(g=> g.keepId == keepId ? Object.assign({}, g, {pairPage:page}) : g);
+    }
+    get groupsPerPageValue(){ return String(this.groupsPerPage); }
+    handleGroupsPerPageChange(event){
+        this.groupsPerPage = Number(event.detail.value);
+        this.currentGroupPage = 1;
+        this.loadVisibleRows();
+    }
+    get cappedNotice(){
+        return this.totalCandidates > CAP
+            ? 'Showing the ' + CAP + ' highest-confidence candidates of ' + this.totalCandidates + ' total.'
+            : null;
     }
 
     // ---- selection ----
     handleRowSelect(event){
-        var candidateId = event.currentTarget.dataset.candidate;
-        var checked = event.target.checked;
-        var set = new Set(this.selectedCandidateIds);
+        const candidateId = event.currentTarget.dataset.candidate;
+        const checked = event.target.checked;
+        // a manual toggle exits "all maximum" mode and becomes an explicit selection
+        if(this.selectAllMax){
+            this.selectAllMax = false;
+            this.selectedCandidateIds = this.allPageCandidateIds();
+        }
+        const set = new Set(this.selectedCandidateIds);
         if(checked) set.add(candidateId); else set.delete(candidateId);
         this.selectedCandidateIds = Array.from(set);
-        this.refreshChecked();
     }
-    refreshChecked(){
-        this.groups = this.groups.map(g=>Object.assign({}, g, {
-            rows: g.rows.map(r=>Object.assign({}, r, {
-                checked: r.candidateId ? this.selectedCandidateIds.includes(r.candidateId) : false
-            }))
-        }));
+    allPageCandidateIds(){
+        const ids = [];
+        this.currentGroups.forEach(g=>(g.pairs || []).forEach(p=>ids.push(p.id)));
+        return ids;
     }
-    get hasSelection(){ return this.selectedCandidateIds.length > 0; }
+    handleSelectAllPage(){
+        this.selectAllMax = false;
+        this.selectedCandidateIds = this.allPageCandidateIds();
+    }
+    handleSelectAllMax(){
+        this.selectAllMax = true;
+        this.selectedCandidateIds = [];
+    }
+    clearSelection(){
+        this.selectedCandidateIds = [];
+        this.selectAllMax = false;
+    }
+    handleClearSelection(){ this.clearSelection(); }
+    get hasSelection(){ return this.selectAllMax || this.selectedCandidateIds.length > 0; }
     get actionsDisabled(){ return !this.hasSelection; }
+    get selectionLabel(){
+        if(this.selectAllMax)
+            return 'All ' + this.totalCandidates + ' matching selected';
+        if(this.selectedCandidateIds.length)
+            return this.selectedCandidateIds.length + ' selected';
+        return null;
+    }
+
+    // ---- bulk actions ----
+    handleMergeSelected(){ this.runAction('merge', mergeRecords); }
+    handleRemoveSelected(){ this.runAction('remove', removeRecords); }
+    handleMergeAccountsSelected(){ this.runAction('mergeAccounts', mergeAccountsBulk); }
+    runAction(action, idAction){
+        if(!this.hasSelection)
+            return;
+        if(this.selectAllMax){
+            // operate over every matching candidate in the background
+            runActionOverFilter({filter:this._filter, action:action})
+                .then(()=>{
+                    this.toast('Started', 'Processing all ' + this.totalCandidates + ' matching candidates in the background.', 'success');
+                    this.clearSelection();
+                })
+                .catch(error=>this.handleError(error));
+            return;
+        }
+        this.rowsLoading = true;
+        idAction({recordIds:this.selectedCandidateIds})
+            .then(response=>{
+                this.toast('Success', response, 'success');
+                this.clearSelection();
+                this.load();
+            })
+            .catch(error=>{ this.rowsLoading = false; this.handleError(error); });
+    }
 
     // ---- field side panel ----
     toggleFieldPanel(){ this.showFieldPanel = !this.showFieldPanel; }
     get hasOptionalFields(){ return this.panelFields.length > 0; }
-    // the panel keeps its current order while editing (selected fields only float to the top on Save);
-    // filtered by label or api name (contains). Each item carries move-up/down enablement for reordering.
     get visibleFields(){
-        var text = (this.filterText || '').toLowerCase();
-        var selected = this.panelFields.filter(f=>f.selected);
+        const text = (this.filterText || '').toLowerCase();
+        const selected = this.panelFields.filter(f=>f.selected);
         return this.panelFields
             .filter(f=>
                 !text
@@ -167,100 +290,107 @@ export default class MergeCandidateGrid extends LightningElement {
                 disableMoveDown: !(f.selected && selected.indexOf(f) < selected.length - 1)
             }));
     }
-    handleFilterChange(event){
-        this.filterText = event.detail.value;
-    }
-    // toggles only update local state so the user can check/uncheck several fields before saving
+    handleFilterChange(event){ this.filterText = event.detail.value; }
     handleFieldToggle(event){
-        var name = event.currentTarget.dataset.field;
-        var checked = event.target.checked;
+        const name = event.currentTarget.dataset.field;
+        const checked = event.target.checked;
         this.panelFields = this.panelFields.map(f=> f.name === name ? Object.assign({}, f, {selected:checked}) : f);
         this.fieldsDirty = true;
     }
     handleMoveUp(event){ this.moveSelected(event.currentTarget.dataset.field, -1); }
     handleMoveDown(event){ this.moveSelected(event.currentTarget.dataset.field, 1); }
-    // swaps a selected field with its adjacent selected field (reorders the display columns)
     moveSelected(name, dir){
-        var arr = this.panelFields.slice();
-        var i = arr.findIndex(f=>f.name === name);
+        const arr = this.panelFields.slice();
+        const i = arr.findIndex(f=>f.name === name);
         if(i < 0 || !arr[i].selected)
             return;
-        var j = i + dir;
+        let j = i + dir;
         while(j >= 0 && j < arr.length && !arr[j].selected)
             j += dir;
         if(j < 0 || j >= arr.length)
             return;
-        var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+        const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
         this.panelFields = arr;
         this.fieldsDirty = true;
     }
     get saveFieldsDisabled(){ return !this.fieldsDirty; }
-    // persist the (multi-field, ordered) selection for this object across all users, refresh the grid,
-    // float selected fields to the top of the panel and close it
     handleSaveFields(){
         saveGridFieldConfig({objectType:this.objectType, fields:this.selectedNames})
             .then(()=>{
                 this.fieldsDirty = false;
                 this.resortPanel();
                 this.showFieldPanel = false;
-                this.pageNumber = 1;
-                this.reload();
+                this.loadVisibleRows();
                 this.toast('Fields saved', 'Grid fields updated.', 'success');
             })
             .catch(error=>this.handleError(error));
     }
-    // after save: selected fields first (in their chosen order), then unselected by label
     resortPanel(){
-        var selected = this.panelFields.filter(f=>f.selected);
-        var unselected = this.panelFields.filter(f=>!f.selected)
+        const selected = this.panelFields.filter(f=>f.selected);
+        const unselected = this.panelFields.filter(f=>!f.selected)
             .slice()
             .sort((a,b)=>(a.label || '').toLowerCase().localeCompare((b.label || '').toLowerCase()));
         this.panelFields = selected.concat(unselected);
     }
 
-    // ---- paging ----
-    get pageSizeValue(){ return String(this.pageSize); }
-    handlePageSizeChange(event){
-        var v = Number(event.detail.value);
-        if(v < 10) v = 10;
-        if(v > 200) v = 200;
-        this.pageSize = v;
-        this.pageNumber = 1;
-        this.reload();
+    // ---- preview modal with in-group navigation (mirrors the list view) ----
+    handlePreview(event){
+        const candidateId = event.currentTarget.dataset.record;
+        const keepId = event.currentTarget.dataset.keep;
+        const group = (this.allGroups || []).find(g=>g.keepId == keepId);
+        this.navItems = group ? group.pairs.map(p=>this.toNavItem(p, candidateId)) : [];
+        this.selectedRecordId = candidateId;
+        this.isModalOpen = true;
     }
-    get totalPages(){
-        var capped = Math.min(this.totalCandidates, MAX_RECORDS);
-        return Math.max(1, Math.ceil(capped / this.pageSize));
+    toNavItem(pair, selectedId){
+        const conf = (pair.confidenceScore != null && pair.confidenceScore !== undefined) ? ' — ' + pair.confidenceScore : '';
+        return {
+            id: pair.id,
+            label: (pair.mergeName || pair.mergeId) + conf,
+            variant: pair.id === selectedId ? 'brand' : 'neutral'
+        };
     }
-    get hasPager(){ return this.totalPages > 1; }
-    handlePage(event){
-        this.pageNumber = Number(event.detail);
-        this.reload();
+    refreshNavVariants(){
+        this.navItems = this.navItems.map(n=>({ id:n.id, label:n.label, variant: n.id === this.selectedRecordId ? 'brand' : 'neutral' }));
     }
-    get cappedNotice(){
-        return this.totalCandidates > MAX_RECORDS
-            ? 'Showing the ' + MAX_RECORDS + ' highest-confidence candidates of ' + this.totalCandidates + ' total.'
-            : null;
+    get currentNavIndex(){ return this.navItems.findIndex(n=>n.id === this.selectedRecordId); }
+    get hasPrevDisabled(){ return !(this.currentNavIndex > 0); }
+    get hasNextDisabled(){ return !(this.currentNavIndex > -1 && this.currentNavIndex < this.navItems.length - 1); }
+    handleNavSelect(event){
+        this.selectedRecordId = event.currentTarget.dataset.record;
+        this.refreshNavVariants();
     }
-
-    // ---- bulk actions ----
-    get hasGroups(){ return this.groups.length > 0; }
-
-    handleMergeSelected(){ this.runAction(mergeRecords); }
-    handleRemoveSelected(){ this.runAction(removeRecords); }
-    handleMergeAccountsSelected(){ this.runAction(mergeAccountsBulk); }
-    runAction(apexFn){
-        if(!this.hasSelection)
-            return;
-        this.showSpinner = true;
-        apexFn({recordIds:this.selectedCandidateIds})
-            .then(response=>{
-                this.selectedCandidateIds = [];
-                this.toast('Success', response, 'success');
-                this.dispatchEvent(new CustomEvent('refresh'));
-                this.reload();
-            })
-            .catch(error=>{ this.showSpinner = false; this.handleError(error); });
+    handlePrev(){
+        if(this.currentNavIndex > 0){
+            this.selectedRecordId = this.navItems[this.currentNavIndex - 1].id;
+            this.refreshNavVariants();
+        }
+    }
+    handleNext(){
+        if(this.currentNavIndex > -1 && this.currentNavIndex < this.navItems.length - 1){
+            this.selectedRecordId = this.navItems[this.currentNavIndex + 1].id;
+            this.refreshNavVariants();
+        }
+    }
+    closeModal(){
+        this.isModalOpen = false;
+        this.selectedRecordId = null;
+    }
+    handleModalMerge(){
+        const id = this.selectedRecordId;
+        this.isModalOpen = false;
+        this.rowsLoading = true;
+        mergeRecords({recordIds:[id]})
+            .then(response=>{ this.toast('Success', response, 'success'); this.load(); })
+            .catch(error=>{ this.rowsLoading = false; this.handleError(error); });
+    }
+    handleModalRemove(){
+        const id = this.selectedRecordId;
+        this.isModalOpen = false;
+        this.rowsLoading = true;
+        removeRecords({recordIds:[id]})
+            .then(response=>{ this.toast('Success', response, 'success'); this.load(); })
+            .catch(error=>{ this.rowsLoading = false; this.handleError(error); });
     }
 
     // ---- notifications ----
@@ -268,8 +398,7 @@ export default class MergeCandidateGrid extends LightningElement {
         this.dispatchEvent(new ShowToastEvent({ title:title, message:message, variant:variant }));
     }
     handleError(error){
-        this.error = error;
-        var message = 'Unknown error';
+        let message = 'Unknown error';
         if(error && error.body){
             if(Array.isArray(error.body)) message = error.body.map(e=>e.message).join(', ');
             else if(typeof error.body.message === 'string') message = error.body.message;
