@@ -1,7 +1,7 @@
 <template>
     <lightning-card title="Duplicate Records" icon-name="standard:task">
         <div class="slds-m-around_medium">
-            <lightning-layout>
+            <lightning-layout multiple-rows="true" vertical-align="end">
                 <lightning-layout-item padding="around-small" size="2">
                     <lightning-combobox
                         name="objectType"
@@ -22,8 +22,54 @@
                             onchange={handleRuleFilterChange}></lightning-combobox>
                     </lightning-layout-item>
                 </template>
+                <lightning-layout-item padding="around-small" size="2">
+                    <lightning-input
+                        type="number"
+                        name="confidenceMin"
+                        label="Confidence Min"
+                        value={confidenceMin}
+                        onchange={handleConfidenceMinChange}></lightning-input>
+                </lightning-layout-item>
+                <lightning-layout-item padding="around-small" size="2">
+                    <lightning-input
+                        type="number"
+                        name="confidenceMax"
+                        label="Confidence Max"
+                        value={confidenceMax}
+                        onchange={handleConfidenceMaxChange}></lightning-input>
+                </lightning-layout-item>
+                <lightning-layout-item padding="around-small" size="2">
+                    <lightning-combobox
+                        name="autoMerge"
+                        label="Auto Merge?"
+                        value={autoMerge}
+                        options={autoMergeOptions}
+                        onchange={handleAutoMergeChange}></lightning-combobox>
+                </lightning-layout-item>
+                <lightning-layout-item padding="around-small" size="2">
+                    <lightning-checkbox-group
+                        name="statuses"
+                        label="Status"
+                        options={statusOptions}
+                        value={statuses}
+                        onchange={handleStatusChange}></lightning-checkbox-group>
+                </lightning-layout-item>
+                <lightning-layout-item padding="around-small" size="2">
+                    <lightning-button
+                        label="Clear Filters"
+                        onclick={handleClearFilters}></lightning-button>
+                </lightning-layout-item>
             </lightning-layout>
         </div>
+        <div class="slds-m-horizontal_medium slds-m-bottom_small">
+            <lightning-button label={toggleViewLabel} icon-name="utility:table" onclick={handleToggleView}></lightning-button>
+        </div>
+        <template if:true={isGridView}>
+            <div class="slds-m-horizontal_small slds-m-bottom_small">
+                <c-merge-candidate-grid object-type={objectType} filter={filterParam}></c-merge-candidate-grid>
+            </div>
+        </template>
+        <template if:true={isListView}>
         <template if:true={showSpinner}>
             <div class="slds-is-relative">
                 <lightning-spinner variant="brand" size="large" alternative-text="Processing..."></lightning-spinner>
@@ -90,6 +136,7 @@
                     </div>
                 </template>
             </div>
+        </template>
         </template>
     </lightning-card>
     <template if:true={isModalOpen}>

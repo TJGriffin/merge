@@ -76,12 +76,12 @@ private class MRG_ScanPipeline_TEST {
 		mc.Rule__c = 'test';
 		update mc;
 
-		Integer before = MRG_DuplicateMerge_CTRL.getCount('Account','test');
+		Integer before = MRG_DuplicateMerge_CTRL.getCount(new MRG_Duplicate_SVC.candidateFilter('Account','test'));
 
 		// dismiss it
 		MRG_DuplicateMerge_CTRL.removeRecord(mc.Id);
 
-		Integer after = MRG_DuplicateMerge_CTRL.getCount('Account','test');
+		Integer after = MRG_DuplicateMerge_CTRL.getCount(new MRG_Duplicate_SVC.candidateFilter('Account','test'));
 		system.assertEquals(before - 1, after,
 			'a candidate marked not-a-duplicate should drop out of the count');
 	}

@@ -1,0 +1,39 @@
+/* fill the available width as a block so the host doesn't size to the (wide) table content */
+:host {
+    display: block;
+}
+/* flex items default to min-width:auto and won't shrink below their content; min-width:0 lets the
+   table column stay within the available width so the scroll happens inside .grid-scroll, not the page */
+.grid-main {
+    min-width: 0;
+}
+.grid-scroll {
+    overflow-x: auto;
+    width: 100%;
+}
+.grid-table {
+    font-size: 0.8rem;
+    width: auto;
+}
+.grid-table th,
+.grid-table td {
+    min-width: 8rem;
+    white-space: nowrap;
+}
+.grid-row_keep td {
+    background-color: #f3f9ff;
+}
+.grid-row_result td {
+    background-color: #f3faf6;
+    font-weight: 600;
+}
+.grid-row_duplicate td {
+    background-color: #ffffff;
+}
+.grid-field-panel {
+    max-height: 30rem;
+    overflow-y: auto;
+}
+.grid-field-save {
+    font-size: 0.75rem;
+}
