@@ -35,48 +35,49 @@
 
         <div class="slds-grid slds-gutters">
             <div class="slds-col">
-                <div class="grid-scroll">
-                <table class="slds-table slds-table_bordered slds-table_cell-buffer grid-table">
-                    <thead>
-                        <tr class="slds-line-height_reset">
-                            <th class="slds-text-title_caps" scope="col" style="width:6rem;"><span title="Row">Row</span></th>
-                            <template for:each={columns} for:item="col">
-                                <th key={col.name} class="slds-text-title_caps" scope="col"><span title={col.label}>{col.label}</span></th>
-                            </template>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <template for:each={groups} for:item="group">
-                            <tr key={group.keepId} class="slds-theme_shade">
-                                <th colspan={columnSpan} scope="row" class="slds-p-vertical_xx-small">
-                                    <strong>Keep:&nbsp;{group.keepName}</strong>
-                                </th>
-                            </tr>
-                            <template for:each={group.rows} for:item="row">
-                                <tr key={row.key} class={row.rowClass}>
-                                    <td>
-                                        <template if:true={row.selectable}>
-                                            <lightning-input
-                                                type="checkbox"
-                                                variant="label-hidden"
-                                                label="Select duplicate"
-                                                checked={row.checked}
-                                                data-candidate={row.candidateId}
-                                                onchange={handleRowSelect}></lightning-input>
+                <template for:each={groups} for:item="group">
+                    <div key={group.keepId} class="slds-m-bottom_small">
+                        <div class="slds-text-title_caps slds-p-vertical_xx-small slds-p-horizontal_x-small slds-theme_shade">
+                            <strong>Keep:&nbsp;{group.keepName}</strong>
+                        </div>
+                        <!-- each group scrolls horizontally on its own -->
+                        <div class="grid-scroll">
+                            <table class="slds-table slds-table_bordered slds-table_cell-buffer grid-table">
+                                <thead>
+                                    <tr class="slds-line-height_reset">
+                                        <th class="slds-text-title_caps" scope="col" style="width:6rem;"><span title="Row">Row</span></th>
+                                        <template for:each={columns} for:item="col">
+                                            <th key={col.name} class="slds-text-title_caps" scope="col"><span title={col.label}>{col.label}</span></th>
                                         </template>
-                                        <span class="slds-text-body_small slds-text-color_weak">{row.rowLabel}</span>
-                                    </td>
-                                    <template for:each={row.cells} for:item="cell">
-                                        <td key={cell.key}>
-                                            <div class="slds-truncate" title={cell.value}>{cell.value}</div>
-                                        </td>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={group.rows} for:item="row">
+                                        <tr key={row.key} class={row.rowClass}>
+                                            <td>
+                                                <template if:true={row.selectable}>
+                                                    <lightning-input
+                                                        type="checkbox"
+                                                        variant="label-hidden"
+                                                        label="Select duplicate"
+                                                        checked={row.checked}
+                                                        data-candidate={row.candidateId}
+                                                        onchange={handleRowSelect}></lightning-input>
+                                                </template>
+                                                <span class="slds-text-body_small slds-text-color_weak">{row.rowLabel}</span>
+                                            </td>
+                                            <template for:each={row.cells} for:item="cell">
+                                                <td key={cell.key}>
+                                                    <div class="slds-truncate" title={cell.value}>{cell.value}</div>
+                                                </td>
+                                            </template>
+                                        </tr>
                                     </template>
-                                </tr>
-                            </template>
-                        </template>
-                    </tbody>
-                </table>
-                </div>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </template>
                 <template if:false={hasGroups}>
                     <div class="slds-p-around_medium slds-text-color_weak">No merge candidates match the current filters.</div>
                 </template>

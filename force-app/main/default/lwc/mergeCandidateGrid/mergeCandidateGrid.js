@@ -245,7 +245,6 @@ export default class MergeCandidateGrid extends LightningElement {
 
     // ---- bulk actions ----
     get hasGroups(){ return this.groups.length > 0; }
-    get columnSpan(){ return this.columns.length + 1; }
 
     handleMergeSelected(){ this.runAction(mergeRecords); }
     handleRemoveSelected(){ this.runAction(removeRecords); }
