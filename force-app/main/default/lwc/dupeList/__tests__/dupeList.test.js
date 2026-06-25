@@ -52,13 +52,18 @@ jest.mock(
     { virtual: true }
 );
 jest.mock(
-    '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridData',
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridRows',
     () => ({ default: jest.fn(() => Promise.resolve({ columns: [], groups: [] })) }),
     { virtual: true }
 );
 jest.mock(
     '@salesforce/apex/MRG_DuplicateMerge_CTRL.saveGridFieldConfig',
     () => ({ default: jest.fn(() => Promise.resolve()) }),
+    { virtual: true }
+);
+jest.mock(
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.runActionOverFilter',
+    () => ({ default: jest.fn(() => Promise.resolve('707000000000000AAA')) }),
     { virtual: true }
 );
 jest.mock(

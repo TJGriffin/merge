@@ -226,12 +226,14 @@ private class MRG_DuplicateMerge_TEST {
 		system.assertEquals(1, [SELECT COUNT() FROM MergeGridConfig__c WHERE ObjectType__c='Contact'], 'one config record per object type');
 	}
 
-	static testMethod void testGridData(){
+	static testMethod void testGridRows(){
 		MRG_Merge_TEST.createMergeFields();
-		MRG_Duplicate_SVC.candidateFilter f = new MRG_Duplicate_SVC.candidateFilter('Contact','test');
+		List<Id> ids = new List<Id>();
+		for(MergeCandidate__c c:[SELECT Id FROM MergeCandidate__c])
+			ids.add(c.Id);
 		test.startTest();
-		MRG_DuplicateMerge_CTRL.gridResponse resp = MRG_DuplicateMerge_CTRL.getGridData(
-			f, new List<String>{'Email','CreatedDate','LastModifiedDate'}, 50, 1);
+		MRG_DuplicateMerge_CTRL.gridResponse resp = MRG_DuplicateMerge_CTRL.getGridRows(
+			'Contact', new List<String>{'Email','CreatedDate','LastModifiedDate'}, ids);
 		test.stopTest();
 		system.assert(!resp.columns.isEmpty(), 'columns should be returned');
 		system.assertEquals('Id', resp.columns[0].name, 'Id should be the first column');
@@ -244,13 +246,28 @@ private class MRG_DuplicateMerge_TEST {
 		system.assert(rowTypes.contains('result'), 'a simulated result row should be present');
 	}
 
-	static testMethod void testGridDataPageSizeClamped(){
+	static testMethod void testGridRowsEmpty(){
+		MRG_DuplicateMerge_CTRL.gridResponse resp = MRG_DuplicateMerge_CTRL.getGridRows('Contact', new List<String>{'Email'}, new List<Id>());
+		system.assert(resp.groups.isEmpty(), 'no candidate ids should yield no groups');
+	}
+
+	static testMethod void testRunActionOverFilterRemove(){
 		MRG_Duplicate_SVC.candidateFilter f = new MRG_Duplicate_SVC.candidateFilter('Contact','test');
-		// below-min and above-max page sizes must not throw and still return the page
-		MRG_DuplicateMerge_CTRL.gridResponse small = MRG_DuplicateMerge_CTRL.getGridData(f, new List<String>{'Email'}, 1, 1);
-		MRG_DuplicateMerge_CTRL.gridResponse big = MRG_DuplicateMerge_CTRL.getGridData(f, new List<String>{'Email'}, 9999, 1);
-		system.assert(!small.groups.isEmpty(), 'a below-min page size should clamp to 10 and still return data');
-		system.assert(!big.groups.isEmpty(), 'an above-max page size should clamp to 200 and still return data');
+		test.startTest();
+		Id jobId = MRG_DuplicateMerge_CTRL.runActionOverFilter(f, 'remove');
+		test.stopTest();
+		system.assertNotEquals(null, jobId, 'a batch job id should be returned');
+		for(MergeCandidate__c c:[SELECT NotADuplicate__c FROM MergeCandidate__c WHERE Object__c='Contact' AND Rule__c='test'])
+			system.assertEquals(true, c.NotADuplicate__c, 'remove-over-filter should mark matching candidates not a duplicate');
+	}
+
+	static testMethod void testRunActionOverFilterMerge(){
+		MRG_Merge_TEST.createMergeFields();
+		MRG_Duplicate_SVC.candidateFilter f = new MRG_Duplicate_SVC.candidateFilter('Contact','test');
+		test.startTest();
+		Id jobId = MRG_DuplicateMerge_CTRL.runActionOverFilter(f, 'merge');
+		test.stopTest();
+		system.assertNotEquals(null, jobId, 'a batch job id should be returned for a merge');
 	}
 
 	static testMethod void testCountFilters(){

@@ -1,6 +1,12 @@
 import { createElement } from 'lwc';
 import MergeCandidateGrid from 'c/mergeCandidateGrid';
 
+const KEEP_GROUPS = [
+    {
+        keepId: '003A', keepName: 'Acme', objectType: 'Contact',
+        pairs: [{ id: 'mc1', mergeId: '003B', mergeName: 'Acme 2', confidenceScore: 90 }]
+    }
+];
 const FIELD_OPTIONS = {
     leadFields: [{ name: 'Id', label: 'Record ID', type: 'id' }],
     trailFields: [
@@ -12,34 +18,36 @@ const FIELD_OPTIONS = {
         { name: 'Phone', label: 'Phone', type: 'phone', displayLabel: 'Phone (Phone)', selected: false }
     ]
 };
-const GRID_DATA = {
+const GRID_ROWS = {
     columns: [
         { name: 'Id', label: 'Record ID', type: 'id' },
         { name: 'Email', label: 'Email', type: 'email' }
     ],
     groups: [
         {
-            keepId: '003A', keepName: 'Acme', objectType: 'Contact',
+            keepId: '003A',
             rows: [
-                { rowType: 'keep', recordId: '003A', candidateId: null, selectable: false,
-                  cells: [{ name: 'Id', value: '003A' }, { name: 'Email', value: 'a@x.com' }] },
-                { rowType: 'duplicate', recordId: '003B', candidateId: 'mc1', selectable: true,
-                  cells: [{ name: 'Id', value: '003B' }, { name: 'Email', value: 'b@x.com' }] },
-                { rowType: 'result', recordId: '003A', candidateId: null, selectable: false,
-                  cells: [{ name: 'Id', value: '003A' }, { name: 'Email', value: 'a@x.com' }] }
+                { rowType: 'keep', recordId: '003A', candidateId: null, cells: [{ name: 'Id', value: '003A' }, { name: 'Email', value: 'a@x.com' }] },
+                { rowType: 'duplicate', recordId: '003B', candidateId: 'mc1', cells: [{ name: 'Id', value: '003B' }, { name: 'Email', value: 'b@x.com' }] },
+                { rowType: 'result', recordId: '003A', candidateId: null, cells: [{ name: 'Id', value: '003A' }, { name: 'Email', value: 'a@x.com' }] }
             ]
         }
     ]
 };
 
 jest.mock(
-    '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridFieldOptions',
-    () => ({ default: jest.fn(() => Promise.resolve(FIELD_OPTIONS)) }),
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.getKeepGroups',
+    () => ({ default: jest.fn(() => Promise.resolve(KEEP_GROUPS)) }),
     { virtual: true }
 );
 jest.mock(
-    '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridData',
-    () => ({ default: jest.fn(() => Promise.resolve(GRID_DATA)) }),
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridRows',
+    () => ({ default: jest.fn(() => Promise.resolve(GRID_ROWS)) }),
+    { virtual: true }
+);
+jest.mock(
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.getGridFieldOptions',
+    () => ({ default: jest.fn(() => Promise.resolve(FIELD_OPTIONS)) }),
     { virtual: true }
 );
 jest.mock(
@@ -69,6 +77,12 @@ jest.mock(
     () => ({ default: jest.fn(() => Promise.resolve('merged')) }),
     { virtual: true }
 );
+const mockRunOverFilter = jest.fn(() => Promise.resolve('707000000000000AAA'));
+jest.mock(
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.runActionOverFilter',
+    () => ({ default: (...args) => mockRunOverFilter(...args) }),
+    { virtual: true }
+);
 
 function flush() {
     return new Promise(resolve => setTimeout(resolve, 0));
@@ -76,11 +90,18 @@ function flush() {
 function buttonByLabel(el, label) {
     return Array.from(el.shadowRoot.querySelectorAll('lightning-button')).find(b => b.label === label);
 }
+function nativeButtonByText(el, text) {
+    return Array.from(el.shadowRoot.querySelectorAll('button.slds-button')).find(b => b.textContent.trim() === text);
+}
+function gearButton(el) {
+    return Array.from(el.shadowRoot.querySelectorAll('lightning-button-icon')).find(b => b.iconName === 'utility:settings');
+}
 async function render() {
     const el = createElement('c-merge-candidate-grid', { is: MergeCandidateGrid });
     el.objectType = 'Contact';
     el.filter = { objectType: 'Contact', ruleName: 'test', statuses: ['New'] };
     document.body.appendChild(el);
+    await flush();
     await flush();
     return el;
 }
@@ -93,94 +114,82 @@ describe('c-merge-candidate-grid', () => {
         jest.clearAllMocks();
     });
 
-    it('renders a column per field and a row per keep/duplicate/result', async () => {
+    it('renders a group with keep/duplicate/result rows and a column per field', async () => {
         const el = await render();
         const headers = el.shadowRoot.querySelectorAll('thead th');
-        // one "Row" header + one per column
-        expect(headers.length).toBe(GRID_DATA.columns.length + 1);
-        // a checkbox is rendered only for the selectable duplicate row
-        const checkboxes = Array.from(el.shadowRoot.querySelectorAll('lightning-input'))
-            .filter(i => i.type === 'checkbox');
-        expect(checkboxes.length).toBe(1);
+        expect(headers.length).toBe(GRID_ROWS.columns.length + 1); // Row + columns, one group
+        const checkboxes = Array.from(el.shadowRoot.querySelectorAll('lightning-input')).filter(i => i.type === 'checkbox');
+        expect(checkboxes.length).toBe(1); // one selectable duplicate row
+        const preview = Array.from(el.shadowRoot.querySelectorAll('lightning-button-icon')).find(b => b.iconName === 'utility:preview');
+        expect(preview).toBeTruthy();
     });
 
-    it('enables actions on selection and merges the selected candidate', async () => {
+    it('select page then Merge calls the bulk action with the page candidate ids', async () => {
         const el = await render();
-        expect(buttonByLabel(el, 'Merge').disabled).toBe(true);
-
-        const checkbox = Array.from(el.shadowRoot.querySelectorAll('lightning-input'))
-            .find(i => i.dataset.candidate === 'mc1');
-        checkbox.checked = true;
-        checkbox.dispatchEvent(new CustomEvent('change'));
+        expect(nativeButtonByText(el, 'Merge').disabled).toBe(true);
+        nativeButtonByText(el, 'Select page').dispatchEvent(new CustomEvent('click'));
         await flush();
-
-        expect(buttonByLabel(el, 'Merge').disabled).toBe(false);
-        buttonByLabel(el, 'Merge').dispatchEvent(new CustomEvent('click'));
+        expect(nativeButtonByText(el, 'Merge').disabled).toBe(false);
+        nativeButtonByText(el, 'Merge').dispatchEvent(new CustomEvent('click'));
         await flush();
         expect(mockMergeRecords).toHaveBeenCalledWith({ recordIds: ['mc1'] });
     });
 
-    it('reveals selectable field checkboxes when the field panel is toggled', async () => {
+    it('select all pages then Merge runs the background batch over the filter', async () => {
         const el = await render();
-        expect(el.shadowRoot.querySelector('.grid-field-panel')).toBeNull();
-        buttonByLabel(el, 'Configure Fields').dispatchEvent(new CustomEvent('click'));
+        nativeButtonByText(el, 'Select all pages').dispatchEvent(new CustomEvent('click'));
         await flush();
-        const panel = el.shadowRoot.querySelector('.grid-field-panel');
-        expect(panel).toBeTruthy();
-        const optional = Array.from(panel.querySelectorAll('lightning-input'))
-            .find(i => i.dataset.field === 'Phone');
-        expect(optional).toBeTruthy();
+        nativeButtonByText(el, 'Merge').dispatchEvent(new CustomEvent('click'));
+        await flush();
+        expect(mockMergeRecords).not.toHaveBeenCalled();
+        expect(mockRunOverFilter).toHaveBeenCalled();
+        const args = mockRunOverFilter.mock.calls[0][0];
+        expect(args.action).toBe('merge');
+        expect(args.filter.objectType).toBe('Contact');
     });
 
-    it('batches toggles, saves on Save, and closes the panel', async () => {
+    it('opens the preview modal from a duplicate row', async () => {
         const el = await render();
-        buttonByLabel(el, 'Configure Fields').dispatchEvent(new CustomEvent('click'));
+        const preview = Array.from(el.shadowRoot.querySelectorAll('lightning-button-icon')).find(b => b.iconName === 'utility:preview');
+        preview.dispatchEvent(new CustomEvent('click'));
         await flush();
-        const phone = Array.from(el.shadowRoot.querySelectorAll('.grid-field-panel lightning-input'))
-            .find(i => i.dataset.field === 'Phone');
+        expect(el.shadowRoot.querySelector('c-merge-preview')).toBeTruthy();
+    });
+
+    it('header Preview opens the modal for the current selection', async () => {
+        const el = await render();
+        expect(nativeButtonByText(el, 'Preview').disabled).toBe(true);
+        nativeButtonByText(el, 'Select page').dispatchEvent(new CustomEvent('click'));
+        await flush();
+        expect(nativeButtonByText(el, 'Preview').disabled).toBe(false);
+        nativeButtonByText(el, 'Preview').dispatchEvent(new CustomEvent('click'));
+        await flush();
+        expect(el.shadowRoot.querySelector('c-merge-preview')).toBeTruthy();
+    });
+
+    it('batches field toggles, saves on Save, and closes the panel', async () => {
+        const el = await render();
+        gearButton(el).dispatchEvent(new CustomEvent('click'));
+        await flush();
+        const phone = Array.from(el.shadowRoot.querySelectorAll('.grid-field-panel lightning-input')).find(i => i.dataset.field === 'Phone');
         phone.checked = true;
         phone.dispatchEvent(new CustomEvent('change'));
         await flush();
-        expect(mockSaveConfig).not.toHaveBeenCalled(); // toggles are batched, not saved yet
-
+        expect(mockSaveConfig).not.toHaveBeenCalled();
         buttonByLabel(el, 'Save').dispatchEvent(new CustomEvent('click'));
         await flush();
-        // Email (default-selected) + Phone (just added)
         expect(mockSaveConfig).toHaveBeenCalledWith({ objectType: 'Contact', fields: ['Email', 'Phone'] });
-        expect(el.shadowRoot.querySelector('.grid-field-panel')).toBeNull(); // save closes the panel
-    });
-
-    it('reorders selected fields and persists the new column order', async () => {
-        const el = await render();
-        buttonByLabel(el, 'Configure Fields').dispatchEvent(new CustomEvent('click'));
-        await flush();
-        // select Phone so both Email and Phone are selected
-        const phone = Array.from(el.shadowRoot.querySelectorAll('.grid-field-panel lightning-input'))
-            .find(i => i.dataset.field === 'Phone');
-        phone.checked = true;
-        phone.dispatchEvent(new CustomEvent('change'));
-        await flush();
-        // move Phone above Email
-        const phoneUp = Array.from(el.shadowRoot.querySelectorAll('lightning-button-icon'))
-            .find(b => b.dataset.field === 'Phone' && b.iconName === 'utility:up');
-        expect(phoneUp).toBeTruthy();
-        phoneUp.dispatchEvent(new CustomEvent('click'));
-        await flush();
-        buttonByLabel(el, 'Save').dispatchEvent(new CustomEvent('click'));
-        await flush();
-        expect(mockSaveConfig).toHaveBeenCalledWith({ objectType: 'Contact', fields: ['Phone', 'Email'] });
+        expect(el.shadowRoot.querySelector('.grid-field-panel')).toBeNull();
     });
 
     it('filters the field list by label or api name', async () => {
         const el = await render();
-        buttonByLabel(el, 'Configure Fields').dispatchEvent(new CustomEvent('click'));
+        gearButton(el).dispatchEvent(new CustomEvent('click'));
         await flush();
-        const search = Array.from(el.shadowRoot.querySelectorAll('lightning-input'))
-            .find(i => i.type === 'search');
+        const search = Array.from(el.shadowRoot.querySelectorAll('lightning-input')).find(i => i.type === 'search');
         search.dispatchEvent(new CustomEvent('change', { detail: { value: 'phone' } }));
         await flush();
-        const checks = Array.from(el.shadowRoot.querySelectorAll('.grid-field-panel lightning-input'))
-            .filter(i => i.type === 'checkbox');
+        const checks = Array.from(el.shadowRoot.querySelectorAll('.grid-field-panel lightning-input')).filter(i => i.type === 'checkbox');
         expect(checks.length).toBe(1);
         expect(checks[0].dataset.field).toBe('Phone');
     });
