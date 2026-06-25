@@ -37,3 +37,13 @@
 .grid-field-save {
     font-size: 0.75rem;
 }
+/* one size smaller than the default SLDS button */
+.btn-sm {
+    font-size: 0.75rem;
+    line-height: 1.55;
+    padding: 0 0.5rem;
+    margin-right: 0.25rem;
+}
+.grid-pagesize {
+    width: 6rem;
+}

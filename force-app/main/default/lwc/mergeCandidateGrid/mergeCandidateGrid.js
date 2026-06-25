@@ -239,12 +239,27 @@ export default class MergeCandidateGrid extends LightningElement {
     handleClearSelection(){ this.clearSelection(); }
     get hasSelection(){ return this.selectAllMax || this.selectedCandidateIds.length > 0; }
     get actionsDisabled(){ return !this.hasSelection; }
+    // preview needs concrete records to step through, so it's unavailable for the "all maximum" mode
+    get previewDisabled(){ return this.selectAllMax || this.selectedCandidateIds.length === 0; }
     get selectionLabel(){
         if(this.selectAllMax)
             return 'All ' + this.totalCandidates + ' matching selected';
         if(this.selectedCandidateIds.length)
             return this.selectedCandidateIds.length + ' selected';
         return null;
+    }
+    // header Preview: open the shared preview modal over the selected candidates (step through them)
+    handleHeaderPreview(){
+        if(this.previewDisabled)
+            return;
+        const byId = {};
+        this.allGroups.forEach(g=>(g.pairs || []).forEach(p=>{ byId[p.id] = p; }));
+        const sel = this.selectedCandidateIds.filter(id=>byId[id]);
+        if(!sel.length)
+            return;
+        this.navItems = sel.map(id=>this.toNavItem(byId[id], sel[0]));
+        this.selectedRecordId = sel[0];
+        this.isModalOpen = true;
     }
 
     // ---- bulk actions ----

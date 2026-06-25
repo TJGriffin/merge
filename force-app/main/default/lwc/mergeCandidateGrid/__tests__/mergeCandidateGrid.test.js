@@ -90,6 +90,12 @@ function flush() {
 function buttonByLabel(el, label) {
     return Array.from(el.shadowRoot.querySelectorAll('lightning-button')).find(b => b.label === label);
 }
+function nativeButtonByText(el, text) {
+    return Array.from(el.shadowRoot.querySelectorAll('button.slds-button')).find(b => b.textContent.trim() === text);
+}
+function gearButton(el) {
+    return Array.from(el.shadowRoot.querySelectorAll('lightning-button-icon')).find(b => b.iconName === 'utility:settings');
+}
 async function render() {
     const el = createElement('c-merge-candidate-grid', { is: MergeCandidateGrid });
     el.objectType = 'Contact';
@@ -118,22 +124,22 @@ describe('c-merge-candidate-grid', () => {
         expect(preview).toBeTruthy();
     });
 
-    it('select all (page) then Merge calls the bulk action with the page candidate ids', async () => {
+    it('select page then Merge calls the bulk action with the page candidate ids', async () => {
         const el = await render();
-        expect(buttonByLabel(el, 'Merge').disabled).toBe(true);
-        buttonByLabel(el, 'Select all (page)').dispatchEvent(new CustomEvent('click'));
+        expect(nativeButtonByText(el, 'Merge').disabled).toBe(true);
+        nativeButtonByText(el, 'Select page').dispatchEvent(new CustomEvent('click'));
         await flush();
-        expect(buttonByLabel(el, 'Merge').disabled).toBe(false);
-        buttonByLabel(el, 'Merge').dispatchEvent(new CustomEvent('click'));
+        expect(nativeButtonByText(el, 'Merge').disabled).toBe(false);
+        nativeButtonByText(el, 'Merge').dispatchEvent(new CustomEvent('click'));
         await flush();
         expect(mockMergeRecords).toHaveBeenCalledWith({ recordIds: ['mc1'] });
     });
 
-    it('select all (maximum) then Merge runs the background batch over the filter', async () => {
+    it('select all pages then Merge runs the background batch over the filter', async () => {
         const el = await render();
-        buttonByLabel(el, 'Select all (maximum)').dispatchEvent(new CustomEvent('click'));
+        nativeButtonByText(el, 'Select all pages').dispatchEvent(new CustomEvent('click'));
         await flush();
-        buttonByLabel(el, 'Merge').dispatchEvent(new CustomEvent('click'));
+        nativeButtonByText(el, 'Merge').dispatchEvent(new CustomEvent('click'));
         await flush();
         expect(mockMergeRecords).not.toHaveBeenCalled();
         expect(mockRunOverFilter).toHaveBeenCalled();
@@ -150,9 +156,20 @@ describe('c-merge-candidate-grid', () => {
         expect(el.shadowRoot.querySelector('c-merge-preview')).toBeTruthy();
     });
 
+    it('header Preview opens the modal for the current selection', async () => {
+        const el = await render();
+        expect(nativeButtonByText(el, 'Preview').disabled).toBe(true);
+        nativeButtonByText(el, 'Select page').dispatchEvent(new CustomEvent('click'));
+        await flush();
+        expect(nativeButtonByText(el, 'Preview').disabled).toBe(false);
+        nativeButtonByText(el, 'Preview').dispatchEvent(new CustomEvent('click'));
+        await flush();
+        expect(el.shadowRoot.querySelector('c-merge-preview')).toBeTruthy();
+    });
+
     it('batches field toggles, saves on Save, and closes the panel', async () => {
         const el = await render();
-        buttonByLabel(el, 'Configure Fields').dispatchEvent(new CustomEvent('click'));
+        gearButton(el).dispatchEvent(new CustomEvent('click'));
         await flush();
         const phone = Array.from(el.shadowRoot.querySelectorAll('.grid-field-panel lightning-input')).find(i => i.dataset.field === 'Phone');
         phone.checked = true;
@@ -167,7 +184,7 @@ describe('c-merge-candidate-grid', () => {
 
     it('filters the field list by label or api name', async () => {
         const el = await render();
-        buttonByLabel(el, 'Configure Fields').dispatchEvent(new CustomEvent('click'));
+        gearButton(el).dispatchEvent(new CustomEvent('click'));
         await flush();
         const search = Array.from(el.shadowRoot.querySelectorAll('lightning-input')).find(i => i.type === 'search');
         search.dispatchEvent(new CustomEvent('change', { detail: { value: 'phone' } }));

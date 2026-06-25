@@ -1,34 +1,36 @@
 <template>
     <div class="slds-box slds-box_x-small slds-m-around_x-small">
-        <!-- toolbar: paging size, field config, bulk actions -->
-        <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end slds-wrap slds-m-bottom_x-small">
-            <div class="slds-grid slds-gutters_x-small slds-grid_vertical-align-end slds-wrap">
-                <div class="slds-col" style="min-width:8rem;">
+        <!-- toolbar: paging size + field config (left), selection + bulk actions (right) -->
+        <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end slds-wrap slds-m-bottom_x-small grid-toolbar">
+            <div class="slds-grid slds-grid_vertical-align-end slds-wrap">
+                <div class="slds-col grid-pagesize">
                     <lightning-combobox
                         label="Groups / page"
                         value={groupsPerPageValue}
                         options={groupPageOptions}
                         onchange={handleGroupsPerPageChange}></lightning-combobox>
                 </div>
-                <div class="slds-col slds-align-bottom">
-                    <lightning-button label="Configure Fields" icon-name="utility:settings" onclick={toggleFieldPanel}></lightning-button>
+                <div class="slds-col slds-align-bottom slds-m-left_xx-small">
+                    <lightning-button-icon icon-name="utility:settings" variant="border" size="small" alternative-text="Configure Fields" title="Configure Fields" onclick={toggleFieldPanel}></lightning-button-icon>
+                </div>
+                <div class="slds-col slds-align-bottom slds-m-left_large">
+                    <button class="slds-button slds-button_neutral btn-sm" onclick={handleSelectAllPage}>Select page</button>
+                    <button class="slds-button slds-button_neutral btn-sm" onclick={handleSelectAllMax}>Select all pages</button>
                 </div>
             </div>
             <div class="slds-col slds-align-bottom">
-                <lightning-button label="Merge" variant="success" disabled={actionsDisabled} onclick={handleMergeSelected} class="slds-m-right_xx-small"></lightning-button>
-                <lightning-button label="Merge Accounts" disabled={actionsDisabled} onclick={handleMergeAccountsSelected} class="slds-m-right_xx-small"></lightning-button>
-                <lightning-button label="Remove" variant="destructive" disabled={actionsDisabled} onclick={handleRemoveSelected}></lightning-button>
+                <button class="slds-button slds-button_neutral btn-sm" disabled={previewDisabled} onclick={handleHeaderPreview}>Preview</button>
+                <button class="slds-button slds-button_success btn-sm" disabled={actionsDisabled} onclick={handleMergeSelected}>Merge</button>
+                <button class="slds-button slds-button_neutral btn-sm" disabled={actionsDisabled} onclick={handleMergeAccountsSelected}>Merge Accounts</button>
+                <button class="slds-button slds-button_destructive btn-sm" disabled={actionsDisabled} onclick={handleRemoveSelected}>Remove</button>
             </div>
         </div>
-        <!-- selection controls -->
-        <div class="slds-grid slds-gutters_x-small slds-grid_vertical-align-center slds-wrap slds-m-bottom_x-small">
-            <lightning-button label="Select all (page)" onclick={handleSelectAllPage} class="slds-m-right_xx-small"></lightning-button>
-            <lightning-button label="Select all (maximum)" onclick={handleSelectAllMax} class="slds-m-right_xx-small"></lightning-button>
-            <template if:true={selectionLabel}>
-                <span class="slds-text-body_small slds-m-horizontal_x-small">{selectionLabel}</span>
-                <lightning-button label="Clear" variant="base" onclick={handleClearSelection}></lightning-button>
-            </template>
-        </div>
+        <template if:true={selectionLabel}>
+            <div class="slds-grid slds-grid_vertical-align-center slds-m-bottom_x-small">
+                <span class="slds-text-body_small slds-m-right_x-small">{selectionLabel}</span>
+                <button class="slds-button slds-button_neutral btn-sm" onclick={handleClearSelection}>Clear</button>
+            </div>
+        </template>
 
         <template if:true={cappedNotice}>
             <div class="slds-text-color_weak slds-text-body_small slds-m-bottom_x-small">{cappedNotice}</div>
