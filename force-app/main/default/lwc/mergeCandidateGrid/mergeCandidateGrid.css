@@ -47,3 +47,38 @@
 .grid-pagesize {
     width: 6rem;
 }
+/* widen the preview modal so the field table isn't cramped */
+.grid-preview-modal .slds-modal__container {
+    width: 90%;
+    max-width: 80rem;
+}
+/* keep-cell inline edit: the value truncates and always leaves room for the pencil, which is
+   faint until the keep row is hovered. */
+.grid-cell-inner {
+    flex-wrap: nowrap;
+}
+.grid-cell-inner > span {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.grid-edit-pencil {
+    flex: 0 0 auto;
+    opacity: 0.45;
+}
+.grid-row_result td:hover .grid-edit-pencil {
+    opacity: 1;
+}
+.grid-cell_overridden {
+    background-color: #fef3c7;
+    font-weight: 600;
+    padding: 0 0.25rem;
+    border-radius: 0.125rem;
+}
+.grid-edit-select {
+    font-size: 0.8rem;
+    max-width: 100%;
+    padding: 0.1rem 0.25rem;
+    border: 1px solid #c9c9c9;
+    border-radius: 0.125rem;
+    background-color: #fff;
+}

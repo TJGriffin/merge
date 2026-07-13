@@ -189,6 +189,9 @@ public with sharing class MRG_DuplicateMerge_CTRL {
         Map<Id, SObject> displayMap = new Map<Id, SObject>(
             Database.query('SELECT ' + String.join(displayFields, ',') + ' FROM ' + objectType + ' WHERE Id IN :recordIds'));
 
+        // any saved keep-value overrides, keyed by kept record id (overlaid on the keep row below)
+        Map<Id, Map<String,Object>> overridesByKeep = MRG_Merge_SVC.getManualOverridesByKeepId(candidates);
+
         // simulate the merges once for these candidates; map the result records by kept id
         MRG_Merge_SVC.mergeHistoryResult mr = MRG_Merge_SVC.getMergeHistoryResult(candidates, objectType);
         Map<Id, Map<String,Object>> resultByKeepId = new Map<Id, Map<String,Object>>();
@@ -223,7 +226,8 @@ public with sharing class MRG_DuplicateMerge_CTRL {
         }
         for(String keepId:keepOrder){
             gridGroup g = byKeep.get(keepId);
-            g.rows.add(buildResultRow(displayFields, displayMap.get(keepId), resultByKeepId.get(Id.valueOf(keepId))));
+            Id kid = Id.valueOf(keepId);
+            g.rows.add(buildResultRow(displayFields, displayMap.get(keepId), resultByKeepId.get(kid), overridesByKeep.get(kid)));
             resp.groups.add(g);
         }
         return resp;
@@ -400,6 +404,56 @@ public with sharing class MRG_DuplicateMerge_CTRL {
         } catch(Exception e){
             return e.getMessage();
         }
+    }
+	/*******************************************************************************************************
+	* @description overrides a single kept-field value for a grid group: writes the chosen value as a
+	* field override onto every candidate pair that shares the kept record, preserving any other overrides
+	* already stored. Mirrors the preview's manual override, keyed by kept record id at merge time.
+	* @param candidateIds the merge candidate ids of the group (all pairs sharing the kept record)
+	* @param field the field API name being overridden
+	* @param value the chosen value (one of the non-null values across the group's records)
+	* @return String response
+	*/
+    @AuraEnabled
+    public static String setKeepFieldOverride(List<Id> candidateIds, String field, String value){
+        if(candidateIds == null || candidateIds.isEmpty() || String.isBlank(field))
+            return 'No override to save';
+        List<MergeCandidate__c> cands = [
+            SELECT Id, Object__c, Override__c, PairKey__c, KeepRecordId__c, MergeRecordId__c
+            FROM MergeCandidate__c WHERE Id IN :candidateIds];
+        if(cands.isEmpty())
+            return 'No candidates';
+        // resolve the field's SOAP type so a typed value (date/number/boolean) coerces correctly at merge
+        String fieldType = null;
+        Schema.SObjectType sobjType = Schema.getGlobalDescribe().get(cands[0].Object__c);
+        if(sobjType != null){
+            Map<String, Schema.SObjectField> fmap = sobjType.getDescribe().fields.getMap();
+            if(fmap.containsKey(field.toLowerCase()))
+                fieldType = fmap.get(field.toLowerCase()).getDescribe().getSOAPType().name();
+        }
+        for(MergeCandidate__c c:cands){
+            List<MRG_MergeCandidate.fieldOverride> overrides = String.isBlank(c.Override__c)
+                ? new List<MRG_MergeCandidate.fieldOverride>()
+                : (List<MRG_MergeCandidate.fieldOverride>) JSON.deserialize(c.Override__c, List<MRG_MergeCandidate.fieldOverride>.class);
+            Boolean found = false;
+            for(MRG_MergeCandidate.fieldOverride o:overrides){
+                if(o.fieldName == field){ o.fieldValue = value; o.fieldType = fieldType; found = true; break; }
+            }
+            if(!found){
+                MRG_MergeCandidate.fieldOverride o = new MRG_MergeCandidate.fieldOverride();
+                o.fieldName = field;
+                o.fieldValue = value;
+                o.fieldType = fieldType;
+                overrides.add(o);
+            }
+            c.Override__c = JSON.serialize(overrides);
+            // PairKey__c is required; backfill its canonical value if a legacy record is missing it so the
+            // override update doesn't fail required-field validation
+            if(String.isBlank(c.PairKey__c) && String.isNotBlank(c.KeepRecordId__c) && String.isNotBlank(c.MergeRecordId__c))
+                c.PairKey__c = c.KeepRecordId__c + '-' + c.MergeRecordId__c;
+        }
+        update cands;
+        return 'Keep value overridden';
     }
 	/*******************************************************************************************************
 	* @description merges the Accounts for several contact candidates at once (grid multi-select, #84)
@@ -632,7 +686,7 @@ public with sharing class MRG_DuplicateMerge_CTRL {
 	* @description the simulated result row: the kept record's value overlaid with any field the merge
 	* engine changed (read from the serialized result map so unqueried fields don't throw)
 	*/
-    private static gridRow buildResultRow(List<String> fields, SObject keepRec, Map<String,Object> resultMap){
+    private static gridRow buildResultRow(List<String> fields, SObject keepRec, Map<String,Object> resultMap, Map<String,Object> ov){
         gridRow row = new gridRow();
         row.rowType = 'result';
         row.recordId = keepRec != null ? (String) keepRec.get('Id') : null;
@@ -646,6 +700,9 @@ public with sharing class MRG_DuplicateMerge_CTRL {
             Object val = (resultMap != null && resultMap.containsKey(lf)) ? resultMap.get(lf)
                 : (keepRec != null ? keepRec.get(fld) : null);
             cell.value = toStr(val);
+            // flag values that came from a manual override so the grid can highlight them
+            if(ov != null && ov.containsKey(fld))
+                cell.overrideValue = toStr(ov.get(fld));
             row.cells.add(cell);
         }
         return row;
@@ -703,5 +760,6 @@ public with sharing class MRG_DuplicateMerge_CTRL {
     public class gridCell {
         @AuraEnabled public String name;
         @AuraEnabled public String value;
+        @AuraEnabled public String overrideValue;
     }
 }

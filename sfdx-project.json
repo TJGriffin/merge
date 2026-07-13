@@ -4,8 +4,8 @@
       "path": "force-app",
       "default": true,
       "package": "merge",
-      "versionName": "ver 2.6.0",
-      "versionNumber": "2.6.0.NEXT"
+      "versionName": "ver 2.7.0",
+      "versionNumber": "2.7.0.NEXT"
     }
   ],
   "namespace": "",
@@ -25,6 +25,7 @@
     "merge@2.4.4-1": "04tKb000000EgzMIAS",
     "merge@2.4.5-1": "04tKb000000EgzRIAS",
     "merge@2.5.0-2": "04tKb000000EgzqIAC",
-    "merge@2.6.0-2": "04tKb000000Eh0AIAS"
+    "merge@2.6.0-2": "04tKb000000Eh0AIAS",
+    "merge@2.7.0-1": "04tKb000000Eh0yIAC"
   }
 }

@@ -9,6 +9,7 @@ import mergeRecords from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeRecords'
 import removeRecords from '@salesforce/apex/MRG_DuplicateMerge_CTRL.removeRecords';
 import mergeAccountsBulk from '@salesforce/apex/MRG_DuplicateMerge_CTRL.mergeAccountsBulk';
 import runActionOverFilter from '@salesforce/apex/MRG_DuplicateMerge_CTRL.runActionOverFilter';
+import setKeepFieldOverride from '@salesforce/apex/MRG_DuplicateMerge_CTRL.setKeepFieldOverride';
 
 // the grid mirrors the list view's two-level paging: it loads the working set of groups (up to CAP)
 // via getKeepGroups, pages groups (outer) and duplicates within a group (inner) client-side, and lazily
@@ -53,6 +54,8 @@ export default class MergeCandidateGrid extends LightningElement {
     isModalOpen = false;
     selectedRecordId;
     @track navItems = [];
+    // the keep cell (keepId::field) currently being edited inline
+    editingCellKey = null;
 
     groupPageOptions = GROUP_PAGE_OPTIONS;
     _loaded = false;
@@ -150,18 +153,19 @@ export default class MergeCandidateGrid extends LightningElement {
             const visiblePairs = pairs.slice((pairPage - 1) * PAIRS_PER_PAGE, pairPage * PAIRS_PER_PAGE);
             const displayRows = [];
             if(rows){
-                displayRows.push(this.staticRow(g.keepId, 'keep', 'Keep', 'grid-row_keep', rows.keepCells));
+                displayRows.push(this.staticRow(g.keepId, 'keep', 'Keep', 'grid-row_keep', this.plainCells(g.keepId + '-keep', rows.keepCells)));
                 visiblePairs.forEach(p=>{
                     const checked = this.selectAllMax || selected.has(p.id);
                     (rows.dupByCandidate[p.id] || []).forEach((d, di)=>{
                         displayRows.push({
                             key: g.keepId + '-dup-' + p.id + '-' + di,
                             rowType: 'duplicate', rowLabel: 'Duplicate', rowClass: 'grid-row_duplicate',
-                            selectable: true, candidateId: p.id, keepId: g.keepId, checked: checked, cells: d.cells
+                            selectable: true, candidateId: p.id, keepId: g.keepId, checked: checked,
+                            cells: this.plainCells(g.keepId + '-dup-' + p.id + '-' + di, d.cells)
                         });
                     });
                 });
-                displayRows.push(this.staticRow(g.keepId, 'result', 'Result', 'grid-row_result', rows.resultCells));
+                displayRows.push(this.staticRow(g.keepId, 'result', 'Result', 'grid-row_result', this.buildEditableCells(g.keepId, rows)));
             }
             return {
                 keepId: g.keepId,
@@ -178,6 +182,67 @@ export default class MergeCandidateGrid extends LightningElement {
     staticRow(keepId, rowType, rowLabel, rowClass, cells){
         return { key: keepId + '-' + rowType, rowType: rowType, rowLabel: rowLabel, rowClass: rowClass,
             selectable: false, candidateId: null, keepId: keepId, checked: false, cells: cells || [] };
+    }
+    // non-editable cells (duplicate/result rows) keyed for stable rendering
+    plainCells(prefix, cells){
+        return (cells || []).map(c=>({ key: prefix + '::' + c.name, value: c.value, editable: false, cellClass: 'slds-truncate' }));
+    }
+    // result-row cells, each editable to one of the distinct non-null values across the group's records
+    // (choosing a value writes a manual override that decides what the merge keeps for that field)
+    buildEditableCells(keepId, rows){
+        const systemFields = ['id', 'createddate', 'lastmodifieddate'];
+        const keepCells = rows.keepCells || [];
+        const dupMap = rows.dupByCandidate || {};
+        return (rows.resultCells || []).map(c=>{
+            const field = c.name;
+            const options = [];
+            const seen = new Set();
+            const add = v=>{ if(v != null && v !== '' && !seen.has(v)){ seen.add(v); options.push({label:v, value:v}); } };
+            const kc = keepCells.find(x=>x.name === field);
+            if(kc) add(kc.value);
+            Object.keys(dupMap).forEach(cid=>{
+                (dupMap[cid] || []).forEach(d=>{
+                    const dc = (d.cells || []).find(x=>x.name === field);
+                    if(dc) add(dc.value);
+                });
+            });
+            const hasOverride = c.overrideValue != null && c.overrideValue !== '';
+            const editable = systemFields.indexOf((field || '').toLowerCase()) === -1 && options.length > 1;
+            const editKey = keepId + '::' + field;
+            return {
+                key: editKey,
+                value: c.value,
+                editable: editable,
+                options: options.map(o=>({ label:o.label, value:o.value, isSelected: o.value === c.value })),
+                keepId: keepId,
+                field: field,
+                isEditing: this.editingCellKey === editKey,
+                cellClass: hasOverride ? 'slds-truncate grid-cell_overridden' : 'slds-truncate'
+            };
+        });
+    }
+    handleOverrideEditStart(event){
+        this.editingCellKey = event.currentTarget.dataset.key;
+    }
+    handleOverrideCancel(){
+        this.editingCellKey = null;
+    }
+    handleOverrideChange(event){
+        const keepId = event.currentTarget.dataset.keep;
+        const field = event.currentTarget.dataset.field;
+        const value = event.target.value;
+        this.editingCellKey = null;
+        this.saveFieldOverride(keepId, field, value);
+    }
+    saveFieldOverride(keepId, field, value){
+        const group = (this.allGroups || []).find(g=>g.keepId == keepId);
+        const candidateIds = group ? (group.pairs || []).map(p=>p.id) : [];
+        if(!candidateIds.length)
+            return;
+        this.rowsLoading = true;
+        setKeepFieldOverride({candidateIds:candidateIds, field:field, value:value})
+            .then(()=>{ this.loadVisibleRows(); this.toast('Saved', 'Merge result value overridden.', 'success'); })
+            .catch(error=>{ this.rowsLoading = false; this.handleError(error); });
     }
     get hasGroups(){ return this.allGroups.length > 0; }
     get showSpinner(){ return this.loadingGroups || this.rowsLoading; }
