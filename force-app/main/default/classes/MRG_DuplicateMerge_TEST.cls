@@ -251,6 +251,39 @@ private class MRG_DuplicateMerge_TEST {
 		system.assert(resp.groups.isEmpty(), 'no candidate ids should yield no groups');
 	}
 
+	static testMethod void testGridRowsResultOverrideFlag(){
+		// the setup stored a MailingPostalCode override on the candidate; the result row should flag it
+		List<Id> ids = new List<Id>();
+		for(MergeCandidate__c c:[SELECT Id FROM MergeCandidate__c])
+			ids.add(c.Id);
+		MRG_DuplicateMerge_CTRL.gridResponse resp = MRG_DuplicateMerge_CTRL.getGridRows(
+			'Contact', new List<String>{'MailingPostalCode'}, ids);
+		String overrideVal = null;
+		for(MRG_DuplicateMerge_CTRL.gridRow r:resp.groups[0].rows){
+			if(r.rowType == 'result'){
+				for(MRG_DuplicateMerge_CTRL.gridCell cell:r.cells)
+					if(cell.name == 'MailingPostalCode') overrideVal = cell.overrideValue;
+			}
+		}
+		system.assertEquals('78754', overrideVal, 'the stored override should be flagged on the result row cell');
+	}
+
+	static testMethod void testSetKeepFieldOverride(){
+		MergeCandidate__c mc = [SELECT Id FROM MergeCandidate__c LIMIT 1];
+		test.startTest();
+		String resp = MRG_DuplicateMerge_CTRL.setKeepFieldOverride(new List<Id>{mc.Id}, 'MailingCity', 'Dallas');
+		test.stopTest();
+		system.assertEquals('Keep value overridden', resp);
+		MergeCandidate__c reloaded = [SELECT Override__c FROM MergeCandidate__c WHERE Id=:mc.Id];
+		List<MRG_MergeCandidate.fieldOverride> overrides =
+			(List<MRG_MergeCandidate.fieldOverride>) JSON.deserialize(reloaded.Override__c, List<MRG_MergeCandidate.fieldOverride>.class);
+		Map<String,String> byField = new Map<String,String>();
+		for(MRG_MergeCandidate.fieldOverride o:overrides)
+			byField.put(o.fieldName, o.fieldValue);
+		system.assertEquals('Dallas', byField.get('MailingCity'), 'the new field override should be added');
+		system.assertEquals('78754', byField.get('MailingPostalCode'), 'the pre-existing override should be preserved');
+	}
+
 	static testMethod void testRunActionOverFilterRemove(){
 		MRG_Duplicate_SVC.candidateFilter f = new MRG_Duplicate_SVC.candidateFilter('Contact','test');
 		test.startTest();

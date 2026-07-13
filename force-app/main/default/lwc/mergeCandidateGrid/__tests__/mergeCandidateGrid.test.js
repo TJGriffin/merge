@@ -83,6 +83,12 @@ jest.mock(
     () => ({ default: (...args) => mockRunOverFilter(...args) }),
     { virtual: true }
 );
+const mockSetOverride = jest.fn(() => Promise.resolve('Keep value overridden'));
+jest.mock(
+    '@salesforce/apex/MRG_DuplicateMerge_CTRL.setKeepFieldOverride',
+    () => ({ default: (...args) => mockSetOverride(...args) }),
+    { virtual: true }
+);
 
 function flush() {
     return new Promise(resolve => setTimeout(resolve, 0));
@@ -180,6 +186,24 @@ describe('c-merge-candidate-grid', () => {
         await flush();
         expect(mockSaveConfig).toHaveBeenCalledWith({ objectType: 'Contact', fields: ['Email', 'Phone'] });
         expect(el.shadowRoot.querySelector('.grid-field-panel')).toBeNull();
+    });
+
+    it('overrides the merge result: pencil opens a combobox, selection persists to the group candidates', async () => {
+        const el = await render();
+        // Email differs across keep/duplicate, so the result Email cell is editable
+        const pencil = Array.from(el.shadowRoot.querySelectorAll('lightning-button-icon')).find(b => b.iconName === 'utility:edit');
+        expect(pencil).toBeTruthy();
+        pencil.dispatchEvent(new CustomEvent('click'));
+        await flush();
+        const combo = el.shadowRoot.querySelector('select[data-field="Email"]');
+        expect(combo).toBeTruthy();
+        // both distinct non-null values across the group are offered
+        const optionValues = Array.from(combo.querySelectorAll('option')).map(o => o.value).sort();
+        expect(optionValues).toEqual(['a@x.com', 'b@x.com']);
+        combo.value = 'b@x.com';
+        combo.dispatchEvent(new CustomEvent('change'));
+        await flush();
+        expect(mockSetOverride).toHaveBeenCalledWith({ candidateIds: ['mc1'], field: 'Email', value: 'b@x.com' });
     });
 
     it('filters the field list by label or api name', async () => {
