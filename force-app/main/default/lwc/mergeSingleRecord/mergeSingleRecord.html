@@ -246,6 +246,19 @@
                                     </div>
                                 </template>
 
+                                <template if:true={isPriorityOrder}>
+                                    <div class={panelClass.priority} role="tabpanel">
+                                        <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small">
+                                            Rank the picklist values highest priority first, separated by semicolons
+                                            (e.g. Owner;Manager;Employee). The highest-priority value across the merge
+                                            candidates is preserved; values not listed rank below all listed values.
+                                        </p>
+                                        <lightning-input label="Priority Order" value={mergeRecord.priorityOrder}
+                                            placeholder="First;Second;Third" onchange={handlePriorityOrderChange}>
+                                        </lightning-input>
+                                    </div>
+                                </template>
+
                                 <template if:true={isApex}>
                                     <div class={panelClass.apex} role="tabpanel">
                                         <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">

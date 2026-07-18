@@ -178,6 +178,8 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public String containsValue;
 		// for rule == 'Concatenate': the character joining the unique values (default ';')
 		@auraEnabled public String concatenateCharacter;
+		// for rule == 'Priority Order': ranked semicolon-delimited values, highest priority first
+		@auraEnabled public String priorityOrder;
 
 		public mergeFieldWrap(MergeFieldSetting__mdt mergeField) {
 			this.id = mergeField.Id;
@@ -200,6 +202,7 @@ public with sharing class MRG_Merge_SVC {
 			this.apexClass = mergeField.ApexClass__c;
 			this.containsValue = mergeField.ContainsValue__c;
 			this.concatenateCharacter = mergeField.ConcatenateCharacter__c;
+			this.priorityOrder = mergeField.PriorityOrder__c;
 		}
 		public Integer compareTo(Object compareTo) {
 			mergeFieldWrap sortObj = (mergeFieldWrap) compareTo;
@@ -259,7 +262,8 @@ public with sharing class MRG_Merge_SVC {
 			TieBreakRule__c = mfw.tieBreakRule,
 			ApexClass__c = mfw.apexClass,
 			ContainsValue__c = mfw.containsValue,
-			ConcatenateCharacter__c = mfw.concatenateCharacter
+			ConcatenateCharacter__c = mfw.concatenateCharacter,
+			PriorityOrder__c = mfw.priorityOrder
 		);
 		mergeField.Type__c = mfw.type == 't' ? 'Track' : 'Preserve';
 		if(String.isNotBlank(mfw.id))
@@ -350,7 +354,8 @@ public with sharing class MRG_Merge_SVC {
 					PreservationRule__c,
 					ApexClass__c,
 					ContainsValue__c,
-					ConcatenateCharacter__c
+					ConcatenateCharacter__c,
+					PriorityOrder__c
 					FROM MergeFieldSetting__mdt
 				]);
 			}
@@ -916,6 +921,16 @@ public with sharing class MRG_Merge_SVC {
 										mergedFieldIsKept = true;
 									}
 								}
+							} else if(preserveField.rule != null && preserveField.rule.equalsIgnoreCase('Priority Order')) {
+								// keep the value ranked highest in the configured priority list; unlisted
+								// values rank below every listed value
+								if(priorityBeats(mergeRecordFieldValue, keptRecordfieldValue, preserveField.priorityOrder)) {
+									keepValue = mergeRecordFieldValue;
+									mergeValue = keptRecordfieldValue;
+									keptRec.put(fieldName, keepValue);
+									hasChange = true;
+									mergedFieldIsKept = true;
+								}
 							} else if(isChild && masterFieldIsKept){
 								keepValue = mergeRecordFieldValue;
 								mergeValue = keptRecordfieldValue;
@@ -1116,6 +1131,47 @@ public with sharing class MRG_Merge_SVC {
 			return false;
 		Schema.SObjectField field = objType.getDescribe().fields.getMap().get(fieldName.toLowerCase());
 		return field != null && field.getDescribe().getType() == Schema.DisplayType.MULTIPICKLIST;
+	}
+	/*******************************************************************************************************
+	* @description whether the merge (losing) record's value outranks the kept value in the configured
+	* priority list. Ranks are matched case-insensitively on trimmed values; a value not in the list
+	* ranks below every listed value. A null kept value is always outranked by a non-null merge value.
+	* @param mergeVal the merged record's value
+	* @param keepVal the surviving record's value
+	* @param priorityOrder the ranked, semicolon-delimited list of values (highest priority first)
+	* @return Boolean true when the merge value should be preserved
+	*/
+	public static Boolean priorityBeats(Object mergeVal, Object keepVal, String priorityOrder) {
+		if(mergeVal == null)
+			return false;
+		if(keepVal == null)
+			return true;
+		Integer mergeRank = priorityRank(mergeVal, priorityOrder);
+		Integer keepRank = priorityRank(keepVal, priorityOrder);
+		return mergeRank < keepRank;
+	}
+	/*******************************************************************************************************
+	* @description the rank of a value in a semicolon-delimited priority list (0 = highest priority);
+	* values not in the list (or a blank list) rank below all listed values
+	* @param value the field value
+	* @param priorityOrder the ranked, semicolon-delimited list of values
+	* @return Integer the rank
+	*/
+	public static Integer priorityRank(Object value, String priorityOrder) {
+		Integer unlisted = 2147483647;
+		if(value == null || String.isBlank(priorityOrder))
+			return unlisted;
+		String needle = String.valueOf(value).trim();
+		Integer rank = 0;
+		for(String part:priorityOrder.split(';')) {
+			String trimmed = part.trim();
+			if(String.isBlank(trimmed))
+				continue;
+			if(trimmed.equalsIgnoreCase(needle))
+				return rank;
+			rank++;
+		}
+		return unlisted;
 	}
 	/*******************************************************************************************************
 	* @description whether a field can use the Concatenate rule: free-text field types (text, text area,

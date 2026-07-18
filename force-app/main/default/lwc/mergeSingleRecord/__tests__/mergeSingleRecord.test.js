@@ -191,6 +191,39 @@ describe('c-merge-single-record', () => {
         expect(getReadableObjectFields.getLastConfig().objectType).toBe('Contact');
     });
 
+    it('offers Priority Order only for a single picklist field', async () => {
+        const el = createElement('c-merge-single-record', { is: MergeSingleRecord });
+        el.usedFields = [];
+        el.record = { name: 'TEMPx', type: 'p', rule: 'Newest', objectName: 'Contact', fieldName: 'LeadSource', conditions: [] };
+        document.body.appendChild(el);
+        getReadableObjectFields.emit([{ label: 'Lead Source', name: 'LeadSource', type: 'PICKLIST' }]);
+        await flush();
+        await flush();
+        expect(ruleCombobox(el).options.some(o => o.value === 'Priority Order')).toBe(true);
+    });
+
+    it('hides Priority Order for a non-picklist field', async () => {
+        const el = createElement('c-merge-single-record', { is: MergeSingleRecord });
+        el.usedFields = [];
+        el.record = { name: 'TEMPx', type: 'p', rule: 'Newest', objectName: 'Contact', fieldName: 'MailingState', conditions: [] };
+        document.body.appendChild(el);
+        getReadableObjectFields.emit([{ label: 'Mailing State', name: 'MailingState', type: 'STRING' }]);
+        await flush();
+        await flush();
+        expect(ruleCombobox(el).options.some(o => o.value === 'Priority Order')).toBe(false);
+    });
+
+    it('shows Priority Order + Fallback tabs and the ranked-values input for the rule', async () => {
+        const el = await renderWithRule('Priority Order');
+        expect(tabLabels(el)).toEqual(['Priority Order', 'Fallback Field']);
+        expect(hasInput(el, 'Priority Order')).toBe(true);
+    });
+
+    it('keeps Priority Order in the options when it is already the saved rule', async () => {
+        const el = await renderWithRule('Priority Order');
+        expect(ruleCombobox(el).options.some(o => o.value === 'Priority Order')).toBe(true);
+    });
+
     it('shows the Tie-Break Rule picker in the Complex section', async () => {
         const el = await renderWithRule('Complex');
         const labels = Array.from(el.shadowRoot.querySelectorAll('lightning-combobox')).map(c => c.label);
