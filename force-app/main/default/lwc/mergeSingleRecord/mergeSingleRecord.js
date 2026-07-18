@@ -62,7 +62,7 @@ export default class mergeSingleRecord extends LightningElement {
         if(this.isMultiPicklistField){
             options.push({label:'Combine Values',value:'Combine'});
         }
-        if(this.isConcatenatableField){
+        if(this.isConcatenatableField || (this.mergeRecord != null && this.mergeRecord.rule === 'Concatenate')){
             options.push({label:'Concatenate',value:'Concatenate'});
         }
         return options;
@@ -71,13 +71,13 @@ export default class mergeSingleRecord extends LightningElement {
         return this.mergeRecord != null && this.mergeRecord.fieldName != null
             && this.fieldTypeByName[this.mergeRecord.fieldName] === 'MULTIPICKLIST';
     }
-    // Concatenate applies only to string and multi-select picklist fields
+    // Concatenate applies to free-text field types and multi-select picklists
     get isConcatenatableField() {
         if(this.mergeRecord == null || this.mergeRecord.fieldName == null){
             return false;
         }
         const fieldType = this.fieldTypeByName[this.mergeRecord.fieldName];
-        return fieldType === 'STRING' || fieldType === 'MULTIPICKLIST';
+        return ['STRING','TEXTAREA','EMAIL','PHONE','URL','MULTIPICKLIST'].includes(fieldType);
     }
     tieBreakRuleOptions = [{label:'(none)',value:''},{label:'Oldest',value:'Oldest'},{label:'Newest',value:'Newest'},{label:'Largest',value:'Largest'},{label:'Smallest',value:'Smallest'},{label:'Longest',value:'Longest'},{label:'Shortest',value:'Shortest'}];
     operatorOptions = [

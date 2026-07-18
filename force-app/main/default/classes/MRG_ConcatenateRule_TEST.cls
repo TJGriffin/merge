@@ -52,8 +52,11 @@ private class MRG_ConcatenateRule_TEST {
 
 	static testMethod void testIsConcatenatableField() {
 		system.assertEquals(true, MRG_Merge_SVC.isConcatenatableField('Contact', 'MailingState'), 'a string field is concatenatable');
-		system.assertEquals(false, MRG_Merge_SVC.isConcatenatableField('Contact', 'Email'), 'an email field is not concatenatable');
+		system.assertEquals(true, MRG_Merge_SVC.isConcatenatableField('Contact', 'Description'), 'a text area field is concatenatable');
+		system.assertEquals(true, MRG_Merge_SVC.isConcatenatableField('Contact', 'Email'), 'an email field is concatenatable');
+		system.assertEquals(true, MRG_Merge_SVC.isConcatenatableField('Contact', 'Phone'), 'a phone field is concatenatable');
 		system.assertEquals(false, MRG_Merge_SVC.isConcatenatableField('Contact', 'Birthdate'), 'a date field is not concatenatable');
+		system.assertEquals(false, MRG_Merge_SVC.isConcatenatableField('Contact', 'LeadSource'), 'a single picklist is not concatenatable');
 		system.assertEquals(false, MRG_Merge_SVC.isConcatenatableField('Contact', 'NoSuchField__x'), 'unknown field -> false');
 		system.assertEquals(false, MRG_Merge_SVC.isConcatenatableField('NoSuchObject__x', 'Email'), 'unknown object -> false');
 		system.assertEquals(false, MRG_Merge_SVC.isConcatenatableField('Contact', ''), 'blank field -> false');

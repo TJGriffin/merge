@@ -117,15 +117,32 @@ describe('c-merge-single-record', () => {
         expect(ruleCombobox(el).options.some(o => o.value === 'Concatenate')).toBe(true);
     });
 
-    it('hides Concatenate for a non-string, non-multipicklist field', async () => {
+    it('offers Concatenate for text area and email fields', async () => {
         const el = createElement('c-merge-single-record', { is: MergeSingleRecord });
         el.usedFields = [];
-        el.record = { name: 'TEMPx', type: 'p', rule: 'Newest', objectName: 'Contact', fieldName: 'Email', conditions: [] };
+        el.record = { name: 'TEMPx', type: 'p', rule: 'Newest', objectName: 'Contact', fieldName: 'Description', conditions: [] };
         document.body.appendChild(el);
-        getReadableObjectFields.emit([{ label: 'Email', name: 'Email', type: 'EMAIL' }]);
+        getReadableObjectFields.emit([{ label: 'Description', name: 'Description', type: 'TEXTAREA' }, { label: 'Email', name: 'Email', type: 'EMAIL' }]);
+        await flush();
+        await flush();
+        expect(ruleCombobox(el).options.some(o => o.value === 'Concatenate')).toBe(true);
+    });
+
+    it('hides Concatenate for a non-text field', async () => {
+        const el = createElement('c-merge-single-record', { is: MergeSingleRecord });
+        el.usedFields = [];
+        el.record = { name: 'TEMPx', type: 'p', rule: 'Newest', objectName: 'Contact', fieldName: 'Birthdate', conditions: [] };
+        document.body.appendChild(el);
+        getReadableObjectFields.emit([{ label: 'Birthdate', name: 'Birthdate', type: 'DATE' }]);
         await flush();
         await flush();
         expect(ruleCombobox(el).options.some(o => o.value === 'Concatenate')).toBe(false);
+    });
+
+    it('keeps Concatenate in the options when it is already the saved rule', async () => {
+        // field metadata not loaded yet -> the saved rule must still render in the combobox
+        const el = await renderWithRule('Concatenate');
+        expect(ruleCombobox(el).options.some(o => o.value === 'Concatenate')).toBe(true);
     });
 
     it('shows Concatenate Character + Fallback tabs for the Concatenate rule', async () => {

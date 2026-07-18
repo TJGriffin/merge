@@ -1118,7 +1118,9 @@ public with sharing class MRG_Merge_SVC {
 		return field != null && field.getDescribe().getType() == Schema.DisplayType.MULTIPICKLIST;
 	}
 	/*******************************************************************************************************
-	* @description whether a field can use the Concatenate rule (string or multi-select picklist)
+	* @description whether a field can use the Concatenate rule: free-text field types (text, text area,
+	* email, phone, url) or a multi-select picklist. Single picklists, ids and references are excluded
+	* because a concatenated value would not be a valid entry for them.
 	* @param objectType the SObject api name
 	* @param fieldName the field api name (case-insensitive)
 	* @return Boolean
@@ -1131,7 +1133,12 @@ public with sharing class MRG_Merge_SVC {
 		if(field == null)
 			return false;
 		Schema.DisplayType fieldType = field.getDescribe().getType();
-		return fieldType == Schema.DisplayType.STRING || fieldType == Schema.DisplayType.MULTIPICKLIST;
+		return fieldType == Schema.DisplayType.STRING
+			|| fieldType == Schema.DisplayType.TEXTAREA
+			|| fieldType == Schema.DisplayType.EMAIL
+			|| fieldType == Schema.DisplayType.PHONE
+			|| fieldType == Schema.DisplayType.URL
+			|| fieldType == Schema.DisplayType.MULTIPICKLIST;
 	}
 	/*******************************************************************************************************
 	* @description the max length of a field (0 when the field can't be found)
