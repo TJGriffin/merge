@@ -15,11 +15,32 @@ export default class mergeRecordList extends LightningElement {
             usedFields.push(row.fieldName);
         });
         this.usedFields = usedFields;
+        // keep the current page in range when the row count shrinks (filter/cancel)
+        if(this.currentPage > this.totalPages){
+            this.currentPage = this.totalPages;
+        }
     }
     get results(){
         return this.rows;
     }
     @track rows;
+    // client-side paging (#89): only pageSize rows are rendered at a time
+    pageSize = 25;
+    @track currentPage = 1;
+    get totalPages(){
+        return this.rows != null && this.rows.length > 0 ? Math.ceil(this.rows.length / this.pageSize) : 1;
+    }
+    get pagedRows(){
+        const rows = this.rows == null ? [] : this.rows;
+        const start = (this.currentPage - 1) * this.pageSize;
+        return rows.slice(start, start + this.pageSize);
+    }
+    get showPager(){
+        return this.rows != null && this.rows.length > this.pageSize;
+    }
+    handlePageChange(event){
+        this.currentPage = Number(event.detail);
+    }
     @track hasFields = false;
     @track disabled;
     @track draftValues;
@@ -60,7 +81,6 @@ export default class mergeRecordList extends LightningElement {
 
         getFieldSettings({type:this.type,objectType:this.objectType})
             .then(result=>{
-                console.log(JSON.stringify(result));
                 this.results=JSON.parse(JSON.stringify(result));
             })
             .catch(error=>{
@@ -154,12 +174,12 @@ export default class mergeRecordList extends LightningElement {
         this.selectedRecord.objectName = this.objectType;
         this.selectedRecord.disable = false;
         this.results = [...existing,this.selectedRecord];
+        // the new row is appended last; jump to its page
+        this.currentPage = this.totalPages;
     }
 
     handleSave() {
         this.hasChanged=false;
-        console.log('handle save');
-        console.log(JSON.stringify(this.rows));
         saveMergeFields({
             jsonData:JSON.stringify(this.rows)
         })
@@ -192,9 +212,11 @@ export default class mergeRecordList extends LightningElement {
     }
     handleFilterChange(event){
         this.type = event.detail.value;
+        this.currentPage = 1;
     }
     handleObjectFilterChange(event){
         this.objectType = event.detail.value;
+        this.currentPage = 1;
     }
     showNotification(){
         this.dispatchEvent(

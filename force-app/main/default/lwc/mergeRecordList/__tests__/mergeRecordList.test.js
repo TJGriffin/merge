@@ -84,4 +84,55 @@ describe('c-merge-record-list', () => {
         await flush();
         expect(rowEls(el).length).toBe(3);
     });
+
+    // --- paging (#89): only a page of rows renders at a time ---------------------------------
+
+    function manyRows(count) {
+        const rows = [];
+        for (let i = 0; i < count; i++) {
+            rows.push({ id: String(i), name: `Field${i}Contact`, label: `Field${i}`, objectName: 'Contact', fieldName: `Field${i}`, type: 't', rule: null, relatedField: null, disable: false, conditions: [] });
+        }
+        return rows;
+    }
+    function pagerEl(el) {
+        return el.shadowRoot.querySelector('c-pager');
+    }
+
+    it('renders only the first page of a large result set and shows the pager', async () => {
+        const el = createElement('c-merge-record-list', { is: MergeRecordList });
+        document.body.appendChild(el);
+        getFieldSettings.emit(manyRows(60));
+        await flush();
+        await flush();
+        expect(rowEls(el).length).toBe(25);
+        expect(pagerEl(el)).not.toBeNull();
+    });
+
+    it('hides the pager when everything fits on one page', async () => {
+        const el = await render();
+        expect(pagerEl(el)).toBeNull();
+    });
+
+    it('changes page when the pager fires', async () => {
+        const el = createElement('c-merge-record-list', { is: MergeRecordList });
+        document.body.appendChild(el);
+        getFieldSettings.emit(manyRows(60));
+        await flush();
+        await flush();
+        pagerEl(el).dispatchEvent(new CustomEvent('page', { detail: 3 }));
+        await flush();
+        expect(rowEls(el).length).toBe(10); // 60 rows -> page 3 holds the last 10
+    });
+
+    it('jumps to the last page when a new field is added', async () => {
+        const el = createElement('c-merge-record-list', { is: MergeRecordList });
+        document.body.appendChild(el);
+        getFieldSettings.emit(manyRows(60));
+        await flush();
+        await flush();
+        addButton(el).dispatchEvent(new CustomEvent('click'));
+        await flush();
+        const rendered = rowEls(el);
+        expect(rendered.length).toBe(11); // last page: 10 remaining rows + the new placeholder
+    });
 });

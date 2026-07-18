@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ConcatenateCharacter__c</fullName>
+    <description>For Preservation Rule = Concatenate: the single character used to join the unique values. Defaults to a semicolon; multi-select picklist fields always use a semicolon.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <label>Concatenate Character</label>
+    <length>1</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

@@ -95,6 +95,85 @@ describe('c-merge-single-record', () => {
         expect(ruleCombobox(el).options.some(o => o.value === 'Combine')).toBe(false);
     });
 
+    it('offers Concatenate for a string field', async () => {
+        const el = createElement('c-merge-single-record', { is: MergeSingleRecord });
+        el.usedFields = [];
+        el.record = { name: 'TEMPx', type: 'p', rule: 'Newest', objectName: 'Contact', fieldName: 'MailingState', conditions: [] };
+        document.body.appendChild(el);
+        getReadableObjectFields.emit([{ label: 'Mailing State', name: 'MailingState', type: 'STRING' }]);
+        await flush();
+        await flush();
+        expect(ruleCombobox(el).options.some(o => o.value === 'Concatenate')).toBe(true);
+    });
+
+    it('offers Concatenate for a multipicklist field', async () => {
+        const el = createElement('c-merge-single-record', { is: MergeSingleRecord });
+        el.usedFields = [];
+        el.record = { name: 'TEMPx', type: 'p', rule: 'Newest', objectName: 'Contact', fieldName: 'Tags', conditions: [] };
+        document.body.appendChild(el);
+        getReadableObjectFields.emit([{ label: 'Tags', name: 'Tags', type: 'MULTIPICKLIST' }]);
+        await flush();
+        await flush();
+        expect(ruleCombobox(el).options.some(o => o.value === 'Concatenate')).toBe(true);
+    });
+
+    it('hides Concatenate for a non-string, non-multipicklist field', async () => {
+        const el = createElement('c-merge-single-record', { is: MergeSingleRecord });
+        el.usedFields = [];
+        el.record = { name: 'TEMPx', type: 'p', rule: 'Newest', objectName: 'Contact', fieldName: 'Email', conditions: [] };
+        document.body.appendChild(el);
+        getReadableObjectFields.emit([{ label: 'Email', name: 'Email', type: 'EMAIL' }]);
+        await flush();
+        await flush();
+        expect(ruleCombobox(el).options.some(o => o.value === 'Concatenate')).toBe(false);
+    });
+
+    it('shows Concatenate Character + Fallback tabs for the Concatenate rule', async () => {
+        const el = await renderWithRule('Concatenate');
+        expect(tabLabels(el)).toEqual(['Concatenate Character', 'Fallback Field']);
+        expect(hasInput(el, 'Concatenate Character')).toBe(true);
+    });
+
+    it('locks the concatenate character to a semicolon for a multipicklist field', async () => {
+        const el = createElement('c-merge-single-record', { is: MergeSingleRecord });
+        el.usedFields = [];
+        el.record = { name: 'TEMPx', type: 'p', rule: 'Concatenate', objectName: 'Contact', fieldName: 'Tags', conditions: [] };
+        document.body.appendChild(el);
+        getReadableObjectFields.emit([{ label: 'Tags', name: 'Tags', type: 'MULTIPICKLIST' }]);
+        await flush();
+        await flush();
+        const input = Array.from(el.shadowRoot.querySelectorAll('lightning-input')).find(i => i.label === 'Concatenate Character');
+        expect(input.disabled).toBe(true);
+        expect(input.value).toBe(';');
+    });
+
+    it('defaults the concatenate character to a semicolon for a string field', async () => {
+        const el = await renderWithRule('Concatenate');
+        const input = Array.from(el.shadowRoot.querySelectorAll('lightning-input')).find(i => i.label === 'Concatenate Character');
+        expect(input.disabled).toBeFalsy();
+        expect(input.value).toBe(';');
+    });
+
+    it('does not load field metadata for a read-mode row (#89)', async () => {
+        const el = createElement('c-merge-single-record', { is: MergeSingleRecord });
+        el.usedFields = [];
+        el.record = { name: 'EmailContact', type: 'p', rule: 'Newest', objectName: 'Contact', fieldName: 'Email', conditions: [] };
+        document.body.appendChild(el);
+        await flush();
+        expect(getReadableObjectFields.getLastConfig().objectType).toBeUndefined();
+    });
+
+    it('loads field metadata once the row enters edit mode (#89)', async () => {
+        const el = createElement('c-merge-single-record', { is: MergeSingleRecord });
+        el.usedFields = [];
+        el.record = { name: 'EmailContact', type: 'p', rule: 'Newest', objectName: 'Contact', fieldName: 'Email', conditions: [] };
+        document.body.appendChild(el);
+        await flush();
+        Array.from(el.shadowRoot.querySelectorAll('lightning-button')).find(b => b.label === 'Edit').dispatchEvent(new CustomEvent('click'));
+        await flush();
+        expect(getReadableObjectFields.getLastConfig().objectType).toBe('Contact');
+    });
+
     it('shows the Tie-Break Rule picker in the Complex section', async () => {
         const el = await renderWithRule('Complex');
         const labels = Array.from(el.shadowRoot.querySelectorAll('lightning-combobox')).map(c => c.label);
