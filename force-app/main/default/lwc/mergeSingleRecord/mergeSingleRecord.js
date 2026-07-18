@@ -65,11 +65,19 @@ export default class mergeSingleRecord extends LightningElement {
         if(this.isConcatenatableField || (this.mergeRecord != null && this.mergeRecord.rule === 'Concatenate')){
             options.push({label:'Concatenate',value:'Concatenate'});
         }
+        if(this.isPicklistField || (this.mergeRecord != null && this.mergeRecord.rule === 'Priority Order')){
+            options.push({label:'Priority Order',value:'Priority Order'});
+        }
         return options;
     }
     get isMultiPicklistField() {
         return this.mergeRecord != null && this.mergeRecord.fieldName != null
             && this.fieldTypeByName[this.mergeRecord.fieldName] === 'MULTIPICKLIST';
+    }
+    // Priority Order applies to single picklist fields
+    get isPicklistField() {
+        return this.mergeRecord != null && this.mergeRecord.fieldName != null
+            && this.fieldTypeByName[this.mergeRecord.fieldName] === 'PICKLIST';
     }
     // Concatenate applies to free-text field types and multi-select picklists
     get isConcatenatableField() {
@@ -147,6 +155,10 @@ export default class mergeSingleRecord extends LightningElement {
         return this.mergeRecord !== undefined && this.mergeRecord != null && this.preserve && this.mergeRecord.rule == 'Concatenate';
     }
 
+    get isPriorityOrder(){
+        return this.mergeRecord !== undefined && this.mergeRecord != null && this.preserve && this.mergeRecord.rule == 'Priority Order';
+    }
+
     // the character shown in the Concatenate tab: multiselects are locked to ';'
     get concatenateCharacterValue(){
         if(this.isMultiPicklistField){
@@ -157,7 +169,7 @@ export default class mergeSingleRecord extends LightningElement {
 
     // rules that need configuration beyond the simple ones -> auto-open the Advanced section
     get isAdvancedRule(){
-        return this.isRelatedField || this.isContains || this.isComplex || this.isApex || this.isConcatenate;
+        return this.isRelatedField || this.isContains || this.isComplex || this.isApex || this.isConcatenate || this.isPriorityOrder;
     }
     // Advanced (incl. the always-present Fallback tab) is available once an object is chosen
     get showAdvanced(){
@@ -176,6 +188,7 @@ export default class mergeSingleRecord extends LightningElement {
         if(this.isComplex) return 'ruleDef';
         if(this.isApex) return 'apex';
         if(this.isConcatenate) return 'concat';
+        if(this.isPriorityOrder) return 'priority';
         return 'fallback';
     }
     // nav tabs: the rule-specific tab(s) first, Fallback Field always last
@@ -186,6 +199,7 @@ export default class mergeSingleRecord extends LightningElement {
         else if(this.isComplex){ t.push({key:'ruleDef', label:'Rule Definition'}); t.push({key:'tieBreak', label:'Tie-Break'}); }
         else if(this.isApex) t.push({key:'apex', label:'Apex Class'});
         else if(this.isConcatenate) t.push({key:'concat', label:'Concatenate Character'});
+        else if(this.isPriorityOrder) t.push({key:'priority', label:'Priority Order'});
         t.push({key:'fallback', label:'Fallback Field'});
         return t.map(tab=>({
             key: tab.key,
@@ -203,6 +217,7 @@ export default class mergeSingleRecord extends LightningElement {
             tieBreak: cls('tieBreak'),
             apex: cls('apex'),
             concat: cls('concat'),
+            priority: cls('priority'),
             fallback: cls('fallback')
         };
     }
@@ -382,6 +397,9 @@ export default class mergeSingleRecord extends LightningElement {
     }
     handleConcatenateCharacterChange(event){
         this.mergeRecord.concatenateCharacter = event.target.value || ';';
+    }
+    handlePriorityOrderChange(event){
+        this.mergeRecord.priorityOrder = event.target.value;
     }
     doEdit(event){
         this.isEdit=true;

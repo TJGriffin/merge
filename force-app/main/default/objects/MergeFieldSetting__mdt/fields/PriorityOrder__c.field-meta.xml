@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PriorityOrder__c</fullName>
+    <description>For Preservation Rule = Priority Order: the ranked, semicolon-delimited list of values (highest priority first). The merged records' value with the highest priority is preserved; values not in the list rank below all listed values.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <label>Priority Order</label>
+    <length>32768</length>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

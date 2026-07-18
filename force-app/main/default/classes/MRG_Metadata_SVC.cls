@@ -233,6 +233,8 @@ public with sharing class MRG_Metadata_SVC {
 		fieldKeyValues.put('ContainsValue__c', mergeField.ContainsValue__c);
 		// Concatenate rule: the character joining the unique values
 		fieldKeyValues.put('ConcatenateCharacter__c', mergeField.ConcatenateCharacter__c);
+		// Priority Order rule: ranked semicolon-delimited values, highest priority first
+		fieldKeyValues.put('PriorityOrder__c', mergeField.PriorityOrder__c);
 		String qualifiedName = !mergeField.QualifiedAPIName.contains('.') ? 'MergeFieldSetting__mdt.'+mergeField.QualifiedAPIName : mergeField.QualifiedAPIName;	   	
 		mdRecordNames.add(qualifiedName);
 		

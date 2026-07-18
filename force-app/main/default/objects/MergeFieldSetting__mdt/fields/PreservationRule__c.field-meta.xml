@@ -56,6 +56,11 @@
                 <label>Concatenate</label>
             </value>
             <value>
+                <fullName>Priority Order</fullName>
+                <default>false</default>
+                <label>Priority Order</label>
+            </value>
+            <value>
                 <fullName>Related Field</fullName>
                 <default>false</default>
                 <label>Related Field</label>
