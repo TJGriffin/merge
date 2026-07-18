@@ -51,6 +51,11 @@
                 <label>Combine Values</label>
             </value>
             <value>
+                <fullName>Concatenate</fullName>
+                <default>false</default>
+                <label>Concatenate</label>
+            </value>
+            <value>
                 <fullName>Related Field</fullName>
                 <default>false</default>
                 <label>Related Field</label>

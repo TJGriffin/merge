@@ -41,8 +41,11 @@
                     &nbsp;
                 </lightning-layout-item>
             </lightning-layout> 
-            <template for:each={rows} for:item="row" >
+            <template for:each={pagedRows} for:item="row" >
                 <c-merge-single-record record={row} key={row.name} onnotify={handleNotify} used-fields={usedFields}></c-merge-single-record>
+            </template>
+            <template if:true={showPager}>
+                <c-pager total-pages={totalPages} current-page={currentPage} onpage={handlePageChange}></c-pager>
             </template>
         </template>
         <lightning-layout vertical-align="end" pull-to-boundary="small">

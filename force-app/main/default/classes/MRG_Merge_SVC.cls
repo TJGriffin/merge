@@ -176,6 +176,8 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public String apexClass;
 		// for rule == 'Contains': the substring a record's value must contain to win
 		@auraEnabled public String containsValue;
+		// for rule == 'Concatenate': the character joining the unique values (default ';')
+		@auraEnabled public String concatenateCharacter;
 
 		public mergeFieldWrap(MergeFieldSetting__mdt mergeField) {
 			this.id = mergeField.Id;
@@ -197,6 +199,7 @@ public with sharing class MRG_Merge_SVC {
 			this.fallbackField = mergeField.FallbackField__r != null ? mergeField.FallbackField__r.QualifiedAPIName : null;
 			this.apexClass = mergeField.ApexClass__c;
 			this.containsValue = mergeField.ContainsValue__c;
+			this.concatenateCharacter = mergeField.ConcatenateCharacter__c;
 		}
 		public Integer compareTo(Object compareTo) {
 			mergeFieldWrap sortObj = (mergeFieldWrap) compareTo;
@@ -255,7 +258,8 @@ public with sharing class MRG_Merge_SVC {
 			TieBreakDirection__c = mfw.tieBreakDirection,
 			TieBreakRule__c = mfw.tieBreakRule,
 			ApexClass__c = mfw.apexClass,
-			ContainsValue__c = mfw.containsValue
+			ContainsValue__c = mfw.containsValue,
+			ConcatenateCharacter__c = mfw.concatenateCharacter
 		);
 		mergeField.Type__c = mfw.type == 't' ? 'Track' : 'Preserve';
 		if(String.isNotBlank(mfw.id))
@@ -345,7 +349,8 @@ public with sharing class MRG_Merge_SVC {
 					Disable__c,
 					PreservationRule__c,
 					ApexClass__c,
-					ContainsValue__c
+					ContainsValue__c,
+					ConcatenateCharacter__c
 					FROM MergeFieldSetting__mdt
 				]);
 			}
@@ -896,6 +901,21 @@ public with sharing class MRG_Merge_SVC {
 										mergedFieldIsKept = true;
 									}
 								}
+							} else if(preserveField.rule != null && preserveField.rule.equalsIgnoreCase('Concatenate')) {
+								// keep the unique values across the records as one delimited string (only for
+								// string and multi-select picklist fields); multipicklists always use ';'
+								if(isConcatenatableField(objectType, fieldName)) {
+									Boolean isMulti = isMultiPicklist(objectType, fieldName);
+									String delimiter = isMulti || String.isBlank(preserveField.concatenateCharacter) ? ';' : preserveField.concatenateCharacter;
+									Object concatenated = concatenateValues(keptRecordfieldValue, mergeRecordFieldValue, delimiter, getFieldLength(objectType, fieldName), isMulti);
+									if(!valuesAreEqual(concatenated, keptRecordfieldValue)) {
+										keepValue = concatenated;
+										mergeValue = mergeRecordFieldValue;
+										keptRec.put(fieldName, keepValue);
+										hasChange = true;
+										mergedFieldIsKept = true;
+									}
+								}
 							} else if(isChild && masterFieldIsKept){
 								keepValue = mergeRecordFieldValue;
 								mergeValue = keptRecordfieldValue;
@@ -1096,6 +1116,79 @@ public with sharing class MRG_Merge_SVC {
 			return false;
 		Schema.SObjectField field = objType.getDescribe().fields.getMap().get(fieldName.toLowerCase());
 		return field != null && field.getDescribe().getType() == Schema.DisplayType.MULTIPICKLIST;
+	}
+	/*******************************************************************************************************
+	* @description whether a field can use the Concatenate rule: free-text field types (text, text area,
+	* email, phone, url) or a multi-select picklist. Single picklists, ids and references are excluded
+	* because a concatenated value would not be a valid entry for them.
+	* @param objectType the SObject api name
+	* @param fieldName the field api name (case-insensitive)
+	* @return Boolean
+	*/
+	public static Boolean isConcatenatableField(String objectType, String fieldName) {
+		SObjectType objType = Schema.getGlobalDescribe().get(objectType);
+		if(objType == null || String.isBlank(fieldName))
+			return false;
+		Schema.SObjectField field = objType.getDescribe().fields.getMap().get(fieldName.toLowerCase());
+		if(field == null)
+			return false;
+		Schema.DisplayType fieldType = field.getDescribe().getType();
+		return fieldType == Schema.DisplayType.STRING
+			|| fieldType == Schema.DisplayType.TEXTAREA
+			|| fieldType == Schema.DisplayType.EMAIL
+			|| fieldType == Schema.DisplayType.PHONE
+			|| fieldType == Schema.DisplayType.URL
+			|| fieldType == Schema.DisplayType.MULTIPICKLIST;
+	}
+	/*******************************************************************************************************
+	* @description the max length of a field (0 when the field can't be found)
+	* @param objectType the SObject api name
+	* @param fieldName the field api name (case-insensitive)
+	* @return Integer
+	*/
+	public static Integer getFieldLength(String objectType, String fieldName) {
+		SObjectType objType = Schema.getGlobalDescribe().get(objectType);
+		if(objType == null || String.isBlank(fieldName))
+			return 0;
+		Schema.SObjectField field = objType.getDescribe().fields.getMap().get(fieldName.toLowerCase());
+		return field != null ? field.getDescribe().getLength() : 0;
+	}
+	/*******************************************************************************************************
+	* @description joins the unique values across two field values into one delimited string, trimmed,
+	* de-duplicated and order-preserving, truncated to the field length. A multipicklist drops whole
+	* values that don't fit (a partial value would be invalid); a string value is hard-truncated.
+	* @param keepVal the surviving record's value
+	* @param mergeVal the merged record's value
+	* @param delimiter the concatenation character
+	* @param maxLength the field length to truncate to (0 or null = no truncation)
+	* @param isMulti whether the field is a multi-select picklist
+	* @return String the concatenated value
+	*/
+	public static Object concatenateValues(Object keepVal, Object mergeVal, String delimiter, Integer maxLength, Boolean isMulti) {
+		List<String> combined = new List<String>();
+		Set<String> seen = new Set<String>();
+		for(Object value:new List<Object>{ keepVal, mergeVal }) {
+			if(value == null)
+				continue;
+			for(String part:String.valueOf(value).split(Pattern.quote(delimiter))) {
+				String trimmed = part.trim();
+				if(String.isNotBlank(trimmed) && !seen.contains(trimmed)) {
+					seen.add(trimmed);
+					combined.add(trimmed);
+				}
+			}
+		}
+		String result = String.join(combined, delimiter);
+		if(maxLength != null && maxLength > 0 && result.length() > maxLength) {
+			if(isMulti) {
+				while(!combined.isEmpty() && String.join(combined, delimiter).length() > maxLength)
+					combined.remove(combined.size()-1);
+				result = String.join(combined, delimiter);
+			} else {
+				result = result.left(maxLength);
+			}
+		}
+		return result;
 	}
 	/*******************************************************************************************************
 	* @description unions two semicolon-delimited multipicklist values, de-duplicated, preserving order

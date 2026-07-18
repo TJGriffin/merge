@@ -231,6 +231,8 @@ public with sharing class MRG_Metadata_SVC {
 		fieldKeyValues.put('ApexClass__c', mergeField.ApexClass__c);
 		// Contains rule: the substring a record's value must contain to win
 		fieldKeyValues.put('ContainsValue__c', mergeField.ContainsValue__c);
+		// Concatenate rule: the character joining the unique values
+		fieldKeyValues.put('ConcatenateCharacter__c', mergeField.ConcatenateCharacter__c);
 		String qualifiedName = !mergeField.QualifiedAPIName.contains('.') ? 'MergeFieldSetting__mdt.'+mergeField.QualifiedAPIName : mergeField.QualifiedAPIName;	   	
 		mdRecordNames.add(qualifiedName);
 		

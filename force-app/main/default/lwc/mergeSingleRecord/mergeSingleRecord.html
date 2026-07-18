@@ -225,6 +225,27 @@
                                     </div>
                                 </template>
 
+                                <template if:true={isConcatenate}>
+                                    <div class={panelClass.concat} role="tabpanel">
+                                        <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small">
+                                            The unique values across all merge candidates are kept as one string joined
+                                            by this character. The result is truncated to the field's length.
+                                        </p>
+                                        <template if:true={isMultiPicklistField}>
+                                            <p class="slds-text-body_small slds-m-bottom_x-small">
+                                                Multi-select picklist fields always use a semicolon.
+                                            </p>
+                                            <lightning-input label="Concatenate Character" value=";" max-length="1" disabled>
+                                            </lightning-input>
+                                        </template>
+                                        <template if:false={isMultiPicklistField}>
+                                            <lightning-input label="Concatenate Character" value={concatenateCharacterValue}
+                                                max-length="1" onchange={handleConcatenateCharacterChange}>
+                                            </lightning-input>
+                                        </template>
+                                    </div>
+                                </template>
+
                                 <template if:true={isApex}>
                                     <div class={panelClass.apex} role="tabpanel">
                                         <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">

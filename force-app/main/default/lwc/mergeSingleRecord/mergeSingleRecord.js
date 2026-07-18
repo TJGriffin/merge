@@ -5,11 +5,13 @@ import getReadableObjectFields from '@salesforce/apex/MRG_MergeSettings_CTRL.get
 
 export default class mergeSingleRecord extends LightningElement {
     @api set record(value) {
-        console.log('record set');
-        console.log(JSON.stringify(value));
         this.mergeRecord = JSON.parse(JSON.stringify(value));
         this.objectType = this.mergeRecord.objectName;
         this.isEdit = this.mergeRecord !== undefined && this.mergeRecord != null && this.mergeRecord.name.includes('TEMP');
+        // field metadata is only needed in edit mode; loading it lazily keeps read-mode rows cheap
+        if(this.isEdit) {
+            this.fieldsObjectType = this.objectType;
+        }
         // Advanced opens automatically for an advanced rule; Filter Logic expands if it has a value
         this.advancedOpen = this.isAdvancedRule;
         this.activeTab = this.firstTabKey;
@@ -25,6 +27,9 @@ export default class mergeSingleRecord extends LightningElement {
     @track error;
     @track isEdit = false;
     @track action;
+    // the objectType the field wires load for; undefined until the row enters edit mode so
+    // read-mode rows never fetch or process the (large) object field describes (#89)
+    @track fieldsObjectType;
     advancedOpen = false;
     filterLogicOpen = false;
     activeTab = 'fallback';
@@ -57,11 +62,22 @@ export default class mergeSingleRecord extends LightningElement {
         if(this.isMultiPicklistField){
             options.push({label:'Combine Values',value:'Combine'});
         }
+        if(this.isConcatenatableField || (this.mergeRecord != null && this.mergeRecord.rule === 'Concatenate')){
+            options.push({label:'Concatenate',value:'Concatenate'});
+        }
         return options;
     }
     get isMultiPicklistField() {
         return this.mergeRecord != null && this.mergeRecord.fieldName != null
             && this.fieldTypeByName[this.mergeRecord.fieldName] === 'MULTIPICKLIST';
+    }
+    // Concatenate applies to free-text field types and multi-select picklists
+    get isConcatenatableField() {
+        if(this.mergeRecord == null || this.mergeRecord.fieldName == null){
+            return false;
+        }
+        const fieldType = this.fieldTypeByName[this.mergeRecord.fieldName];
+        return ['STRING','TEXTAREA','EMAIL','PHONE','URL','MULTIPICKLIST'].includes(fieldType);
     }
     tieBreakRuleOptions = [{label:'(none)',value:''},{label:'Oldest',value:'Oldest'},{label:'Newest',value:'Newest'},{label:'Largest',value:'Largest'},{label:'Smallest',value:'Smallest'},{label:'Longest',value:'Longest'},{label:'Shortest',value:'Shortest'}];
     operatorOptions = [
@@ -127,9 +143,21 @@ export default class mergeSingleRecord extends LightningElement {
         return this.mergeRecord !== undefined && this.mergeRecord != null && this.preserve && this.mergeRecord.rule == 'Contains';
     }
 
+    get isConcatenate(){
+        return this.mergeRecord !== undefined && this.mergeRecord != null && this.preserve && this.mergeRecord.rule == 'Concatenate';
+    }
+
+    // the character shown in the Concatenate tab: multiselects are locked to ';'
+    get concatenateCharacterValue(){
+        if(this.isMultiPicklistField){
+            return ';';
+        }
+        return (this.mergeRecord && this.mergeRecord.concatenateCharacter) || ';';
+    }
+
     // rules that need configuration beyond the simple ones -> auto-open the Advanced section
     get isAdvancedRule(){
-        return this.isRelatedField || this.isContains || this.isComplex || this.isApex;
+        return this.isRelatedField || this.isContains || this.isComplex || this.isApex || this.isConcatenate;
     }
     // Advanced (incl. the always-present Fallback tab) is available once an object is chosen
     get showAdvanced(){
@@ -147,6 +175,7 @@ export default class mergeSingleRecord extends LightningElement {
         if(this.isContains) return 'contains';
         if(this.isComplex) return 'ruleDef';
         if(this.isApex) return 'apex';
+        if(this.isConcatenate) return 'concat';
         return 'fallback';
     }
     // nav tabs: the rule-specific tab(s) first, Fallback Field always last
@@ -156,6 +185,7 @@ export default class mergeSingleRecord extends LightningElement {
         else if(this.isContains) t.push({key:'contains', label:'Contains Value'});
         else if(this.isComplex){ t.push({key:'ruleDef', label:'Rule Definition'}); t.push({key:'tieBreak', label:'Tie-Break'}); }
         else if(this.isApex) t.push({key:'apex', label:'Apex Class'});
+        else if(this.isConcatenate) t.push({key:'concat', label:'Concatenate Character'});
         t.push({key:'fallback', label:'Fallback Field'});
         return t.map(tab=>({
             key: tab.key,
@@ -172,6 +202,7 @@ export default class mergeSingleRecord extends LightningElement {
             ruleDef: cls('ruleDef'),
             tieBreak: cls('tieBreak'),
             apex: cls('apex'),
+            concat: cls('concat'),
             fallback: cls('fallback')
         };
     }
@@ -217,7 +248,7 @@ export default class mergeSingleRecord extends LightningElement {
         this.objectType = this.objectType===undefined || this.objectType == null ? 'Contact' : this.objectType;
     }
     
-    @wire(getObjectFields, {objectType:'$objectType'})
+    @wire(getObjectFields, {objectType:'$fieldsObjectType'})
         getRowData({error,data}) {
                 if(data) {
                     this.fieldOptions = undefined;
@@ -231,7 +262,7 @@ export default class mergeSingleRecord extends LightningElement {
     }
     // readable fields (incl. read-only like CreatedDate) for the complex condition + tie-break pickers,
     // which only READ values to select a record
-    @wire(getReadableObjectFields, {objectType:'$objectType'})
+    @wire(getReadableObjectFields, {objectType:'$fieldsObjectType'})
         getReadableRowData({error,data}) {
                 if(data) {
                     var allOptions = [];
@@ -261,6 +292,7 @@ export default class mergeSingleRecord extends LightningElement {
     handleObjectSelect(event) {
         this.objectType = event.detail.value;
         this.mergeRecord.objectName = this.objectType;
+        this.fieldsObjectType = this.objectType;
     }
     handleFieldSelect(event) {
         this.mergeRecord.fieldName = event.detail.value;
@@ -277,6 +309,10 @@ export default class mergeSingleRecord extends LightningElement {
     }
     handleRuleSelect(event) {
         this.mergeRecord.rule = event.detail.value;
+        if(this.mergeRecord.rule === 'Concatenate'){
+            // multiselects are locked to ';'; otherwise keep any configured character
+            this.mergeRecord.concatenateCharacter = this.isMultiPicklistField ? ';' : (this.mergeRecord.concatenateCharacter || ';');
+        }
         if(this.mergeRecord.rule === 'Complex'){
             this.mergeRecord.conditions = Array.isArray(this.mergeRecord.conditions) ? this.mergeRecord.conditions : [];
             this.mergeRecord.filterLogic = this.mergeRecord.filterLogic || '';
@@ -344,8 +380,12 @@ export default class mergeSingleRecord extends LightningElement {
     handleContainsValueChange(event){
         this.mergeRecord.containsValue = event.target.value;
     }
+    handleConcatenateCharacterChange(event){
+        this.mergeRecord.concatenateCharacter = event.target.value || ';';
+    }
     doEdit(event){
         this.isEdit=true;
+        this.fieldsObjectType = this.objectType;
     }
     doDisable(event) {
         this.record.disable=true;
@@ -360,7 +400,6 @@ export default class mergeSingleRecord extends LightningElement {
         this.doNotify();
     }
     doNotify(){
-        console.log('do notify');
         this.isEdit=false;
         this.record.name = this.record.name == null ? this.record.fieldName+''+this.record.objectName : this.record.name;
         // strip UI-only keys from complex conditions so the saved JSON matches the Apex condition shape
@@ -371,7 +410,6 @@ export default class mergeSingleRecord extends LightningElement {
                 value: c.value
             }));
         }
-        console.log(JSON.stringify(this.record));
         const notify = new CustomEvent('notify', {
             bubbles:true,
             composed:false,
