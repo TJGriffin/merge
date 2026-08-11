@@ -96,6 +96,10 @@ A preserved field is also tracked automatically when its value changes, so prese
 
 **Default behavior for fields you don't configure:** if the kept record's field is blank and a losing record has a value, the value is filled in. Checkbox (true/false) fields are also brought over if any record has it checked. Otherwise the kept record's value stays.
 
+### Apex Defined
+
+When no built-in rule expresses what a field needs, the **Apex Defined** rule hands the decision to a custom Apex class. Set the rule to *Apex Defined Rule* and enter the class name in **Apex Class**. Developers: see the [Apex API guide](apex-api.md) for how to write and register one.
+
 ### Related Field
 
 The **Related Field** rule keeps two fields in sync so they always come from the *same* record. Pair a field with a related field — for example, "Primary Contact" and "Primary Contact Phone." When the merge decides which record's primary contact to keep, the related phone comes from that same record rather than being chosen independently.
