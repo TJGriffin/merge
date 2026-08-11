@@ -28,6 +28,7 @@ After installing, assign the **Merge Control Administrator** permission set to a
 ## Documentation
 
 - [Administrator Guide](docs/user-guide.md) — how each functional area works and how to use it
+- [Apex API](docs/apex-api.md) — writing custom merge rules in Apex against the `MRG_FieldKeepRule` hook
 
 
 
