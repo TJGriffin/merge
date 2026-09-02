@@ -47,6 +47,9 @@
 .grid-pagesize {
     width: 6rem;
 }
+.grid-search {
+    width: 16rem;
+}
 /* widen the preview modal so the field table isn't cramped */
 .grid-preview-modal .slds-modal__container {
     width: 90%;

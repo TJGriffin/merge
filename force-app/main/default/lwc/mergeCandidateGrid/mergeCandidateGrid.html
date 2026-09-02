@@ -13,6 +13,15 @@
                 <div class="slds-col slds-align-bottom slds-m-left_xx-small">
                     <lightning-button-icon icon-name="utility:settings" variant="border" size="small" alternative-text="Configure Fields" title="Configure Fields" onclick={toggleFieldPanel}></lightning-button-icon>
                 </div>
+                <div class="slds-col slds-m-left_small grid-search">
+                    <lightning-input
+                        type="search"
+                        label="Search candidates"
+                        variant="label-hidden"
+                        placeholder="Search name or ID..."
+                        value={searchTerm}
+                        onchange={handleSearchChange}></lightning-input>
+                </div>
                 <div class="slds-col slds-align-bottom slds-m-left_large">
                     <button class="slds-button slds-button_neutral btn-sm" onclick={handleSelectAllPage}>Select page</button>
                     <button class="slds-button slds-button_neutral btn-sm" onclick={handleSelectAllMax}>Select all pages</button>
@@ -32,6 +41,9 @@
             </div>
         </template>
 
+        <template if:true={noSearchResults}>
+            <div class="slds-text-color_weak slds-p-around_medium slds-text-align_center">No merge candidates match &quot;{searchTerm}&quot;.</div>
+        </template>
         <template if:true={cappedNotice}>
             <div class="slds-text-color_weak slds-text-body_small slds-m-bottom_x-small">{cappedNotice}</div>
         </template>

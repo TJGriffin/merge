@@ -49,6 +49,33 @@ const RECORD = {
     mergeCandidate: { KeepName__c: 'Acme', MergeName__c: 'Acme 2', Status__c: 'New' }
 };
 
+// a second, unrelated candidate — used to prove no state leaks between records when the
+// preview component is reused to step through a multi-record selection
+const RECORD_B = {
+    recordId: 'mc2',
+    keepRecord: {
+        Id: '002A', Name: 'Globex', Phone: '999',
+        CreatedDate: '2020-02-02T00:00:00.000Z', LastModifiedDate: '2021-02-02T00:00:00.000Z'
+    },
+    mergeRecord1: {
+        Id: '002B', Name: 'Globex Inc', Phone: '888',
+        CreatedDate: '2019-02-02T00:00:00.000Z', LastModifiedDate: '2020-02-02T00:00:00.000Z'
+    },
+    mergeResultRecord: {
+        Id: '002A', Name: 'Globex', Phone: '999',
+        CreatedDate: '2020-02-02T00:00:00.000Z', LastModifiedDate: '2021-02-02T00:00:00.000Z'
+    },
+    fields: ['Phone', 'Name'],
+    matchingFields: [],
+    fieldHistory: [],
+    previewFields: [],
+    mergeCandidate: { KeepName__c: 'Globex', MergeName__c: 'Globex Inc', Status__c: 'New' }
+};
+
+function withOverrides(record, manualOverrides) {
+    return Object.assign({}, record, { manualOverrides: manualOverrides });
+}
+
 function flush() {
     return Promise.resolve();
 }
@@ -118,5 +145,57 @@ describe('c-merge-preview', () => {
         ['Id', 'CreatedDate', 'LastModifiedDate'].forEach(name => {
             expect(table.data.find(r => r.fieldname === name).editable).toBe(false);
         });
+    });
+    // --- record-to-record state isolation (stepping through a multi-record selection) ---
+    // the preview component instance is reused across records: only record-id changes, so any
+    // state kept from the previous record must not leak into the next one.
+    it("does not carry a previous record's manual overrides into the next record", async () => {
+        const el = await render();
+        // record A has an override that pins the merge result for Phone to the losing value
+        getPreviewRecord.emit(withOverrides(RECORD, [{ fieldName: 'Phone', fieldValue: '222' }]));
+        await flush();
+        await flush();
+        let table = el.shadowRoot.querySelector('c-custom-datatable');
+        expect(table.data.find(r => r.fieldname === 'Phone').mergeResultRecord).toBe('222');
+
+        // record B has NO overrides -> it must show its own merge-result value, not A's '222'
+        getPreviewRecord.emit(RECORD_B);
+        await flush();
+        await flush();
+        table = el.shadowRoot.querySelector('c-custom-datatable');
+        expect(table.data.find(r => r.fieldname === 'Phone').mergeResultRecord).toBe('999');
+        expect(table.data.find(r => r.fieldname === 'Name').mergeResultRecord).toBe('Globex');
+    });
+
+    it('does not accumulate duplicate columns when stepping between records', async () => {
+        const el = await render();
+        getPreviewRecord.emit(RECORD_B);
+        await flush();
+        await flush();
+        getPreviewRecord.emit(RECORD);
+        await flush();
+        await flush();
+        const table = el.shadowRoot.querySelector('c-custom-datatable');
+        const names = table.columns.map(c => c.fieldName);
+        expect(names).toEqual(['fieldname', 'keepRecord', 'mergeRecord1', 'mergeResultRecord']);
+        expect(new Set(names).size).toBe(names.length);
+    });
+
+    it("does not carry a previous record's matching/fallback fields into the next record", async () => {
+        const el = await render();
+        // toggle matching fields on so record A contributes Industry to the ordered list
+        const checkbox = el.shadowRoot.querySelector('lightning-input');
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new CustomEvent('change'));
+        await flush();
+
+        getPreviewRecord.emit(RECORD_B);
+        await flush();
+        await flush();
+        const table = el.shadowRoot.querySelector('c-custom-datatable');
+        const names = fieldNames(table);
+        // Industry + Website belong to record A only
+        expect(names).not.toContain('Industry');
+        expect(names).not.toContain('Website');
     });
 });
