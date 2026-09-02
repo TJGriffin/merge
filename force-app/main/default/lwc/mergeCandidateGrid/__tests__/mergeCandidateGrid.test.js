@@ -5,6 +5,10 @@ const KEEP_GROUPS = [
     {
         keepId: '003A', keepName: 'Acme', objectType: 'Contact',
         pairs: [{ id: 'mc1', mergeId: '003B', mergeName: 'Acme 2', confidenceScore: 90 }]
+    },
+    {
+        keepId: '003C', keepName: 'Globex', objectType: 'Contact',
+        pairs: [{ id: 'mc2', mergeId: '003D', mergeName: 'Globex Inc', confidenceScore: 80 }]
     }
 ];
 const FIELD_OPTIONS = {
@@ -30,6 +34,14 @@ const GRID_ROWS = {
                 { rowType: 'keep', recordId: '003A', candidateId: null, cells: [{ name: 'Id', value: '003A' }, { name: 'Email', value: 'a@x.com' }] },
                 { rowType: 'duplicate', recordId: '003B', candidateId: 'mc1', cells: [{ name: 'Id', value: '003B' }, { name: 'Email', value: 'b@x.com' }] },
                 { rowType: 'result', recordId: '003A', candidateId: null, cells: [{ name: 'Id', value: '003A' }, { name: 'Email', value: 'a@x.com' }] }
+            ]
+        },
+        {
+            keepId: '003C',
+            rows: [
+                { rowType: 'keep', recordId: '003C', candidateId: null, cells: [{ name: 'Id', value: '003C' }, { name: 'Email', value: 'c@x.com' }] },
+                { rowType: 'duplicate', recordId: '003D', candidateId: 'mc2', cells: [{ name: 'Id', value: '003D' }, { name: 'Email', value: 'd@x.com' }] },
+                { rowType: 'result', recordId: '003C', candidateId: null, cells: [{ name: 'Id', value: '003C' }, { name: 'Email', value: 'c@x.com' }] }
             ]
         }
     ]
@@ -102,6 +114,17 @@ function nativeButtonByText(el, text) {
 function gearButton(el) {
     return Array.from(el.shadowRoot.querySelectorAll('lightning-button-icon')).find(b => b.iconName === 'utility:settings');
 }
+function gridSearch(el) {
+    return el.shadowRoot.querySelector('.grid-search lightning-input');
+}
+async function searchFor(el, term) {
+    gridSearch(el).dispatchEvent(new CustomEvent('change', { detail: { value: term } }));
+    await flush();
+}
+function groupHeaders(el) {
+    return Array.from(el.shadowRoot.querySelectorAll('.slds-theme_shade strong')).map(n => n.textContent.trim());
+}
+
 async function render() {
     const el = createElement('c-merge-candidate-grid', { is: MergeCandidateGrid });
     el.objectType = 'Contact';
@@ -122,10 +145,13 @@ describe('c-merge-candidate-grid', () => {
 
     it('renders a group with keep/duplicate/result rows and a column per field', async () => {
         const el = await render();
-        const headers = el.shadowRoot.querySelectorAll('thead th');
-        expect(headers.length).toBe(GRID_ROWS.columns.length + 1); // Row + columns, one group
+        // each group renders its own table: Row + one column per field
+        const tables = el.shadowRoot.querySelectorAll('table.grid-table');
+        expect(tables.length).toBe(KEEP_GROUPS.length);
+        const headers = tables[0].querySelectorAll('thead th');
+        expect(headers.length).toBe(GRID_ROWS.columns.length + 1);
         const checkboxes = Array.from(el.shadowRoot.querySelectorAll('lightning-input')).filter(i => i.type === 'checkbox');
-        expect(checkboxes.length).toBe(1); // one selectable duplicate row
+        expect(checkboxes.length).toBe(KEEP_GROUPS.length); // one selectable duplicate row per group
         const preview = Array.from(el.shadowRoot.querySelectorAll('lightning-button-icon')).find(b => b.iconName === 'utility:preview');
         expect(preview).toBeTruthy();
     });
@@ -138,7 +164,7 @@ describe('c-merge-candidate-grid', () => {
         expect(nativeButtonByText(el, 'Merge').disabled).toBe(false);
         nativeButtonByText(el, 'Merge').dispatchEvent(new CustomEvent('click'));
         await flush();
-        expect(mockMergeRecords).toHaveBeenCalledWith({ recordIds: ['mc1'] });
+        expect(mockMergeRecords).toHaveBeenCalledWith({ recordIds: ['mc1', 'mc2'] });
     });
 
     it('select all pages then Merge runs the background batch over the filter', async () => {
@@ -210,11 +236,79 @@ describe('c-merge-candidate-grid', () => {
         const el = await render();
         gearButton(el).dispatchEvent(new CustomEvent('click'));
         await flush();
-        const search = Array.from(el.shadowRoot.querySelectorAll('lightning-input')).find(i => i.type === 'search');
+        // scoped to the field panel: the toolbar has its own candidate search input
+        const search = Array.from(el.shadowRoot.querySelectorAll('.grid-field-panel lightning-input')).find(i => i.type === 'search');
         search.dispatchEvent(new CustomEvent('change', { detail: { value: 'phone' } }));
         await flush();
         const checks = Array.from(el.shadowRoot.querySelectorAll('.grid-field-panel lightning-input')).filter(i => i.type === 'checkbox');
         expect(checks.length).toBe(1);
         expect(checks[0].dataset.field).toBe('Phone');
+    });
+    // ---- grid search over the loaded merge candidates ----
+    it('filters groups by keep name', async () => {
+        const el = await render();
+        expect(groupHeaders(el).length).toBe(2);
+        await searchFor(el, 'globex');
+        const headers = groupHeaders(el);
+        expect(headers.length).toBe(1);
+        expect(headers[0]).toContain('Globex');
+    });
+
+    it('filters groups by duplicate (merge) name', async () => {
+        const el = await render();
+        await searchFor(el, 'Acme 2');
+        const headers = groupHeaders(el);
+        expect(headers.length).toBe(1);
+        expect(headers[0]).toContain('Acme');
+    });
+
+    it('matches on record ids as well as names', async () => {
+        const el = await render();
+        await searchFor(el, '003D');
+        const headers = groupHeaders(el);
+        expect(headers.length).toBe(1);
+        expect(headers[0]).toContain('Globex');
+    });
+
+    it('search is case-insensitive and ignores surrounding whitespace', async () => {
+        const el = await render();
+        await searchFor(el, '  GLOBEX  ');
+        expect(groupHeaders(el).length).toBe(1);
+    });
+
+    it('shows a no-results message and restores all groups when the search is cleared', async () => {
+        const el = await render();
+        await searchFor(el, 'nothingmatchesthis');
+        expect(groupHeaders(el).length).toBe(0);
+        expect(el.shadowRoot.textContent).toContain('No merge candidates match');
+
+        await searchFor(el, '');
+        expect(groupHeaders(el).length).toBe(2);
+    });
+
+    it('only selects candidates from the filtered view when selecting the page', async () => {
+        const el = await render();
+        await searchFor(el, 'globex');
+        nativeButtonByText(el, 'Select page').dispatchEvent(new CustomEvent('click'));
+        await flush();
+        // mc1 (Acme) is filtered out, so only the Globex candidate is selected
+        expect(el.shadowRoot.textContent).toContain('1 selected');
+        nativeButtonByText(el, 'Merge').dispatchEvent(new CustomEvent('click'));
+        await flush();
+        expect(mockMergeRecords).toHaveBeenCalledWith({ recordIds: ['mc2'] });
+    });
+
+    it('pages over the filtered set and resets to page 1 when the term changes', async () => {
+        const el = await render();
+        // one group per page: page 2 shows Globex
+        const pageSize = el.shadowRoot.querySelector('lightning-combobox');
+        pageSize.dispatchEvent(new CustomEvent('change', { detail: { value: '5' } }));
+        await flush();
+        // narrow to a single group while on a later page -> must snap back to a valid page
+        await searchFor(el, 'globex');
+        expect(groupHeaders(el).length).toBe(1);
+        expect(groupHeaders(el)[0]).toContain('Globex');
+        // the pager is gone because the filtered set fits on one page
+        expect(el.shadowRoot.querySelector('c-pager')).toBeNull();
     });
 });

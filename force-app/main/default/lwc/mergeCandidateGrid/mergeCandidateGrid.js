@@ -41,6 +41,7 @@ export default class MergeCandidateGrid extends LightningElement {
     leadFields = [];
     trailFields = [];
     filterText = '';
+    searchTerm = '';
     fieldsDirty = false;
     currentGroupPage = 1;
     groupsPerPage = DEFAULT_GROUPS_PER_PAGE;
@@ -103,10 +104,39 @@ export default class MergeCandidateGrid extends LightningElement {
             this.loadVisibleRows();
         }).catch(error=>{ this.loadingGroups = false; this.handleError(error); });
     }
+    // ---- search: narrows the loaded working set client-side (no extra Apex round-trip) ----
+    // matches the kept record's name/id and every duplicate's name/id in the group; a group is kept
+    // when it matches on its own, otherwise it is kept with only its matching duplicates.
+    get filteredGroups(){
+        const term = (this.searchTerm || '').trim().toLowerCase();
+        if(!term)
+            return this.allGroups;
+        const hit = v=>v != null && String(v).toLowerCase().indexOf(term) !== -1;
+        const out = [];
+        this.allGroups.forEach(g=>{
+            const groupHit = hit(g.keepName) || hit(g.keepId);
+            const pairs = (g.pairs || []).filter(p=>hit(p.mergeName) || hit(p.mergeId) || hit(p.id));
+            if(groupHit)
+                out.push(g);
+            else if(pairs.length)
+                out.push(Object.assign({}, g, {pairs:pairs}));
+        });
+        return out;
+    }
+    handleSearchChange(event){
+        this.searchTerm = event.detail.value;
+        // the filtered set is shorter, so the current page may no longer exist
+        this.currentGroupPage = 1;
+        this.clearSelection();
+        this.loadVisibleRows();
+    }
+    get hasSearch(){ return !!(this.searchTerm || '').trim(); }
+    get noSearchResults(){ return this.hasSearch && this.filteredGroups.length === 0; }
+
     // the groups on the current outer page
     get currentGroups(){
         const start = (this.currentGroupPage - 1) * this.groupsPerPage;
-        return this.allGroups.slice(start, start + this.groupsPerPage);
+        return this.filteredGroups.slice(start, start + this.groupsPerPage);
     }
     // fetch field values + simulated result for the groups currently in view only
     loadVisibleRows(){
@@ -244,12 +274,12 @@ export default class MergeCandidateGrid extends LightningElement {
             .then(()=>{ this.loadVisibleRows(); this.toast('Saved', 'Merge result value overridden.', 'success'); })
             .catch(error=>{ this.rowsLoading = false; this.handleError(error); });
     }
-    get hasGroups(){ return this.allGroups.length > 0; }
+    get hasGroups(){ return this.filteredGroups.length > 0; }
     get showSpinner(){ return this.loadingGroups || this.rowsLoading; }
 
     // ---- outer (group) + inner (within-group) paging ----
-    get groupTotalPages(){ return Math.max(1, Math.ceil(this.allGroups.length / this.groupsPerPage)); }
-    get hasGroupPager(){ return this.allGroups.length > this.groupsPerPage; }
+    get groupTotalPages(){ return Math.max(1, Math.ceil(this.filteredGroups.length / this.groupsPerPage)); }
+    get hasGroupPager(){ return this.filteredGroups.length > this.groupsPerPage; }
     handleGroupPage(event){
         this.currentGroupPage = Number(event.detail);
         this.loadVisibleRows();

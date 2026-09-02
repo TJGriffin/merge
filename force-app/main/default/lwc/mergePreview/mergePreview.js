@@ -29,13 +29,16 @@ export default class mergePreview extends LightningElement {
         var fields = value.hasOwnProperty('fields') && value.fields != null ? value.fields : [];
         this.previewFields = value.hasOwnProperty('previewFields') && value.previewFields != null ? value.previewFields : [];
         this.mergeCandidate = value.mergeCandidate;
-        if(value.hasOwnProperty('manualOverrides') && typeof value.manualOverrides !== undefined && value.manualOverrides != null){
-            var orMap = new Map();
+        // rebuild the override map for every record. The component instance is reused when stepping
+        // through a multi-record selection (only record-id changes), so a map left over from the
+        // previous record would otherwise pin this record's merge result to the previous one's values.
+        var orMap = new Map();
+        if(value.hasOwnProperty('manualOverrides') && value.manualOverrides != null){
             value.manualOverrides.forEach(override=>{
                 orMap.set(override.fieldName,override.fieldValue);
             })
-            this.overrideMap = orMap;
         }
+        this.overrideMap = orMap;
         this._matchingFields = value.hasOwnProperty('matchingFields') && value.matchingFields != null ? value.matchingFields.slice().sort() : [];
         this.fallbackFields = this.deriveFallbackFields(value.fieldHistory);
         if(fields.length > 0)
@@ -192,10 +195,10 @@ export default class mergePreview extends LightningElement {
 
     }
     createTableColums(){
-        var columns = [];
-        columns = this.cols;
-        columns.unshift('fieldname');
-        
+        // copy: this.cols is the record's column list and is read again by createTableData,
+        // so the 'fieldname' column is prepended to a local array rather than mutating it
+        var columns = ['fieldname'].concat(this.cols || []);
+
         var _tablecols = [];
         var keepName = this.mergeCandidate.hasOwnProperty('KeepName__c') ? this.mergeCandidate.KeepName__c : 'Keep Record';
         var merge1Name = this.mergeCandidate.hasOwnProperty('MergeName__c') ? this.mergeCandidate.MergeName__c : 'Merge Record 1';
@@ -250,9 +253,8 @@ export default class mergePreview extends LightningElement {
 
         var dataRows = [];
 
-        var columns = [];
-        columns = this.cols;
-        //columns.unshift('fieldname');
+        // same column list the header is built from ('fieldname' is the table's key-field)
+        var columns = ['fieldname'].concat(this.cols || []);
 
         var keepRecord = this._record.hasOwnProperty('keepRecord') ? this._record.keepRecord : {};
         var mergeRecord1 = this._record.hasOwnProperty('mergeRecord1') ? this._record.mergeRecord1 : {};
@@ -321,8 +323,6 @@ export default class mergePreview extends LightningElement {
             dataRows.push(dataRow);
         });
         this.data = dataRows;
-        console.log('data');
-        console.log(JSON.stringify(dataRows));
         this.hasData=true;
         this.overrideMap = orMap;
     }
@@ -342,7 +342,6 @@ export default class mergePreview extends LightningElement {
         this.doNotify();
     }
     doSave(){
-        console.log('doSave called');
         const fields = {};
         var overrideData = [];
         for (let [key, value] of this.overrideMap.entries()) {
@@ -357,7 +356,6 @@ export default class mergePreview extends LightningElement {
         
         updateRecord(recordInput)
             .then(() => {
-                console.log(JSON.stringify(recordInput));
                 this.dispatchEvent(
                     new ShowToastEvent({
                         title: 'Success',
