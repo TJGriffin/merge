@@ -78,6 +78,27 @@ public with sharing class MRG_Merge_SVC {
 		return false;
 	}
 	/*******************************************************************************************************
+	* @description default Account record type developer names whose orphaned households are merged after
+	* a Contact merge, used when AutoMergeOrphanedHouseholds__c is blank (#97)
+	*/
+	public static final String DEFAULT_ORPHANED_HOUSEHOLD_TYPES = 'Household_Account,HH_Account,Household,Individual';
+	/*******************************************************************************************************
+	* @description the Account record type developer names (trimmed, lower-cased) whose orphaned households
+	* are merged into the kept contact's Account after a Contact merge; falls back to
+	* DEFAULT_ORPHANED_HOUSEHOLD_TYPES when the setting is blank (#97)
+	* @return Set<String> the record type developer names
+	*/
+	public static Set<String> getOrphanedHouseholdRecordTypes(){
+		MergeControlSettings__c settings = getSettings();
+		String recordTypes = settings != null && String.isNotBlank(settings.AutoMergeOrphanedHouseholds__c) ? settings.AutoMergeOrphanedHouseholds__c : DEFAULT_ORPHANED_HOUSEHOLD_TYPES;
+		Set<String> developerNames = new Set<String>();
+		for(String developerName:recordTypes.split(',')) {
+			if(String.isNotBlank(developerName))
+				developerNames.add(developerName.trim().toLowerCase());
+		}
+		return developerNames;
+	}
+	/*******************************************************************************************************
 	* @description Returns the merge fields
 	* @param mergeFields the mergeFieldWrap collection to save
 	* @return  String metaData deploy job Id
@@ -127,6 +148,7 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public boolean disableContactTrigger;
 		@auraEnabled public List<String> disabledForProfiles;
 		@auraEnabled public List<String> disabledForUsers;
+		@auraEnabled public String autoMergeOrphanedHouseholds;
 
 		public mergeSetting(MergeControlSettings__c setting) {
 			this.disableAccountTrigger = setting.DisableAccountTrigger__c;
@@ -137,6 +159,7 @@ public with sharing class MRG_Merge_SVC {
 			userIds.addAll(getSetFromString(setting.DisableForUsers__c));
 			this.disabledForProfiles = profileIDs;
 			this.disabledForUsers = userIds;
+			this.autoMergeOrphanedHouseholds = String.isNotBlank(setting.AutoMergeOrphanedHouseholds__c) ? setting.AutoMergeOrphanedHouseholds__c : DEFAULT_ORPHANED_HOUSEHOLD_TYPES;
 		}
 	}
 	/*******************************************************************************************************
@@ -148,6 +171,7 @@ public with sharing class MRG_Merge_SVC {
 		setting.DisableContactTrigger__c = settingObj.disableContactTrigger;
 		setting.DisableForProfiles__c = settingObj.disabledForProfiles != null && settingObj.disabledForProfiles.size()>0 ? String.join(settingObj.disabledForProfiles,';') : null;
 		setting.DisableForUsers__c = settingObj.disabledForUsers != null && settingObj.disabledForUsers.size()>0 ? String.join(settingObj.disabledForUsers,';') : null;
+		setting.AutoMergeOrphanedHouseholds__c = String.isNotBlank(settingObj.autoMergeOrphanedHouseholds) ? settingObj.autoMergeOrphanedHouseholds : null;
 		return setting;
 	}
 
@@ -377,6 +401,9 @@ public with sharing class MRG_Merge_SVC {
 		Set<String> extraFields = new Set<String>();
 		for(MRG_ComplexPreserveRule rule:getComplexPreserveRules(objectType))
 			extraFields.addAll(rule.referencedFields());
+		// the pre-merge AccountId of merged contacts drives the orphaned household merge (#97)
+		if(objectType=='Contact')
+			extraFields.add('AccountId');
 		String soqlQuery = MRG_Duplicate_SVC.getMergeSOQLQuery(objectType, extraFields);
 		soqlQuery+=' WHERE Id in:allIds';
 		Map<Id, SObject> objMap = new Map<Id, SObject>(Database.query(soqlQuery));
@@ -489,14 +516,11 @@ public with sharing class MRG_Merge_SVC {
 	* @param objectType the object type (Account or Contact)
 	*/
 	private static void doProcessMerges(List<MergeCandidate__c> records, String objectType) {
-		Map<Id,Id> mergeCandidateIdByKeepId = MRG_Duplicate_SVC.getMergeCandidateIdByKeepId(records);
-		Map<Id, MergeCandidate__c> mergeCandidateMap = new Map<Id, MergeCandidate__c>(records);
 		mergeHistoryResult mergeResult = getMergeHistoryResult(records, objectType);
 		Map<Id, SObject> objMap = mergeResult.objectMap;
 		Map<Id, Set<Id>> mergeKeyMap = MRG_Duplicate_SVC.getMergeKeyMap(records);
 		if(mergeResult.fieldHistory.size()>0)
 			insert mergeResult.fieldHistory;
-		Set<Id> keepIdsMerged = new Set<Id>();
 		for(Id keepId:mergeKeyMap.keyset()){
 			// merge with a clean keep object; the queried kept record carries updateable-but-not-
 			// mergeable system fields (e.g. IsCustomerPortal) that the merge DML rejects. Preserved /
@@ -508,7 +532,6 @@ public with sharing class MRG_Merge_SVC {
 					mergeObjects.add((Account) objMap.get(mergeId));
 				}
 				merge keepObject mergeObjects;
-				keepIdsMerged.add(keepObject.Id);
 
 			} else {
 				Contact keepObject = new Contact(Id=keepId);
@@ -517,44 +540,58 @@ public with sharing class MRG_Merge_SVC {
 					mergeObjects.add((Contact) objMap.get(mergeId));
 				}
 				merge keepObject mergeObjects;
-				keepIdsMerged.add(keepObject.Id);
 
 			}
 		}
 		// apply preserved / override field values to the surviving records after the merge
 		if(mergeResult.updateRecords != null && mergeResult.updateRecords.size()>0)
 			update mergeResult.updateRecords;
+		// merge Accounts left without Contacts into the kept contact's Account (#97)
+		if(objectType=='Contact')
+			MRG_AccountMerge_SVC.mergeOrphanedHouseholds(mergeKeyMap, objMap);
 		Map<Id, mergeHistoryResult> mergeResultByKeepId = getMergeHistoryResultByKeepId(mergeResult,mergeKeyMap);
-		updateMergeCandidateStatus(keepIdsMerged, mergeCandidateMap, mergeCandidateIdByKeepId, mergeResultByKeepId);
+		updateMergeCandidateStatus(records, mergeKeyMap, mergeResultByKeepId);
 	}
 	/*******************************************************************************************************
-	* @description updates the status of merged records with corresponding merge candidates
-	* @param keepIds the Ids of the kept records
-	* @param mergeCandidateMap the map of merge candidates
-	* @param mergeCandidateByKeepId the map of merged candidate id by keep id
+	* @description marks Processed only the candidates whose (keep, merge) pair was merged; candidates that
+	* share a kept record but whose merge record was not merged (siblings) are left untouched and are not
+	* updated (#95)
+	* @param candidates the merge candidates to check
+	* @param mergeKeyMap the merged record ids keyed by kept record id
+	* @param mergeResultByKeepId the merge history result keyed by kept record id
 	*/
-	public static void updateMergeCandidateStatus(Set<Id> keepIds, Map<Id, MergeCandidate__c> mergeCandidateMap, Map<Id,Id> mergeCandidateIdByKeepId,Map<Id,mergeHistoryResult> mergeResultByKeepId){
-		
-		for(Id keepId:keepIds){
-			Id mergeCandidateId = mergeCandidateIdByKeepId.get(keepId);
-			if(MergeCandidateMap.containsKey(mergeCandidateId)){
-				MergeCandidateMap.get(mergeCandidateId).Status__c='Processed';
-				MergeCandidateMap.get(mergeCandidateId).Data__c = mergeResultByKeepId.containsKey(keepId) ? JSON.serialize(mergeResultByKeepId.get(keepId)) : null;
+	public static void updateMergeCandidateStatus(List<MergeCandidate__c> candidates, Map<Id, Set<Id>> mergeKeyMap, Map<Id,mergeHistoryResult> mergeResultByKeepId){
+		List<MergeCandidate__c> processed = new List<MergeCandidate__c>();
+		for(MergeCandidate__c candidate:candidates){
+			Id keepId = Id.valueOf(candidate.KeepRecordId__c);
+			Set<Id> mergedIds = mergeKeyMap.get(keepId);
+			if(mergedIds != null && (isMergedId(candidate.MergeRecordId__c, mergedIds) || isMergedId(candidate.Merge2RecordId__c, mergedIds))){
+				candidate.Status__c='Processed';
+				candidate.Data__c = mergeResultByKeepId.containsKey(keepId) ? JSON.serialize(mergeResultByKeepId.get(keepId)) : null;
+				processed.add(candidate);
 			}
 		}
-		if(mergeCandidateMap.size()>0)
-			update mergeCandidateMap.values();
+		if(processed.size()>0)
+			update processed;
 	}
 
 	/*******************************************************************************************************
-	* @description updates the status of merged records with corresponding merge candidates
-	* @param keepIds the Ids of the kept records
+	* @description updates the status of the merge candidates matching the merged (keep, merge) pairs
+	* @param mergeKeyMap the merged record ids keyed by kept record id
+	* @param mergeResultByKeepId the merge history result keyed by kept record id
 	*/
-	public static void updateMergeCandidateStatus(Set<Id> keepIds, Map<Id,mergeHistoryResult> mergeResultByKeepId){
-		List<MergeCandidate__c> records = MRG_Duplicate_SVC.getMergeCandidatesFromKeptIds(keepIds);
-		Map<Id, MergeCandidate__c> mergeCandidateMap = new Map<Id, MergeCandidate__c>(records);
-		Map<Id,Id> mergeCandidateIdByKeepId = MRG_Duplicate_SVC.getMergeCandidateIdByKeepId(records);
-		updateMergeCandidateStatus(keepIds,mergeCandidateMap,mergeCandidateIdByKeepId, mergeResultByKeepId);
+	public static void updateMergeCandidateStatus(Map<Id, Set<Id>> mergeKeyMap, Map<Id,mergeHistoryResult> mergeResultByKeepId){
+		updateMergeCandidateStatus(MRG_Duplicate_SVC.getMergeCandidatesFromKeptIds(mergeKeyMap.keySet()), mergeKeyMap, mergeResultByKeepId);
+	}
+
+	/*******************************************************************************************************
+	* @description whether a candidate's merge record id is one of the merged record ids
+	* @param recordId the candidate's merge record id (may be blank)
+	* @param mergedIds the merged record ids for the candidate's kept record
+	* @return Boolean true when the record was merged
+	*/
+	private static Boolean isMergedId(String recordId, Set<Id> mergedIds){
+		return String.isNotBlank(recordId) && mergedIds.contains(Id.valueOf(recordId));
 	}
 
 	/*******************************************************************************************************
@@ -735,7 +772,7 @@ public with sharing class MRG_Merge_SVC {
 		if(mergeResult.updateRecords.size()>0)
 			update mergeResult.updateRecords;
 		if(keptRecordIds.size()>0)
-			updateMergeCandidateStatus(keptRecordIds,mergeResultByKeepId);
+			updateMergeCandidateStatus(mergeKeyMap,mergeResultByKeepId);
 		
 	}
 	/*******************************************************************************************************

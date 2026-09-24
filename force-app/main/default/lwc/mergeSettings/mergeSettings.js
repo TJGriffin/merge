@@ -17,6 +17,7 @@ export default class MergeSettings extends LightningElement {
     @track accountTrigger = false;
     @track accountTriggerDisabled = false;
     @track contactTriggerDisabled = false;
+    @track autoMergeOrphanedHouseholds;
     @track disabledUsers =[];
     @track disabledProfiles = [];
     @track error;
@@ -79,6 +80,8 @@ export default class MergeSettings extends LightningElement {
                 this.accountTriggerDisabled=this.settings.disableAccountTrigger;
             if(this.settings.hasOwnProperty('disableContactTrigger'))
                 this.contactTriggerDisabled=this.settings.disableContactTrigger;
+            if(this.settings.hasOwnProperty('autoMergeOrphanedHouseholds'))
+                this.autoMergeOrphanedHouseholds=this.settings.autoMergeOrphanedHouseholds;
             if(this.settings.hasOwnProperty('disabledForUsers'))
                 this.disabledUsers = this.settings.disabledForUsers == null ? [] : this.settings.disabledForUsers;
             if(this.settings.hasOwnProperty('disabledForProfiles'))
@@ -162,6 +165,11 @@ export default class MergeSettings extends LightningElement {
         this.hasChanges=true;
     }
 
+    handleAutoMergeOrphanedHouseholdsChange(event){
+        this.autoMergeOrphanedHouseholds = event.target.value;
+        this.hasChanges=true;
+    }
+
     handleUserAction(event){
         this.disabledUsers = this.disabledUsers == null ? [] : this.disabledUsers;
         var action = event.detail.action;
@@ -207,6 +215,7 @@ export default class MergeSettings extends LightningElement {
         var mergeSettings = {};
         mergeSettings.disableAccountTrigger = this.accountTriggerDisabled;
         mergeSettings.disableContactTrigger = this.contactTriggerDisabled;
+        mergeSettings.autoMergeOrphanedHouseholds = this.autoMergeOrphanedHouseholds;
         mergeSettings.disabledForUsers = this.disabledUsers;
         mergeSettings.disabledForProfiles = this.disabledProfiles;
         var settingJSON = JSON.stringify(mergeSettings);
