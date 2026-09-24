@@ -309,7 +309,7 @@ public with sharing class MRG_DuplicateMerge_CTRL {
         soqlQuery+=' WHERE Id=:recordId';
         List<MergeCandidate__c> mergeCandidates = (List<MergeCandidate__c>) database.query(soqlQuery);
         if(mergeCandidates.size()>0) {
-            MRG_Merge_SVC.processMergesFromBatch(mergeCandidates, mergeCandidates[0].Object__c,false);
+            MRG_Merge_SVC.processMergesFromBatch(mergeCandidates, mergeCandidates[0].Object__c);
             response = 'Records merged';
         } else {
             response = 'an error occurred';
@@ -383,7 +383,7 @@ public with sharing class MRG_DuplicateMerge_CTRL {
             byObject.get(c.Object__c).add(c);
         }
         for(String objType:byObject.keySet())
-            MRG_Merge_SVC.processMergesFromBatch(byObject.get(objType), objType, false);
+            MRG_Merge_SVC.processMergesFromBatch(byObject.get(objType), objType);
         return candidates.size() + ' record(s) merged';
     }
 	/*******************************************************************************************************
