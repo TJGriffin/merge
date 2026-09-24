@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AutoMergeOrphanedHouseholds__c</fullName>
+    <description>Merge Accounts for related Contacts when Account becomes empty after merge for the following record types (comma delimited list)</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Merge Accounts for related Contacts when Account becomes empty after merge for the following record types (comma delimited list)</inlineHelpText>
+    <label>Automatically merge orphaned households</label>
+    <type>Text</type>
+    <length>255</length>
+</CustomField>

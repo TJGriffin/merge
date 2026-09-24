@@ -20,6 +20,11 @@
                                 <lightning-input type="toggle" label="Contact Trigger Disabled" name="contactDisabled" checked={isContactTriggerDisabled} onclick={handleContactTriggerChange}></lightning-input>
                             </lightning-layout-item>
                         </lightning-layout>
+                        <lightning-layout>
+                            <lightning-layout-item padding="around-small" size="6">
+                                <lightning-input type="text" label="Automatically merge orphaned households" name="autoMergeOrphanedHouseholds" max-length="255" field-level-help="Merge Accounts for related Contacts when Account becomes empty after merge for the following record types (comma delimited list)" value={autoMergeOrphanedHouseholds} onchange={handleAutoMergeOrphanedHouseholdsChange}></lightning-input>
+                            </lightning-layout-item>
+                        </lightning-layout>
                     </lightning-tab>
                     <lightning-tab label="User Configuration">
                         <h2 class="slds-text-title_caps">User Configuration</h2>

@@ -78,6 +78,27 @@ public with sharing class MRG_Merge_SVC {
 		return false;
 	}
 	/*******************************************************************************************************
+	* @description default Account record type developer names whose orphaned households are merged after
+	* a Contact merge, used when AutoMergeOrphanedHouseholds__c is blank (#97)
+	*/
+	public static final String DEFAULT_ORPHANED_HOUSEHOLD_TYPES = 'Household_Account,HH_Account,Household,Individual';
+	/*******************************************************************************************************
+	* @description the Account record type developer names (trimmed, lower-cased) whose orphaned households
+	* are merged into the kept contact's Account after a Contact merge; falls back to
+	* DEFAULT_ORPHANED_HOUSEHOLD_TYPES when the setting is blank (#97)
+	* @return Set<String> the record type developer names
+	*/
+	public static Set<String> getOrphanedHouseholdRecordTypes(){
+		MergeControlSettings__c settings = getSettings();
+		String recordTypes = settings != null && String.isNotBlank(settings.AutoMergeOrphanedHouseholds__c) ? settings.AutoMergeOrphanedHouseholds__c : DEFAULT_ORPHANED_HOUSEHOLD_TYPES;
+		Set<String> developerNames = new Set<String>();
+		for(String developerName:recordTypes.split(',')) {
+			if(String.isNotBlank(developerName))
+				developerNames.add(developerName.trim().toLowerCase());
+		}
+		return developerNames;
+	}
+	/*******************************************************************************************************
 	* @description Returns the merge fields
 	* @param mergeFields the mergeFieldWrap collection to save
 	* @return  String metaData deploy job Id
@@ -127,6 +148,7 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public boolean disableContactTrigger;
 		@auraEnabled public List<String> disabledForProfiles;
 		@auraEnabled public List<String> disabledForUsers;
+		@auraEnabled public String autoMergeOrphanedHouseholds;
 
 		public mergeSetting(MergeControlSettings__c setting) {
 			this.disableAccountTrigger = setting.DisableAccountTrigger__c;
@@ -137,6 +159,7 @@ public with sharing class MRG_Merge_SVC {
 			userIds.addAll(getSetFromString(setting.DisableForUsers__c));
 			this.disabledForProfiles = profileIDs;
 			this.disabledForUsers = userIds;
+			this.autoMergeOrphanedHouseholds = String.isNotBlank(setting.AutoMergeOrphanedHouseholds__c) ? setting.AutoMergeOrphanedHouseholds__c : DEFAULT_ORPHANED_HOUSEHOLD_TYPES;
 		}
 	}
 	/*******************************************************************************************************
@@ -148,6 +171,7 @@ public with sharing class MRG_Merge_SVC {
 		setting.DisableContactTrigger__c = settingObj.disableContactTrigger;
 		setting.DisableForProfiles__c = settingObj.disabledForProfiles != null && settingObj.disabledForProfiles.size()>0 ? String.join(settingObj.disabledForProfiles,';') : null;
 		setting.DisableForUsers__c = settingObj.disabledForUsers != null && settingObj.disabledForUsers.size()>0 ? String.join(settingObj.disabledForUsers,';') : null;
+		setting.AutoMergeOrphanedHouseholds__c = String.isNotBlank(settingObj.autoMergeOrphanedHouseholds) ? settingObj.autoMergeOrphanedHouseholds : null;
 		return setting;
 	}
 
@@ -377,6 +401,9 @@ public with sharing class MRG_Merge_SVC {
 		Set<String> extraFields = new Set<String>();
 		for(MRG_ComplexPreserveRule rule:getComplexPreserveRules(objectType))
 			extraFields.addAll(rule.referencedFields());
+		// the pre-merge AccountId of merged contacts drives the orphaned household merge (#97)
+		if(objectType=='Contact')
+			extraFields.add('AccountId');
 		String soqlQuery = MRG_Duplicate_SVC.getMergeSOQLQuery(objectType, extraFields);
 		soqlQuery+=' WHERE Id in:allIds';
 		Map<Id, SObject> objMap = new Map<Id, SObject>(Database.query(soqlQuery));
@@ -519,6 +546,9 @@ public with sharing class MRG_Merge_SVC {
 		// apply preserved / override field values to the surviving records after the merge
 		if(mergeResult.updateRecords != null && mergeResult.updateRecords.size()>0)
 			update mergeResult.updateRecords;
+		// merge Accounts left without Contacts into the kept contact's Account (#97)
+		if(objectType=='Contact')
+			MRG_AccountMerge_SVC.mergeOrphanedHouseholds(mergeKeyMap, objMap);
 		Map<Id, mergeHistoryResult> mergeResultByKeepId = getMergeHistoryResultByKeepId(mergeResult,mergeKeyMap);
 		updateMergeCandidateStatus(records, mergeKeyMap, mergeResultByKeepId);
 	}

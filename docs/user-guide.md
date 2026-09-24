@@ -127,6 +127,7 @@ Open the **Global Settings** sub-tab to control when Merge Control's automation 
 - **Disable Account Trigger / Disable Contact Trigger** — turn off Merge Control's automatic processing for that object. Use this if you need to pause the app temporarily.
 - **Disable for Profiles** — choose profiles whose users' changes won't trigger Merge Control processing.
 - **Disable for Users** — choose specific users whose changes won't trigger Merge Control processing.
+- **Automatically merge orphaned households** — a comma-delimited list of Account record type API names (for example `Household_Account,HH_Account,Household,Individual`, the default when left blank). After a Contact merge, if the merged contact's Account has no Contacts left and both it and the kept contact's Account have one of these record types, the empty Account is merged into the kept contact's Account and logged as an Account merge candidate with rule "Orphaned Household Merge". Matching ignores case and spaces. Enter a value that matches no record type, such as `NONE`, to turn this off.
 
 The profile and user lists show only profiles and users that have delete permission on Accounts or Contacts, since merging requires delete access.
 

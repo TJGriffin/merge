@@ -27,4 +27,19 @@ private class MRG_MergeSettings_TEST {
         test.stopTest();
 
     }
+
+    static testMethod void testAutoMergeOrphanedHouseholdsSettingRoundTrip() {
+        // blank setting shows the default list
+        MRG_Merge_SVC.mergeSetting settings = MRG_MergeSettings_CTRL.getMergeSetting();
+        system.assertEquals(MRG_Merge_SVC.DEFAULT_ORPHANED_HOUSEHOLD_TYPES, settings.autoMergeOrphanedHouseholds);
+
+        settings.autoMergeOrphanedHouseholds = 'Family,HH_Account';
+        test.startTest();
+        MRG_Merge_SVC.mergeSetting saved = MRG_MergeSettings_CTRL.saveMergeSettings(JSON.serialize(settings));
+        test.stopTest();
+
+        system.assertEquals('Family,HH_Account', saved.autoMergeOrphanedHouseholds);
+        system.assertEquals('Family,HH_Account', MergeControlSettings__c.getOrgDefaults().AutoMergeOrphanedHouseholds__c);
+        system.assertEquals('Family,HH_Account', MRG_MergeSettings_CTRL.getMergeSetting().autoMergeOrphanedHouseholds);
+    }
 }
