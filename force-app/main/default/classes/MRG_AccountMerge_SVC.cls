@@ -12,6 +12,14 @@
 public with sharing class MRG_AccountMerge_SVC {
 
 	public static final String STATUS_ACCOUNTS_MERGED = 'Accounts Merged';
+	public static final String RULE_ORPHANED_HOUSEHOLD = 'Orphaned Household Merge';
+
+	/*******************************************************************************************************
+	* @description Account record type developer names keyed by Account id; when null (the default) they
+	* are read from the queried Account.RecordType.DeveloperName. Tests inject this so they run in orgs
+	* without matching Account record types (#97).
+	*/
+	@TestVisible private static Map<Id,String> recordTypeDeveloperNameById;
 
 	/*******************************************************************************************************
 	* @description evaluates the auto-merge-accounts rules against each candidate's records and sets
@@ -133,12 +141,24 @@ public with sharing class MRG_AccountMerge_SVC {
 	* @return MergeCandidate__c an Account candidate
 	*/
 	public static MergeCandidate__c buildAccountCandidate(List<Id> accountIds, Id keepAccountId) {
+		Map<Id, Account> accountsById = new Map<Id, Account>([SELECT Id, Name FROM Account WHERE Id IN :accountIds]);
+		return buildAccountCandidate(accountIds, keepAccountId, accountsById);
+	}
+
+	/*******************************************************************************************************
+	* @description builds an Account MergeCandidate from a list of account ids using already queried
+	* Accounts (Id, Name), so callers building many candidates do not query per candidate. Not inserted here.
+	* @param accountIds the accounts (keepId chosen by selectKeepAccountId)
+	* @param keepAccountId the surviving account id
+	* @param accountsById the accounts with Name, keyed by id
+	* @return MergeCandidate__c an Account candidate
+	*/
+	public static MergeCandidate__c buildAccountCandidate(List<Id> accountIds, Id keepAccountId, Map<Id, Account> accountsById) {
 		List<Id> ordered = new List<Id>{ keepAccountId };
 		for(Id a:accountIds) {
 			if(a != keepAccountId)
 				ordered.add(a);
 		}
-		Map<Id, Account> accountsById = new Map<Id, Account>([SELECT Id, Name FROM Account WHERE Id IN :accountIds]);
 		Id mergeAccountId = ordered.size() > 1 ? ordered[1] : null;
 		MergeCandidate__c accountCandidate = new MergeCandidate__c(
 			KeepRecordId__c = ordered[0],
@@ -176,5 +196,94 @@ public with sharing class MRG_AccountMerge_SVC {
 		candidate.MergeProcessDate__c = Date.today();
 		update candidate;
 		return keepAccountId;
+	}
+
+	/*******************************************************************************************************
+	* @description after a Contact merge, merges each merged contact's pre-merge Account into the kept
+	* contact's Account when that Account has no Contacts left and both Accounts' record types are in
+	* MRG_Merge_SVC.getOrphanedHouseholdRecordTypes(). Each merge gets an auditable Account candidate
+	* (Rule__c = RULE_ORPHANED_HOUSEHOLD) processed through MRG_Merge_SVC.processMergesFromBatch (#97).
+	* @param mergeKeyMap the merged contact ids keyed by kept contact id
+	* @param preMergeContacts the contacts (with AccountId) as queried before the merge, keyed by id
+	* @return List<MergeCandidate__c> the Account candidates merged (empty when none)
+	*/
+	public static List<MergeCandidate__c> mergeOrphanedHouseholds(Map<Id,Set<Id>> mergeKeyMap, Map<Id,SObject> preMergeContacts) {
+		List<MergeCandidate__c> accountCandidates = new List<MergeCandidate__c>();
+		Set<String> recordTypes = MRG_Merge_SVC.getOrphanedHouseholdRecordTypes();
+		if(mergeKeyMap == null || preMergeContacts == null || recordTypes.isEmpty())
+			return accountCandidates;
+		// the merged contacts' pre-merge accounts, keyed by kept contact id
+		Map<Id,Set<Id>> orphanIdsByKeepId = new Map<Id,Set<Id>>();
+		for(Id keepId:mergeKeyMap.keySet()) {
+			for(Id mergeId:mergeKeyMap.get(keepId)) {
+				SObject merged = preMergeContacts.get(mergeId);
+				Id accountId = merged != null ? (Id) merged.get('AccountId') : null;
+				if(accountId == null)
+					continue;
+				if(!orphanIdsByKeepId.containsKey(keepId))
+					orphanIdsByKeepId.put(keepId, new Set<Id>());
+				orphanIdsByKeepId.get(keepId).add(accountId);
+			}
+		}
+		if(orphanIdsByKeepId.isEmpty())
+			return accountCandidates;
+		// the kept contacts' accounts after the merge (preserve/override rules may have changed them)
+		Set<Id> keepIds = orphanIdsByKeepId.keySet();
+		Map<Id,Id> keptAccountIdByKeepId = new Map<Id,Id>();
+		for(Contact c:[SELECT Id, AccountId FROM Contact WHERE Id IN :keepIds])
+			keptAccountIdByKeepId.put(c.Id, c.AccountId);
+		Set<Id> accountIds = new Set<Id>(keptAccountIdByKeepId.values());
+		for(Set<Id> orphanIds:orphanIdsByKeepId.values())
+			accountIds.addAll(orphanIds);
+		accountIds.remove(null);
+		// dynamic so the package compiles in orgs without Account record types
+		String recordTypeField = Schema.SObjectType.Account.fields.getMap().containsKey('recordtypeid') ? ', RecordType.DeveloperName' : '';
+		Map<Id,Account> accountsById = new Map<Id,Account>((List<Account>) Database.query(
+			'SELECT Id, Name' + recordTypeField + ', (SELECT Id FROM Contacts LIMIT 1) FROM Account WHERE Id IN :accountIds'));
+		Set<Id> mergedAccountIds = new Set<Id>();
+		for(Id keepId:orphanIdsByKeepId.keySet()) {
+			Id keptAccountId = keptAccountIdByKeepId.get(keepId);
+			if(keptAccountId == null || !isOrphanedHouseholdType(accountsById.get(keptAccountId), recordTypes))
+				continue;
+			for(Id orphanId:orphanIdsByKeepId.get(keepId)) {
+				Account orphan = accountsById.get(orphanId);
+				if(orphanId == keptAccountId
+					|| mergedAccountIds.contains(orphanId)
+					|| orphan == null
+					|| !orphan.Contacts.isEmpty()
+					|| !isOrphanedHouseholdType(orphan, recordTypes))
+					continue;
+				// one candidate per orphan; the Account path merges each kept account's orphans together
+				MergeCandidate__c accountCandidate = buildAccountCandidate(new List<Id>{ keptAccountId, orphanId }, keptAccountId, accountsById);
+				accountCandidate.Rule__c = RULE_ORPHANED_HOUSEHOLD;
+				accountCandidates.add(accountCandidate);
+				mergedAccountIds.add(orphanId);
+			}
+		}
+		if(accountCandidates.isEmpty())
+			return accountCandidates;
+		upsert accountCandidates PairKey__c;
+		MRG_Merge_SVC.processMergesFromBatch(accountCandidates, 'Account');
+		return accountCandidates;
+	}
+
+	/*******************************************************************************************************
+	* @description whether an Account's record type developer name is in the configured set; Accounts
+	* with no record type never match (#97)
+	* @param acct the Account (queried with RecordType.DeveloperName when Account has record types)
+	* @param recordTypes the trimmed, lower-cased record type developer names
+	* @return Boolean
+	*/
+	private static Boolean isOrphanedHouseholdType(Account acct, Set<String> recordTypes) {
+		if(acct == null)
+			return false;
+		String developerName;
+		if(recordTypeDeveloperNameById != null) {
+			developerName = recordTypeDeveloperNameById.get(acct.Id);
+		} else {
+			SObject recordType = acct.getPopulatedFieldsAsMap().containsKey('RecordType') ? acct.getSObject('RecordType') : null;
+			developerName = recordType != null ? (String) recordType.get('DeveloperName') : null;
+		}
+		return developerName != null && recordTypes.contains(developerName.trim().toLowerCase());
 	}
 }
