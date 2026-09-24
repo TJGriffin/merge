@@ -392,18 +392,6 @@ public with sharing class MRG_Duplicate_SVC {
     }
 	/*******************************************************************************************************
 	* @description determines if duplicate rules are active for this object
-    *
-    */
-    public static Map<Id,Id> getMergeCandidateIdByKeepId(List<MergeCandidate__c> mergeRecords){
-        Map<Id,Id> mergecandidateIdByKeepId = new Map<Id,Id>();
-        for(MergeCandidate__c record:mergeRecords){
-            mergeCandidateIdByKeepId.put(record.KeepRecordId__c,record.Id);
-        }
-        return mergeCandidateIdByKeepId;
-
-    }
-	/*******************************************************************************************************
-	* @description determines if duplicate rules are active for this object
     * @param recordid
 	* @param duplicateResult
 	* @param dupeRule

@@ -228,6 +228,70 @@ public class MRG_Merge_TEST {
 			'the 3-arg overload should suppress the trigger even when disableTriggers is false');
 	}
 
+	/*******************************************************************************************************
+	* @description inserts sibling Contact candidates X (A<-B) and Y (A<-C) that share a kept record (#95)
+	* @return List<MergeCandidate__c> the candidates, X first then Y
+	*/
+	private static List<MergeCandidate__c> createSiblingContactCandidates() {
+		List<Contact> cons = MRG_TestFactory.contacts(3);
+		return MRG_TestFactory.mergeCandidatePairs(cons[0].Id, new List<Id>{ cons[1].Id, cons[2].Id }, 'Contact');
+	}
+
+	/*******************************************************************************************************
+	* @description reloads a candidate's status and process date
+	* @param candidateId the candidate id
+	* @return MergeCandidate__c the reloaded candidate
+	*/
+	private static MergeCandidate__c reloadCandidate(Id candidateId) {
+		return [SELECT Status__c, MergeProcessDate__c FROM MergeCandidate__c WHERE Id=:candidateId];
+	}
+
+	static testMethod void testMergeRecordLeavesSiblingNew() {
+		List<MergeCandidate__c> mcs = createSiblingContactCandidates();
+
+		test.startTest();
+		MRG_DuplicateMerge_CTRL.mergeRecord(mcs[0].Id);
+		test.stopTest();
+
+		MergeCandidate__c x = reloadCandidate(mcs[0].Id);
+		MergeCandidate__c y = reloadCandidate(mcs[1].Id);
+		system.assertEquals('Processed', x.Status__c, 'the merged candidate should be Processed');
+		system.assertNotEquals(null, x.MergeProcessDate__c, 'the merged candidate should have a process date');
+		system.assertEquals('New', y.Status__c, 'the sibling candidate should stay New');
+		system.assertEquals(null, y.MergeProcessDate__c, 'the sibling candidate should have no process date');
+	}
+
+	static testMethod void testTriggerPathLeavesSiblingNew() {
+		List<MergeCandidate__c> mcs = createSiblingContactCandidates();
+		// a deleted merge loser as the ContactMerge trigger sees it: Id = B, MasterRecordId = A
+		Contact deleted = (Contact) JSON.deserialize(
+			'{"attributes":{"type":"Contact"},"Id":"'+mcs[0].MergeRecordId__c+'","MasterRecordId":"'+mcs[0].KeepRecordId__c+'"}',
+			Contact.class);
+
+		test.startTest();
+		MRG_Merge_SVC.createMergeRecords(new List<SObject>{ deleted }, 'Contact');
+		test.stopTest();
+
+		system.assertEquals('Processed', reloadCandidate(mcs[0].Id).Status__c, 'the candidate for the merged pair should be Processed');
+		MergeCandidate__c y = reloadCandidate(mcs[1].Id);
+		system.assertEquals('New', y.Status__c, 'the sibling candidate should stay New');
+		system.assertEquals(null, y.MergeProcessDate__c, 'the sibling candidate should have no process date');
+	}
+
+	static testMethod void testBatchMergeMarksAllSiblingsProcessed() {
+		List<MergeCandidate__c> mcs = createSiblingContactCandidates();
+
+		test.startTest();
+		MRG_Merge_SVC.processMergesFromBatch(mcs, 'Contact');
+		test.stopTest();
+
+		for(MergeCandidate__c mc:mcs) {
+			MergeCandidate__c reloaded = reloadCandidate(mc.Id);
+			system.assertEquals('Processed', reloaded.Status__c, 'each candidate merged in the call should be Processed');
+			system.assertNotEquals(null, reloaded.MergeProcessDate__c, 'each candidate merged in the call should have a process date');
+		}
+	}
+
 	static testMethod void testCoerceOverrideValue() {
 		// blank -> null
 		system.assertEquals(null, MRG_Merge_SVC.coerceOverrideValue('STRING', null));
