@@ -107,6 +107,127 @@ public class MRG_Merge_TEST {
 	}
 
 
+	/*******************************************************************************************************
+	* @description builds a keep/merge Contact pair whose tracked Email and Phone differ, registers those
+	* two fields as Track, and inserts a New auto-merge candidate for the pair (#96)
+	* @return MergeCandidate__c the inserted candidate
+	*/
+	private static MergeCandidate__c createTrackedContactCandidate() {
+		List<Contact> cons = MRG_TestFactory.contacts(2);
+		update new List<Contact>{
+			new Contact(Id=cons[0].Id, Email='keep@test.com', Phone='111'),
+			new Contact(Id=cons[1].Id, Email='merge@test.com', Phone='222')
+		};
+		MRG_TestFactory.registerMergeFields(new List<MergeFieldSetting__mdt>{
+			MRG_TestFactory.mergeField('Contact','Email','Track', null),
+			MRG_TestFactory.mergeField('Contact','Phone','Track', null)
+		});
+		return MRG_TestFactory.mergeCandidate(cons[0].Id, cons[1].Id, 'Contact');
+	}
+
+	/*******************************************************************************************************
+	* @description asserts an app-driven merge enqueued no MRG_Merge_QUEUE and wrote exactly one history
+	* row per tracked changed field (i.e. the ContactMerge trigger did not write it a second time) (#96)
+	* @param keepId the kept record id
+	*/
+	private static void assertSingleHistoryNoQueue(Id keepId) {
+		system.assertEquals(0, [SELECT Id FROM AsyncApexJob WHERE ApexClass.Name = 'MRG_Merge_QUEUE' AND JobType='Queueable'].size(),
+			'the merge trigger should not enqueue MRG_Merge_QUEUE for an app-driven merge');
+		Map<String, Integer> countByField = new Map<String, Integer>();
+		for(MergeFieldHistory__c h:[SELECT MergeValueType__c FROM MergeFieldHistory__c WHERE KeptRecordId__c=:keepId]) {
+			String field = h.MergeValueType__c.trim().toLowerCase();
+			countByField.put(field, countByField.containsKey(field) ? countByField.get(field)+1 : 1);
+		}
+		system.assertEquals(new Set<String>{'email','phone'}, countByField.keySet(), 'each tracked changed field should have history');
+		system.assertEquals(1, countByField.get('email'), 'email history should be written exactly once');
+		system.assertEquals(1, countByField.get('phone'), 'phone history should be written exactly once');
+	}
+
+	static testMethod void testMergeRecordSuppressesTrigger() {
+		MergeCandidate__c mc = createTrackedContactCandidate();
+
+		test.startTest();
+		MRG_DuplicateMerge_CTRL.mergeRecord(mc.Id);
+		test.stopTest();
+
+		assertSingleHistoryNoQueue(mc.KeepRecordId__c);
+		system.assertEquals(false, MRG_Duplicate_SVC.getTriggerDisabled(), 'trigger flag should be restored after the merge');
+	}
+
+	static testMethod void testGridActionBatchSuppressesTrigger() {
+		MergeCandidate__c mc = createTrackedContactCandidate();
+		MergeControlSettings__c settings = MRG_Merge_SVC.getSettings();
+		settings.DisableContactTrigger__c = false;
+		upsert settings;
+
+		test.startTest();
+		Database.executeBatch(new MRG_GridAction_BATCH(new MRG_Duplicate_SVC.candidateFilter('Contact','test'), 'merge'), 20);
+		test.stopTest();
+
+		assertSingleHistoryNoQueue(mc.KeepRecordId__c);
+		system.assertEquals(false, MRG_Merge_SVC.getSettings().DisableContactTrigger__c, 'the org-wide contact trigger setting should be unchanged');
+	}
+
+	static testMethod void testDuplicateMergeBatchSuppressesTrigger() {
+		MergeCandidate__c mc = createTrackedContactCandidate();
+		MergeControlSettings__c settings = MRG_Merge_SVC.getSettings();
+		settings.DisableContactTrigger__c = false;
+		upsert settings;
+
+		test.startTest();
+		Database.executeBatch(new MRG_DuplicateMerge_BATCH(new Set<String>{'Contact'}), 1);
+		test.stopTest();
+
+		assertSingleHistoryNoQueue(mc.KeepRecordId__c);
+		system.assertEquals(false, MRG_Merge_SVC.getSettings().DisableContactTrigger__c, 'the org-wide contact trigger setting should be unchanged');
+	}
+
+	static testMethod void testNativeMergeStillUsesTrigger() {
+		MergeCandidate__c mc = createTrackedContactCandidate();
+		Contact keep = new Contact(Id=mc.KeepRecordId__c);
+		Contact loser = new Contact(Id=mc.MergeRecordId__c);
+
+		test.startTest();
+		merge keep loser;
+		test.stopTest();
+
+		system.assertEquals(1, [SELECT Id FROM AsyncApexJob WHERE ApexClass.Name = 'MRG_Merge_QUEUE' AND JobType='Queueable'].size(),
+			'a merge outside the app should enqueue MRG_Merge_QUEUE');
+		system.assert([SELECT count() FROM MergeFieldHistory__c WHERE KeptRecordId__c=:keep.Id] > 0,
+			'a merge outside the app should still create field history');
+	}
+
+	static testMethod void testTriggerFlagRestoredWhenMergeThrows() {
+		MergeCandidate__c mc = createTrackedContactCandidate();
+		// the merge record no longer exists, so the merge DML fails
+		delete new Contact(Id=mc.MergeRecordId__c);
+		Boolean threw = false;
+
+		test.startTest();
+		try {
+			MRG_Merge_SVC.processMergesFromBatch(new List<MergeCandidate__c>{ mc }, 'Contact');
+		} catch(Exception e) {
+			threw = true;
+		}
+		test.stopTest();
+
+		system.assert(threw, 'the merge should fail when the merge record is missing');
+		system.assertEquals(false, MRG_Duplicate_SVC.getTriggerDisabled(), 'trigger flag should be restored after a failed merge');
+	}
+
+	static testMethod void testTriggerFlagPriorValueRestored() {
+		MergeCandidate__c mc = createTrackedContactCandidate();
+		MRG_Duplicate_SVC.triggerDisabled = true;
+
+		test.startTest();
+		MRG_Merge_SVC.processMergesFromBatch(new List<MergeCandidate__c>{ mc }, 'Contact', false);
+		test.stopTest();
+
+		system.assertEquals(true, MRG_Duplicate_SVC.getTriggerDisabled(), 'a caller-set trigger flag should be preserved');
+		system.assertEquals(0, [SELECT Id FROM AsyncApexJob WHERE ApexClass.Name = 'MRG_Merge_QUEUE' AND JobType='Queueable'].size(),
+			'the 3-arg overload should suppress the trigger even when disableTriggers is false');
+	}
+
 	static testMethod void testCoerceOverrideValue() {
 		// blank -> null
 		system.assertEquals(null, MRG_Merge_SVC.coerceOverrideValue('STRING', null));

@@ -472,8 +472,23 @@ public with sharing class MRG_Merge_SVC {
 	* @return List<MergeFieldSetting__mdt>
 	*/
 	public static void processMergesFromBatch(List<MergeCandidate__c> records, String objectType, Boolean disableTriggers) {
-		if(disableTriggers)
-			MRG_Duplicate_SVC.triggerDisabled=true;
+		// the app writes field history itself, so the ContactMerge/AccountMerge triggers are always
+		// suppressed for this merge (disableTriggers is ignored); the prior value is restored even on error
+		Boolean priorTriggerDisabled = MRG_Duplicate_SVC.triggerDisabled;
+		MRG_Duplicate_SVC.triggerDisabled=true;
+		try {
+			doProcessMerges(records, objectType);
+		} finally {
+			MRG_Duplicate_SVC.triggerDisabled=priorTriggerDisabled;
+		}
+	}
+
+	/*******************************************************************************************************
+	* @description performs the merges for a list of merge candidates; callers suppress the merge triggers
+	* @param records the merge candidates
+	* @param objectType the object type (Account or Contact)
+	*/
+	private static void doProcessMerges(List<MergeCandidate__c> records, String objectType) {
 		Map<Id,Id> mergeCandidateIdByKeepId = MRG_Duplicate_SVC.getMergeCandidateIdByKeepId(records);
 		Map<Id, MergeCandidate__c> mergeCandidateMap = new Map<Id, MergeCandidate__c>(records);
 		mergeHistoryResult mergeResult = getMergeHistoryResult(records, objectType);
@@ -511,8 +526,6 @@ public with sharing class MRG_Merge_SVC {
 			update mergeResult.updateRecords;
 		Map<Id, mergeHistoryResult> mergeResultByKeepId = getMergeHistoryResultByKeepId(mergeResult,mergeKeyMap);
 		updateMergeCandidateStatus(keepIdsMerged, mergeCandidateMap, mergeCandidateIdByKeepId, mergeResultByKeepId);
-		if(disableTriggers)
-			MRG_Duplicate_SVC.triggerDisabled=false;
 	}
 	/*******************************************************************************************************
 	* @description updates the status of merged records with corresponding merge candidates

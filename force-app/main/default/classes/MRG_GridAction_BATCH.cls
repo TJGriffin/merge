@@ -14,9 +14,6 @@ public with sharing class MRG_GridAction_BATCH implements Database.Batchable<sOb
     @testvisible private Boolean autoMerge;
     @testvisible private List<String> statuses;
     private MRG_Duplicate_SVC.candidateFilter filter;
-    // original trigger-disabled state to restore after a merge run
-    private Boolean accountTriggerDisabled;
-    private Boolean contactTriggerDisabled;
 
     public MRG_GridAction_BATCH(MRG_Duplicate_SVC.candidateFilter filter, String action){
         this.filter = filter == null ? new MRG_Duplicate_SVC.candidateFilter() : filter;
@@ -29,21 +26,7 @@ public with sharing class MRG_GridAction_BATCH implements Database.Batchable<sOb
         this.statuses = this.filter.safeStatuses();
     }
 
-    private Boolean isMergeAction(){
-        return action == 'merge' || action == 'mergeAccounts';
-    }
-
     public Database.QueryLocator start(Database.BatchableContext bc){
-        if(isMergeAction()){
-            MergeControlSettings__c settings = MRG_Merge_SVC.getSettings();
-            if(settings != null){
-                if(accountTriggerDisabled == null) accountTriggerDisabled = settings.DisableAccountTrigger__c;
-                if(contactTriggerDisabled == null) contactTriggerDisabled = settings.DisableContactTrigger__c;
-                settings.DisableAccountTrigger__c = true;
-                settings.DisableContactTrigger__c = true;
-                upsert settings;
-            }
-        }
         String soqlQuery = MRG_Duplicate_SVC.getMergeCandidateFieldSOQL() + MRG_Duplicate_SVC.getWhereClause(filter);
         return Database.getQueryLocator(soqlQuery);
     }
@@ -65,18 +48,10 @@ public with sharing class MRG_GridAction_BATCH implements Database.Batchable<sOb
                 byObject.get(c.Object__c).add(c);
             }
             for(String objType:byObject.keySet())
-                MRG_Merge_SVC.processMergesFromBatch(byObject.get(objType), objType, false);
+                MRG_Merge_SVC.processMergesFromBatch(byObject.get(objType), objType);
         }
     }
 
     public void finish(Database.BatchableContext bc){
-        if(isMergeAction()){
-            MergeControlSettings__c settings = MRG_Merge_SVC.getSettings();
-            if(settings != null){
-                settings.DisableAccountTrigger__c = accountTriggerDisabled == null ? false : accountTriggerDisabled;
-                settings.DisableContactTrigger__c = contactTriggerDisabled == null ? false : contactTriggerDisabled;
-                upsert settings;
-            }
-        }
     }
 }
