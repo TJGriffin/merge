@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DisableNpspTriggersOnOrphanMerge__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Disable NPSP (TDTM) triggers for the rest of the transaction before merging orphaned households, so NPSP address sync does not overwrite the kept contact&apos;s address. No effect when NPSP is not installed.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Disable NPSP (TDTM) triggers for the rest of the transaction before merging orphaned households, so NPSP address sync does not overwrite the kept contact&apos;s address. No effect when NPSP is not installed.</inlineHelpText>
+    <label>Disable NPSP Triggers on Orphan Merge</label>
+    <type>Checkbox</type>
+</CustomField>

@@ -42,4 +42,19 @@ private class MRG_MergeSettings_TEST {
         system.assertEquals('Family,HH_Account', MergeControlSettings__c.getOrgDefaults().AutoMergeOrphanedHouseholds__c);
         system.assertEquals('Family,HH_Account', MRG_MergeSettings_CTRL.getMergeSetting().autoMergeOrphanedHouseholds);
     }
+
+    static testMethod void testDisableNpspTriggersOnOrphanMergeSettingRoundTrip() {
+        MRG_Merge_SVC.mergeSetting settings = MRG_MergeSettings_CTRL.getMergeSetting();
+        system.assertEquals(false, settings.disableNpspTriggersOnOrphanMerge, 'off by default');
+        system.assertEquals(false, MRG_Merge_SVC.getDisableNpspTriggersOnOrphanMerge());
+
+        settings.disableNpspTriggersOnOrphanMerge = true;
+        test.startTest();
+        MRG_Merge_SVC.mergeSetting saved = MRG_MergeSettings_CTRL.saveMergeSettings(JSON.serialize(settings));
+        test.stopTest();
+
+        system.assertEquals(true, saved.disableNpspTriggersOnOrphanMerge);
+        system.assertEquals(true, MRG_Merge_SVC.getDisableNpspTriggersOnOrphanMerge());
+        system.assertEquals(true, MRG_MergeSettings_CTRL.getMergeSetting().disableNpspTriggersOnOrphanMerge);
+    }
 }

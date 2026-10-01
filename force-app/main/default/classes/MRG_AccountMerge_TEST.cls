@@ -228,6 +228,50 @@ private class MRG_AccountMerge_TEST {
 		system.assertEquals('Processed', contactCandidate.Status__c);
 	}
 
+	static testMethod void testOrphanedHouseholdMergeDisablesNpspTriggersWhenSet() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), DisableNpspTriggersOnOrphanMerge__c=true);
+		MRG_Npsp_TEST.CallableMock npsp = MRG_Npsp_TEST.mockNpsp();
+		List<Account> accts = MRG_TestFactory.accounts(2);
+		setRecordTypes(new Map<Id,String>{ accts[0].Id => 'HH_Account', accts[1].Id => 'HH_Account' });
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(false, accountExists(accts[1].Id), 'the orphaned household is merged away');
+		system.assertEquals(new List<String>{ MRG_Npsp_SVC.ACTION_DISABLE_ALL_TRIGGERS }, npsp.actions,
+			'NPSP triggers are disabled once before the Account merge');
+	}
+
+	static testMethod void testOrphanedHouseholdMergeLeavesNpspTriggersByDefault() {
+		MRG_Npsp_TEST.CallableMock npsp = MRG_Npsp_TEST.mockNpsp();
+		List<Account> accts = MRG_TestFactory.accounts(2);
+		setRecordTypes(new Map<Id,String>{ accts[0].Id => 'HH_Account', accts[1].Id => 'HH_Account' });
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(false, accountExists(accts[1].Id), 'the orphaned household is merged away');
+		system.assertEquals(0, npsp.actions.size(), 'NPSP triggers are untouched when the setting is off');
+	}
+
+	static testMethod void testNoOrphanMergeLeavesNpspTriggers() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), DisableNpspTriggersOnOrphanMerge__c=true);
+		MRG_Npsp_TEST.CallableMock npsp = MRG_Npsp_TEST.mockNpsp();
+		List<Account> accts = MRG_TestFactory.accounts(1);
+		setRecordTypes(new Map<Id,String>{ accts[0].Id => 'HH_Account' });
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[0].Id);
+		insert new List<Contact>{ c1, c2 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(0, npsp.actions.size(), 'NPSP triggers are only disabled when a household is merged');
+	}
+
 	static testMethod void testOrphanedHouseholdRecordTypesParsing() {
 		Set<String> defaults = MRG_Merge_SVC.getOrphanedHouseholdRecordTypes();
 		system.assertEquals(new Set<String>{ 'household_account', 'hh_account', 'household', 'individual' }, defaults,

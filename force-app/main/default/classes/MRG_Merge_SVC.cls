@@ -99,10 +99,19 @@ public with sharing class MRG_Merge_SVC {
 		return developerNames;
 	}
 	/*******************************************************************************************************
+	* @description whether the NPSP triggers are disabled for the transaction before orphaned households
+	* are merged
+	* @return Boolean
+	*/
+	public static Boolean getDisableNpspTriggersOnOrphanMerge(){
+		MergeControlSettings__c settings = getSettings();
+		return settings != null && settings.DisableNpspTriggersOnOrphanMerge__c == true;
+	}
+	/*******************************************************************************************************
 	* @description Returns the merge fields
 	* @param mergeFields the mergeFieldWrap collection to save
 	* @return  String metaData deploy job Id
-	*/	
+	*/
 	public static String saveMergeFields(List<mergeFieldWrap> mergeFields) {
 		MRG_Metadata_SVC mdService = new MRG_Metadata_SVC();
 		List<MergeFieldSetting__mdt> mergeFieldMetadata = new List<MergeFieldSetting__mdt>();
@@ -149,6 +158,7 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public List<String> disabledForProfiles;
 		@auraEnabled public List<String> disabledForUsers;
 		@auraEnabled public String autoMergeOrphanedHouseholds;
+		@auraEnabled public boolean disableNpspTriggersOnOrphanMerge;
 
 		public mergeSetting(MergeControlSettings__c setting) {
 			this.disableAccountTrigger = setting.DisableAccountTrigger__c;
@@ -160,6 +170,7 @@ public with sharing class MRG_Merge_SVC {
 			this.disabledForProfiles = profileIDs;
 			this.disabledForUsers = userIds;
 			this.autoMergeOrphanedHouseholds = String.isNotBlank(setting.AutoMergeOrphanedHouseholds__c) ? setting.AutoMergeOrphanedHouseholds__c : DEFAULT_ORPHANED_HOUSEHOLD_TYPES;
+			this.disableNpspTriggersOnOrphanMerge = setting.DisableNpspTriggersOnOrphanMerge__c == true;
 		}
 	}
 	/*******************************************************************************************************
@@ -172,6 +183,7 @@ public with sharing class MRG_Merge_SVC {
 		setting.DisableForProfiles__c = settingObj.disabledForProfiles != null && settingObj.disabledForProfiles.size()>0 ? String.join(settingObj.disabledForProfiles,';') : null;
 		setting.DisableForUsers__c = settingObj.disabledForUsers != null && settingObj.disabledForUsers.size()>0 ? String.join(settingObj.disabledForUsers,';') : null;
 		setting.AutoMergeOrphanedHouseholds__c = String.isNotBlank(settingObj.autoMergeOrphanedHouseholds) ? settingObj.autoMergeOrphanedHouseholds : null;
+		setting.DisableNpspTriggersOnOrphanMerge__c = settingObj.disableNpspTriggersOnOrphanMerge == true;
 		return setting;
 	}
 

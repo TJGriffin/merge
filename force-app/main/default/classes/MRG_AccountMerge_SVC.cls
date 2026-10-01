@@ -203,6 +203,8 @@ public with sharing class MRG_AccountMerge_SVC {
 	* contact's Account when that Account has no Contacts left and both Accounts' record types are in
 	* MRG_Merge_SVC.getOrphanedHouseholdRecordTypes(). Each merge gets an auditable Account candidate
 	* (Rule__c = RULE_ORPHANED_HOUSEHOLD) processed through MRG_Merge_SVC.processMergesFromBatch (#97).
+	* When DisableNpspTriggersOnOrphanMerge__c is set, the NPSP triggers are disabled for the rest of the
+	* transaction before the Accounts are merged.
 	* @param mergeKeyMap the merged contact ids keyed by kept contact id
 	* @param preMergeContacts the contacts (with AccountId) as queried before the merge, keyed by id
 	* @return List<MergeCandidate__c> the Account candidates merged (empty when none)
@@ -262,6 +264,9 @@ public with sharing class MRG_AccountMerge_SVC {
 		}
 		if(accountCandidates.isEmpty())
 			return accountCandidates;
+		// keep NPSP address sync from overwriting the kept contact's address during the Account merge
+		if(MRG_Merge_SVC.getDisableNpspTriggersOnOrphanMerge())
+			MRG_Npsp_SVC.disableTriggers();
 		upsert accountCandidates PairKey__c;
 		MRG_Merge_SVC.processMergesFromBatch(accountCandidates, 'Account');
 		return accountCandidates;

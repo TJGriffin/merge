@@ -8,7 +8,7 @@ The Merge Control app provides SF Administrators with the following tools relate
 - provide a list interface to see all duplicates for a specific rule and allow admins to merge in the UI
 4) a condensed UI where you can see the key differences between records as well as the resulting values post merge
 - admins can control which fields should be hidden from this UI (particularly if you've already defined rules for preservation)
-5) Automatically merge orphaned household Accounts: when a contact merge leaves its old household Account empty, the empty Account is merged into the kept contact's Account (configurable by record type in Global Settings)
+5) Automatically merge orphaned household Accounts: when a contact merge leaves its old household Account empty, the empty Account is merged into the kept contact's Account (configurable by record type in Global Settings). In NPSP orgs, an optional setting disables the NPSP triggers for that transaction so NPSP address sync does not overwrite the kept contact's address
 
 ## Installation
 
