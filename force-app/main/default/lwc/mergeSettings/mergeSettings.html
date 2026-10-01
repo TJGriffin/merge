@@ -30,6 +30,11 @@
                                 <lightning-input type="toggle" label="Disable NPSP triggers on orphaned household merge" name="disableNpspTriggersOnOrphanMerge" field-level-help="Disable NPSP (TDTM) triggers for the rest of the transaction before merging orphaned households, so NPSP address sync does not overwrite the kept contact's address. No effect when NPSP is not installed." checked={disableNpspTriggersOnOrphanMerge} onchange={handleDisableNpspTriggersOnOrphanMergeChange}></lightning-input>
                             </lightning-layout-item>
                         </lightning-layout>
+                        <lightning-layout>
+                            <lightning-layout-item padding="around-small" size="6">
+                                <lightning-input type="toggle" label="Reset default address on orphaned household merge" name="resetDefaultAddressOnOrphanMerge" field-level-help="After an orphaned household is merged with NPSP triggers disabled, make the kept contact's mailing address the household's single default NPSP Address. Single-member households only; skipped when the contact has an address override or the household has seasonal addresses. Requires 'Disable NPSP triggers on orphaned household merge'. No effect when NPSP is not installed." checked={resetDefaultAddressOnOrphanMerge} onchange={handleResetDefaultAddressOnOrphanMergeChange}></lightning-input>
+                            </lightning-layout-item>
+                        </lightning-layout>
                     </lightning-tab>
                     <lightning-tab label="User Configuration">
                         <h2 class="slds-text-title_caps">User Configuration</h2>

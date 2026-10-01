@@ -132,6 +132,11 @@ Open the **Global Settings** sub-tab to control when Merge Control's automation 
   - It turns off **all** NPSP triggers, not only the address ones, and they stay off until that merge transaction finishes. Other users and other transactions are not affected, and your NPSP Trigger Handler records are not changed.
   - NPSP's own follow-up work for the surviving household is skipped for that merge — for example, recalculating rollups for donations moved over from the empty household.
   - It only applies when an orphaned household is actually merged. A Contact merge that leaves no empty household runs with NPSP triggers on as usual.
+  - While the triggers are off, Merge Control clears the Default flag on the empty household's NPSP Address records before merging, so the surviving household keeps a single default address.
+  - Off by default. It has no effect in orgs without NPSP.
+- **Reset default address on orphaned household merge** — for orgs with NPSP. When on, after an orphaned household is merged, the kept contact's mailing address becomes the household's default NPSP Address. If the household already has an Address that matches, it is reused; otherwise a new one is created. The contact's Current Address and the Account's billing address are pointed at it. Things to know:
+  - It is skipped, and the household's default address is left as it was, when the household has more than one contact, the contact has address override turned on, the household has seasonal addresses, or the contact has no mailing address.
+  - It only works together with **Disable NPSP triggers on orphaned household merge**. With that setting off, this one does nothing.
   - Off by default. It has no effect in orgs without NPSP.
 
 The profile and user lists show only profiles and users that have delete permission on Accounts or Contacts, since merging requires delete access.

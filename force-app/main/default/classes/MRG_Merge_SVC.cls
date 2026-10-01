@@ -108,6 +108,15 @@ public with sharing class MRG_Merge_SVC {
 		return settings != null && settings.DisableNpspTriggersOnOrphanMerge__c == true;
 	}
 	/*******************************************************************************************************
+	* @description whether the kept contact's mailing address is made the household's default NPSP Address
+	* after orphaned households are merged with the NPSP triggers disabled
+	* @return Boolean
+	*/
+	public static Boolean getResetDefaultAddressOnOrphanMerge(){
+		MergeControlSettings__c settings = getSettings();
+		return settings != null && settings.ResetDefaultAddressOnOrphanMerge__c == true;
+	}
+	/*******************************************************************************************************
 	* @description Returns the merge fields
 	* @param mergeFields the mergeFieldWrap collection to save
 	* @return  String metaData deploy job Id
@@ -159,6 +168,7 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public List<String> disabledForUsers;
 		@auraEnabled public String autoMergeOrphanedHouseholds;
 		@auraEnabled public boolean disableNpspTriggersOnOrphanMerge;
+		@auraEnabled public boolean resetDefaultAddressOnOrphanMerge;
 
 		public mergeSetting(MergeControlSettings__c setting) {
 			this.disableAccountTrigger = setting.DisableAccountTrigger__c;
@@ -171,6 +181,7 @@ public with sharing class MRG_Merge_SVC {
 			this.disabledForUsers = userIds;
 			this.autoMergeOrphanedHouseholds = String.isNotBlank(setting.AutoMergeOrphanedHouseholds__c) ? setting.AutoMergeOrphanedHouseholds__c : DEFAULT_ORPHANED_HOUSEHOLD_TYPES;
 			this.disableNpspTriggersOnOrphanMerge = setting.DisableNpspTriggersOnOrphanMerge__c == true;
+			this.resetDefaultAddressOnOrphanMerge = setting.ResetDefaultAddressOnOrphanMerge__c == true;
 		}
 	}
 	/*******************************************************************************************************
@@ -184,6 +195,7 @@ public with sharing class MRG_Merge_SVC {
 		setting.DisableForUsers__c = settingObj.disabledForUsers != null && settingObj.disabledForUsers.size()>0 ? String.join(settingObj.disabledForUsers,';') : null;
 		setting.AutoMergeOrphanedHouseholds__c = String.isNotBlank(settingObj.autoMergeOrphanedHouseholds) ? settingObj.autoMergeOrphanedHouseholds : null;
 		setting.DisableNpspTriggersOnOrphanMerge__c = settingObj.disableNpspTriggersOnOrphanMerge == true;
+		setting.ResetDefaultAddressOnOrphanMerge__c = settingObj.resetDefaultAddressOnOrphanMerge == true;
 		return setting;
 	}
 
