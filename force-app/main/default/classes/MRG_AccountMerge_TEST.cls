@@ -272,6 +272,73 @@ private class MRG_AccountMerge_TEST {
 		system.assertEquals(0, npsp.actions.size(), 'NPSP triggers are only disabled when a household is merged');
 	}
 
+	static testMethod void testOrphanedHouseholdMergeResetsDefaultAddressWhenSet() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), DisableNpspTriggersOnOrphanMerge__c=true, ResetDefaultAddressOnOrphanMerge__c=true);
+		MRG_Npsp_TEST.mockNpsp();
+		MRG_NpspAddress_TEST.FakeStore store = MRG_NpspAddress_TEST.mockStore();
+		List<Account> accts = MRG_TestFactory.accounts(2);
+		setRecordTypes(new Map<Id,String>{ accts[0].Id => 'HH_Account', accts[1].Id => 'HH_Account' });
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id, MailingStreet='1 Kept St');
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2 };
+		store.add(accts[0].Id, '9 Old Rd', true);
+		MRG_NpspAddress_SVC.Address orphanAddress = store.add(accts[1].Id, '1 Kept St', true);
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(false, accountExists(accts[1].Id), 'the orphaned household is merged away');
+		system.assertEquals(false, orphanAddress.isDefault, 'the orphan household address is no longer default');
+		List<MRG_NpspAddress_SVC.Address> defaults = new List<MRG_NpspAddress_SVC.Address>();
+		for(MRG_NpspAddress_SVC.Address address:store.addresses) {
+			if(address.accountId == accts[0].Id && address.isDefault == true)
+				defaults.add(address);
+		}
+		system.assertEquals(1, defaults.size(), 'the kept household has a single default address');
+		system.assertEquals('1 Kept St', defaults[0].street, 'the kept contact address is the default');
+		system.assert(store.currentAddressByContactId.containsKey(c1.Id), 'the kept contact current address is set');
+		system.assertEquals('1 Kept St', [SELECT BillingStreet FROM Account WHERE Id=:accts[0].Id].BillingStreet,
+			'the household billing address follows the default address');
+	}
+
+	static testMethod void testOrphanedHouseholdMergeClearsOrphanDefaultOnly() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), DisableNpspTriggersOnOrphanMerge__c=true);
+		MRG_Npsp_TEST.mockNpsp();
+		MRG_NpspAddress_TEST.FakeStore store = MRG_NpspAddress_TEST.mockStore();
+		List<Account> accts = MRG_TestFactory.accounts(2);
+		setRecordTypes(new Map<Id,String>{ accts[0].Id => 'HH_Account', accts[1].Id => 'HH_Account' });
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id, MailingStreet='1 Kept St');
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2 };
+		MRG_NpspAddress_SVC.Address keptAddress = store.add(accts[0].Id, '9 Old Rd', true);
+		MRG_NpspAddress_SVC.Address orphanAddress = store.add(accts[1].Id, '1 Kept St', true);
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(false, accountExists(accts[1].Id), 'the orphaned household is merged away');
+		system.assertEquals(false, orphanAddress.isDefault, 'the orphan household default is cleared');
+		system.assertEquals(true, keptAddress.isDefault, 'the kept household default is left as it was');
+		system.assert(store.currentAddressByContactId.isEmpty(), 'the default address is not reset when the setting is off');
+	}
+
+	static testMethod void testOrphanedHouseholdMergeLeavesAddressesWhenNpspTriggersOn() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), ResetDefaultAddressOnOrphanMerge__c=true);
+		MRG_Npsp_TEST.mockNpsp();
+		MRG_NpspAddress_TEST.FakeStore store = MRG_NpspAddress_TEST.mockStore();
+		List<Account> accts = MRG_TestFactory.accounts(2);
+		setRecordTypes(new Map<Id,String>{ accts[0].Id => 'HH_Account', accts[1].Id => 'HH_Account' });
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id, MailingStreet='1 Kept St');
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2 };
+		store.add(accts[0].Id, '9 Old Rd', true);
+		MRG_NpspAddress_SVC.Address orphanAddress = store.add(accts[1].Id, '1 Kept St', true);
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(false, accountExists(accts[1].Id), 'the orphaned household is merged away');
+		system.assertEquals(true, orphanAddress.isDefault, 'addresses are untouched while the NPSP triggers run');
+		system.assertEquals(0, store.saveCalls, 'nothing is saved while the NPSP triggers run');
+	}
+
 	static testMethod void testOrphanedHouseholdRecordTypesParsing() {
 		Set<String> defaults = MRG_Merge_SVC.getOrphanedHouseholdRecordTypes();
 		system.assertEquals(new Set<String>{ 'household_account', 'hh_account', 'household', 'individual' }, defaults,

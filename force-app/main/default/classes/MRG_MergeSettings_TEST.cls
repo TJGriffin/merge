@@ -57,4 +57,19 @@ private class MRG_MergeSettings_TEST {
         system.assertEquals(true, MRG_Merge_SVC.getDisableNpspTriggersOnOrphanMerge());
         system.assertEquals(true, MRG_MergeSettings_CTRL.getMergeSetting().disableNpspTriggersOnOrphanMerge);
     }
+
+    static testMethod void testResetDefaultAddressOnOrphanMergeSettingRoundTrip() {
+        MRG_Merge_SVC.mergeSetting settings = MRG_MergeSettings_CTRL.getMergeSetting();
+        system.assertEquals(false, settings.resetDefaultAddressOnOrphanMerge, 'off by default');
+        system.assertEquals(false, MRG_Merge_SVC.getResetDefaultAddressOnOrphanMerge());
+
+        settings.resetDefaultAddressOnOrphanMerge = true;
+        test.startTest();
+        MRG_Merge_SVC.mergeSetting saved = MRG_MergeSettings_CTRL.saveMergeSettings(JSON.serialize(settings));
+        test.stopTest();
+
+        system.assertEquals(true, saved.resetDefaultAddressOnOrphanMerge);
+        system.assertEquals(true, MRG_Merge_SVC.getResetDefaultAddressOnOrphanMerge());
+        system.assertEquals(true, MRG_MergeSettings_CTRL.getMergeSetting().resetDefaultAddressOnOrphanMerge);
+    }
 }

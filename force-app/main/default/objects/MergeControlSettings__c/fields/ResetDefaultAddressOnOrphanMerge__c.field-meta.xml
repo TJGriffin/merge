@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ResetDefaultAddressOnOrphanMerge__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>After an orphaned household is merged with NPSP triggers disabled, make the kept contact&apos;s mailing address the household&apos;s single default NPSP Address. Single-member households only; skipped when the contact has an address override or the household has seasonal addresses. Requires Disable NPSP Triggers on Orphan Merge. No effect when NPSP is not installed.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>After an orphaned household is merged with NPSP triggers disabled, make the kept contact&apos;s mailing address the household&apos;s single default NPSP Address. Single-member households only; skipped when the contact has an address override or the household has seasonal addresses. Requires Disable NPSP Triggers on Orphan Merge. No effect when NPSP is not installed.</inlineHelpText>
+    <label>Reset Default Address on Orphan Merge</label>
+    <type>Checkbox</type>
+</CustomField>

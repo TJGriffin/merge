@@ -205,6 +205,9 @@ public with sharing class MRG_AccountMerge_SVC {
 	* (Rule__c = RULE_ORPHANED_HOUSEHOLD) processed through MRG_Merge_SVC.processMergesFromBatch (#97).
 	* When DisableNpspTriggersOnOrphanMerge__c is set, the NPSP triggers are disabled for the rest of the
 	* transaction before the Accounts are merged.
+	* While the NPSP triggers are disabled, the orphans' NPSP Addresses lose their Default flag before the
+	* merge and, when ResetDefaultAddressOnOrphanMerge__c is set, the kept contacts' mailing addresses are
+	* made the household defaults after it (MRG_NpspAddress_SVC).
 	* @param mergeKeyMap the merged contact ids keyed by kept contact id
 	* @param preMergeContacts the contacts (with AccountId) as queried before the merge, keyed by id
 	* @return List<MergeCandidate__c> the Account candidates merged (empty when none)
@@ -243,6 +246,7 @@ public with sharing class MRG_AccountMerge_SVC {
 		Map<Id,Account> accountsById = new Map<Id,Account>((List<Account>) Database.query(
 			'SELECT Id, Name' + recordTypeField + ', (SELECT Id FROM Contacts LIMIT 1) FROM Account WHERE Id IN :accountIds'));
 		Set<Id> mergedAccountIds = new Set<Id>();
+		Set<Id> mergedKeepIds = new Set<Id>();
 		for(Id keepId:orphanIdsByKeepId.keySet()) {
 			Id keptAccountId = keptAccountIdByKeepId.get(keepId);
 			if(keptAccountId == null || !isOrphanedHouseholdType(accountsById.get(keptAccountId), recordTypes))
@@ -260,15 +264,21 @@ public with sharing class MRG_AccountMerge_SVC {
 				accountCandidate.Rule__c = RULE_ORPHANED_HOUSEHOLD;
 				accountCandidates.add(accountCandidate);
 				mergedAccountIds.add(orphanId);
+				mergedKeepIds.add(keepId);
 			}
 		}
 		if(accountCandidates.isEmpty())
 			return accountCandidates;
 		// keep NPSP address sync from overwriting the kept contact's address during the Account merge
-		if(MRG_Merge_SVC.getDisableNpspTriggersOnOrphanMerge())
-			MRG_Npsp_SVC.disableTriggers();
+		Boolean npspDisabled = MRG_Merge_SVC.getDisableNpspTriggersOnOrphanMerge() && MRG_Npsp_SVC.disableTriggers();
+		// the orphans' Addresses move to the kept household; clear their Default flag so it keeps a single default
+		if(npspDisabled)
+			MRG_NpspAddress_SVC.clearDefaults(mergedAccountIds);
 		upsert accountCandidates PairKey__c;
 		MRG_Merge_SVC.processMergesFromBatch(accountCandidates, 'Account');
+		// make the kept contact's mailing address the household's default Address
+		if(npspDisabled && MRG_Merge_SVC.getResetDefaultAddressOnOrphanMerge())
+			MRG_NpspAddress_SVC.resetDefaults(mergedKeepIds);
 		return accountCandidates;
 	}
 
