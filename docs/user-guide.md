@@ -128,6 +128,11 @@ Open the **Global Settings** sub-tab to control when Merge Control's automation 
 - **Disable for Profiles** — choose profiles whose users' changes won't trigger Merge Control processing.
 - **Disable for Users** — choose specific users whose changes won't trigger Merge Control processing.
 - **Automatically merge orphaned households** — a comma-delimited list of Account record type API names (for example `Household_Account,HH_Account,Household,Individual`, the default when left blank). After a Contact merge, if the merged contact's Account has no Contacts left and both it and the kept contact's Account have one of these record types, the empty Account is merged into the kept contact's Account and logged as an Account merge candidate with rule "Orphaned Household Merge". Matching ignores case and spaces. Enter a value that matches no record type, such as `NONE`, to turn this off.
+- **Disable NPSP triggers on orphaned household merge** — for orgs with the Nonprofit Success Pack (NPSP). When on, Merge Control turns off the NPSP triggers just before it merges an orphaned household, so NPSP's address sync does not overwrite the address your merge rules gave the kept contact. Addresses that already differed between the contact and the household before the merge are left as they were. Things to know:
+  - It turns off **all** NPSP triggers, not only the address ones, and they stay off until that merge transaction finishes. Other users and other transactions are not affected, and your NPSP Trigger Handler records are not changed.
+  - NPSP's own follow-up work for the surviving household is skipped for that merge — for example, recalculating rollups for donations moved over from the empty household.
+  - It only applies when an orphaned household is actually merged. A Contact merge that leaves no empty household runs with NPSP triggers on as usual.
+  - Off by default. It has no effect in orgs without NPSP.
 
 The profile and user lists show only profiles and users that have delete permission on Accounts or Contacts, since merging requires delete access.
 
