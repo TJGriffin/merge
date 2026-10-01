@@ -18,6 +18,7 @@ export default class MergeSettings extends LightningElement {
     @track accountTriggerDisabled = false;
     @track contactTriggerDisabled = false;
     @track autoMergeOrphanedHouseholds;
+    @track disableNpspTriggersOnOrphanMerge = false;
     @track disabledUsers =[];
     @track disabledProfiles = [];
     @track error;
@@ -82,6 +83,8 @@ export default class MergeSettings extends LightningElement {
                 this.contactTriggerDisabled=this.settings.disableContactTrigger;
             if(this.settings.hasOwnProperty('autoMergeOrphanedHouseholds'))
                 this.autoMergeOrphanedHouseholds=this.settings.autoMergeOrphanedHouseholds;
+            if(this.settings.hasOwnProperty('disableNpspTriggersOnOrphanMerge'))
+                this.disableNpspTriggersOnOrphanMerge=this.settings.disableNpspTriggersOnOrphanMerge;
             if(this.settings.hasOwnProperty('disabledForUsers'))
                 this.disabledUsers = this.settings.disabledForUsers == null ? [] : this.settings.disabledForUsers;
             if(this.settings.hasOwnProperty('disabledForProfiles'))
@@ -170,6 +173,11 @@ export default class MergeSettings extends LightningElement {
         this.hasChanges=true;
     }
 
+    handleDisableNpspTriggersOnOrphanMergeChange(event){
+        this.disableNpspTriggersOnOrphanMerge = event.target.checked;
+        this.hasChanges=true;
+    }
+
     handleUserAction(event){
         this.disabledUsers = this.disabledUsers == null ? [] : this.disabledUsers;
         var action = event.detail.action;
@@ -216,6 +224,7 @@ export default class MergeSettings extends LightningElement {
         mergeSettings.disableAccountTrigger = this.accountTriggerDisabled;
         mergeSettings.disableContactTrigger = this.contactTriggerDisabled;
         mergeSettings.autoMergeOrphanedHouseholds = this.autoMergeOrphanedHouseholds;
+        mergeSettings.disableNpspTriggersOnOrphanMerge = this.disableNpspTriggersOnOrphanMerge;
         mergeSettings.disabledForUsers = this.disabledUsers;
         mergeSettings.disabledForProfiles = this.disabledProfiles;
         var settingJSON = JSON.stringify(mergeSettings);
