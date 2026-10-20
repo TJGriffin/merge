@@ -147,8 +147,10 @@ public with sharing class MRG_Metadata_SVC {
 		// populate fieldkeyvalue map with the current record's values
 		fieldKeyValues.put('Object__c', keepRuleSetting.Object__r.QualifiedAPIName);
 		fieldKeyValues.put('Order__c', keepRuleSetting.Order__c);
-		fieldKeyValues.put('FilterLogic__c', keepRuleSetting.FilterLogic__c);
-		fieldKeyValues.put('Conditions__c', keepRuleSetting.Conditions__c);
+		fieldKeyValues.put('Field__c', keepRuleSetting.Field__c);
+		fieldKeyValues.put('Preference__c', keepRuleSetting.Preference__c);
+		fieldKeyValues.put('Value__c', keepRuleSetting.Value__c);
+		fieldKeyValues.put('Active__c', keepRuleSetting.Active__c == true);
 		String qualifiedName = !keepRuleSetting.QualifiedAPIName.contains('.') ? 'KeepRecordRuleSettings__mdt.'+keepRuleSetting.QualifiedAPIName : keepRuleSetting.QualifiedAPIName;
 		mdRecordNames.add(qualifiedName);
 

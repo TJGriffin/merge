@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Active__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Inactive rules are ignored. The Keep Record Rules tab deactivates a rule when you remove it, because custom metadata records cannot be deleted from Apex.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Inactive rules are ignored. The Keep Record Rules tab deactivates a rule when you remove it, because custom metadata records cannot be deleted from Apex.</inlineHelpText>
+    <label>Active</label>
+    <type>Checkbox</type>
+</CustomField>

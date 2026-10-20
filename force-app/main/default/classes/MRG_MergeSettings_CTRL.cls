@@ -233,7 +233,12 @@ public with sharing class MRG_MergeSettings_CTRL {
 			if(dfr.isAccessible()
 			&& (includeReadOnly || dfr.isUpdateable())
 			&& !ignoreFields.contains(dfr.getName().toLowerCase())) {
-				fields.add(new MRG_Merge_SVC.objectField(objField));
+				try {
+					fields.add(new MRG_Merge_SVC.objectField(objField));
+				} catch(SObjectException e) {
+					// some feature-gated standard fields (e.g. Account.ChannelProgramName) describe as accessible but throw here
+					continue;
+				}
 			}
 		}
 		if(fields.size()>0)

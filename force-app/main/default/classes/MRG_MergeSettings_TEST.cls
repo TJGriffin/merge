@@ -103,4 +103,19 @@ private class MRG_MergeSettings_TEST {
         MRG_MergeSettings_CTRL.saveMergeSettings(JSON.serialize(reread));
         system.assertEquals(null, MRG_Merge_SVC.getMergeHouseholdsMaxOtherMembers(), 'blank clears the limit');
     }
+
+    static testMethod void testHouseholdMergeUsesKeepRulesSettingRoundTrip() {
+        MRG_Merge_SVC.mergeSetting settings = MRG_MergeSettings_CTRL.getMergeSetting();
+        system.assertEquals(false, settings.householdMergeUsesKeepRules, 'off by default');
+        system.assertEquals(false, MRG_Merge_SVC.getHouseholdMergeUsesKeepRules());
+
+        settings.householdMergeUsesKeepRules = true;
+        test.startTest();
+        MRG_Merge_SVC.mergeSetting saved = MRG_MergeSettings_CTRL.saveMergeSettings(JSON.serialize(settings));
+        test.stopTest();
+
+        system.assertEquals(true, saved.householdMergeUsesKeepRules);
+        system.assertEquals(true, MRG_Merge_SVC.getHouseholdMergeUsesKeepRules());
+        system.assertEquals(true, MRG_MergeSettings_CTRL.getMergeSetting().householdMergeUsesKeepRules);
+    }
 }

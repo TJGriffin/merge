@@ -23,6 +23,7 @@ export default class MergeSettings extends LightningElement {
     @track mergeHouseholdsWithMembers = false;
     @track mergeHouseholdsRequireSameAddress = false;
     @track mergeHouseholdsMaxOtherMembers;
+    @track householdMergeUsesKeepRules = false;
     @track disabledUsers =[];
     @track disabledProfiles = [];
     @track error;
@@ -97,6 +98,8 @@ export default class MergeSettings extends LightningElement {
                 this.mergeHouseholdsRequireSameAddress=this.settings.mergeHouseholdsRequireSameAddress;
             if(this.settings.hasOwnProperty('mergeHouseholdsMaxOtherMembers'))
                 this.mergeHouseholdsMaxOtherMembers=this.settings.mergeHouseholdsMaxOtherMembers;
+            if(this.settings.hasOwnProperty('householdMergeUsesKeepRules'))
+                this.householdMergeUsesKeepRules=this.settings.householdMergeUsesKeepRules;
             if(this.settings.hasOwnProperty('disabledForUsers'))
                 this.disabledUsers = this.settings.disabledForUsers == null ? [] : this.settings.disabledForUsers;
             if(this.settings.hasOwnProperty('disabledForProfiles'))
@@ -211,6 +214,11 @@ export default class MergeSettings extends LightningElement {
         this.hasChanges=true;
     }
 
+    handleHouseholdMergeUsesKeepRulesChange(event){
+        this.householdMergeUsesKeepRules = event.target.checked;
+        this.hasChanges=true;
+    }
+
     handleUserAction(event){
         this.disabledUsers = this.disabledUsers == null ? [] : this.disabledUsers;
         var action = event.detail.action;
@@ -262,6 +270,7 @@ export default class MergeSettings extends LightningElement {
         mergeSettings.mergeHouseholdsWithMembers = this.mergeHouseholdsWithMembers;
         mergeSettings.mergeHouseholdsRequireSameAddress = this.mergeHouseholdsRequireSameAddress;
         mergeSettings.mergeHouseholdsMaxOtherMembers = this.mergeHouseholdsMaxOtherMembers;
+        mergeSettings.householdMergeUsesKeepRules = this.householdMergeUsesKeepRules;
         mergeSettings.disabledForUsers = this.disabledUsers;
         mergeSettings.disabledForProfiles = this.disabledProfiles;
         var settingJSON = JSON.stringify(mergeSettings);

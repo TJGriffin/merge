@@ -99,9 +99,9 @@ private class MRG_Duplicate_TEST {
 		MRG_KeepRecordRule rule = new MRG_KeepRecordRule();
 		rule.objectName = 'Contact';
 		rule.order = 1;
-		rule.conditions = new List<MRG_KeepRecordRule.condition>{
-			new MRG_KeepRecordRule.condition('MailingState','equals','CA')
-		};
+		rule.fieldName = 'MailingState';
+		rule.preference = MRG_KeepRecordRule.PREFER_EQUALS;
+		rule.value = 'CA';
 		MRG_KeepRecordRule.keepRecordRules = new List<MRG_KeepRecordRule>{ rule };
 
 		system.assertEquals(caId, MRG_Duplicate_SVC.selectKeepIdByRules(ids, 'Contact'),
@@ -115,9 +115,9 @@ private class MRG_Duplicate_TEST {
 		MRG_KeepRecordRule rule = new MRG_KeepRecordRule();
 		rule.objectName = 'Contact';
 		rule.order = 1;
-		rule.conditions = new List<MRG_KeepRecordRule.condition>{
-			new MRG_KeepRecordRule.condition('MailingState','equals','ZZ')
-		};
+		rule.fieldName = 'MailingState';
+		rule.preference = MRG_KeepRecordRule.PREFER_EQUALS;
+		rule.value = 'ZZ';
 		MRG_KeepRecordRule.keepRecordRules = new List<MRG_KeepRecordRule>{ rule };
 		system.assertEquals(null, MRG_Duplicate_SVC.selectKeepIdByRules(ids, 'Contact'));
 	}

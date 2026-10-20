@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Preference__c</fullName>
+    <description>How the records in a duplicate group are compared on the field: HasValue, IsBlank, IsTrue, IsFalse, Oldest, Newest, Largest, Smallest, Longest, Shortest, Equals, NotEquals or Contains. Rules are applied in Order; each one narrows the group to the records it prefers until a single record is left.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>How the records in a duplicate group are compared on the field: HasValue, IsBlank, IsTrue, IsFalse, Oldest, Newest, Largest, Smallest, Longest, Shortest, Equals, NotEquals or Contains. Rules are applied in Order; each one narrows the group to the records it prefers until a single record is left.</inlineHelpText>
+    <label>Preference</label>
+    <length>40</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

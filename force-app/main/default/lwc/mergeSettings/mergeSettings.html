@@ -50,6 +50,11 @@
                                 <lightning-input type="number" label="Merge households with members: max other members" name="mergeHouseholdsMaxOtherMembers" min="0" max="999" step="1" field-level-help="The most contacts the merged contact's household may still have and be merged (for example 1 = a spouse only). Leave blank for no limit." value={mergeHouseholdsMaxOtherMembers} onchange={handleMergeHouseholdsMaxOtherMembersChange}></lightning-input>
                             </lightning-layout-item>
                         </lightning-layout>
+                        <lightning-layout>
+                            <lightning-layout-item padding="around-small" size="6">
+                                <lightning-input type="toggle" label="Household merge uses the Account keep record rules" name="householdMergeUsesKeepRules" field-level-help="When a household is merged after a Contact merge (orphaned household or household with members), choose the surviving household with the Account keep record rules instead of always keeping the kept contact's household. The kept contact moves into the surviving household when the rules prefer the other one. Falls back to the kept contact's household when the rules do not decide." checked={householdMergeUsesKeepRules} onchange={handleHouseholdMergeUsesKeepRulesChange}></lightning-input>
+                            </lightning-layout-item>
+                        </lightning-layout>
                     </lightning-tab>
                     <lightning-tab label="User Configuration">
                         <h2 class="slds-text-title_caps">User Configuration</h2>
