@@ -114,23 +114,35 @@ public with sharing class MRG_AccountMerge_SVC {
 	public static Id selectKeepAccountId(List<Id> accountIds) {
 		if(accountIds == null || accountIds.size() < 2)
 			return null;
-		List<MRG_KeepRecordRule> rules = MRG_KeepRecordRule.getRules('Account');
-		if(!rules.isEmpty()) {
-			Set<String> fields = new Set<String>{'Id'};
-			for(MRG_KeepRecordRule rule:rules)
-				fields.addAll(rule.referencedFields());
-			Set<Id> ids = new Set<Id>(accountIds);
-			List<SObject> accounts = Database.query(
-				'SELECT ' + String.join(new List<String>(fields), ',') + ' FROM Account WHERE Id IN :ids');
-			Id ruleKeep = MRG_KeepRecordRule.selectKeepId(rules, accounts);
-			if(ruleKeep != null)
-				return ruleKeep;
-		}
+		Id ruleKeep = selectKeepAccountIdByRules(accountIds);
+		if(ruleKeep != null)
+			return ruleKeep;
 		// default: lowest sorted id
 		List<String> sorted = new List<String>();
 		for(Id a:accountIds) sorted.add(String.valueOf(a));
 		sorted.sort();
 		return (Id) sorted[0];
+	}
+
+	/*******************************************************************************************************
+	* @description applies the Account keep-record rules to a set of accounts and returns the account they
+	* single out, or null when there are no rules or the rules do not decide (the caller keeps its default)
+	* @param accountIds the candidate accounts
+	* @return Id the rule-selected account id, or null
+	*/
+	public static Id selectKeepAccountIdByRules(List<Id> accountIds) {
+		if(accountIds == null || accountIds.size() < 2)
+			return null;
+		List<MRG_KeepRecordRule> rules = MRG_KeepRecordRule.getRules('Account');
+		if(rules.isEmpty())
+			return null;
+		Set<String> fields = new Set<String>{'Id'};
+		for(MRG_KeepRecordRule rule:rules)
+			fields.addAll(rule.referencedFields());
+		Set<Id> ids = new Set<Id>(accountIds);
+		List<SObject> accounts = Database.query(
+			'SELECT ' + String.join(new List<String>(fields), ',') + ' FROM Account WHERE Id IN :ids');
+		return MRG_KeepRecordRule.selectKeepId(rules, accounts);
 	}
 
 	/*******************************************************************************************************
@@ -206,6 +218,9 @@ public with sharing class MRG_AccountMerge_SVC {
 	* MergeHouseholdsWithMembers__c is set and the remaining members pass canMergeWithMembers
 	* (Rule__c = RULE_HOUSEHOLD_WITH_MEMBERS). Each merge gets an auditable Account candidate processed
 	* through MRG_Merge_SVC.processMergesFromBatch.
+	* The kept contact's household survives unless HouseholdMergeUsesKeepRules__c is set and the Account
+	* keep-record rules single out the other household; then the kept contact moves into it. A kept contact
+	* with several households to merge always keeps its own household.
 	* When DisableNpspTriggersOnOrphanMerge__c is set, the NPSP triggers are disabled for the rest of the
 	* transaction before the Accounts are merged.
 	* While the NPSP triggers are disabled, the orphans' NPSP Addresses lose their Default flag before the
@@ -247,6 +262,7 @@ public with sharing class MRG_AccountMerge_SVC {
 		Boolean withMembers = MRG_Merge_SVC.getMergeHouseholdsWithMembers();
 		Boolean sameAddress = MRG_Merge_SVC.getMergeHouseholdsRequireSameAddress();
 		Integer maxOther = MRG_Merge_SVC.getMergeHouseholdsMaxOtherMembers();
+		Boolean useKeepRules = MRG_Merge_SVC.getHouseholdMergeUsesKeepRules();
 		// dynamic so the package compiles in orgs without Account record types
 		String recordTypeField = Schema.SObjectType.Account.fields.getMap().containsKey('recordtypeid') ? ', RecordType.DeveloperName' : '';
 		Map<Id,Account> accountsById = new Map<Id,Account>((List<Account>) Database.query(
@@ -268,11 +284,18 @@ public with sharing class MRG_AccountMerge_SVC {
 				Boolean hasMembers = !orphan.Contacts.isEmpty();
 				if(hasMembers && !canMergeWithMembers(orphan, kept, withMembers, sameAddress, maxOther))
 					continue;
+				// the kept contact's household survives unless the Account keep rules prefer the other one
+				Id survivorId = keptAccountId;
+				if(useKeepRules && orphanIdsByKeepId.get(keepId).size() == 1) {
+					Id ruleKeep = selectKeepAccountIdByRules(new List<Id>{ keptAccountId, orphanId });
+					if(ruleKeep != null)
+						survivorId = ruleKeep;
+				}
 				// one candidate per orphan; the Account path merges each kept account's orphans together
-				MergeCandidate__c accountCandidate = buildAccountCandidate(new List<Id>{ keptAccountId, orphanId }, keptAccountId, accountsById);
+				MergeCandidate__c accountCandidate = buildAccountCandidate(new List<Id>{ keptAccountId, orphanId }, survivorId, accountsById);
 				accountCandidate.Rule__c = hasMembers ? RULE_HOUSEHOLD_WITH_MEMBERS : RULE_ORPHANED_HOUSEHOLD;
 				accountCandidates.add(accountCandidate);
-				mergedAccountIds.add(orphanId);
+				mergedAccountIds.add(survivorId == keptAccountId ? orphanId : keptAccountId);
 				mergedKeepIds.add(keepId);
 			}
 		}

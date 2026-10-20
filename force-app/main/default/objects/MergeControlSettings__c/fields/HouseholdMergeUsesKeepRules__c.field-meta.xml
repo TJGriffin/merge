@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>HouseholdMergeUsesKeepRules__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When the household merge after a Contact merge (orphaned household or household with members) runs, choose the surviving household with the Account keep record rules instead of always keeping the kept contact&apos;s household. The kept contact moves into the surviving household when the rules prefer the other one. Falls back to the kept contact&apos;s household when no rule singles out an Account or when a kept contact has more than one household to merge.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>When the household merge after a Contact merge (orphaned household or household with members) runs, choose the surviving household with the Account keep record rules instead of always keeping the kept contact&apos;s household. The kept contact moves into the surviving household when the rules prefer the other one. Falls back to the kept contact&apos;s household when no rule singles out an Account or when a kept contact has more than one household to merge.</inlineHelpText>
+    <label>Household Merge Uses Account Keep Rules</label>
+    <type>Checkbox</type>
+</CustomField>

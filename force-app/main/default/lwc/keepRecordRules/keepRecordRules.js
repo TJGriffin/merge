@@ -3,15 +3,22 @@ import { subscribe, onError } from 'lightning/empApi';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getKeepRecordRules from '@salesforce/apex/MRG_KeepRecordRules_CTRL.getKeepRecordRules';
 import getObjectFields from '@salesforce/apex/MRG_KeepRecordRules_CTRL.getObjectFields';
-import getOperators from '@salesforce/apex/MRG_KeepRecordRules_CTRL.getOperators';
+import getPreferences from '@salesforce/apex/MRG_KeepRecordRules_CTRL.getPreferences';
 import saveKeepRecordRules from '@salesforce/apex/MRG_KeepRecordRules_CTRL.saveKeepRecordRules';
 
+/**
+ * Keep Record Rules editor: an ordered list of comparative preferences ("prefer the record whose
+ * Relationship Manager has a value", then "prefer the oldest record"). Rows can be reordered,
+ * added and removed; Save deploys the list for the selected object.
+ */
 export default class KeepRecordRules extends LightningElement {
     @track objectType = '';
     @track rules = [];
     @track fieldOptions = [];
-    @track operatorOptions = [];
-    fieldTypeByName = {};
+    @track preferenceOptions = [];
+    @track loading = false;
+    @track saving = false;
+    needsValueByPreference = {};
 
     objectOptions = [
         { label: 'Select an Object', value: '' },
@@ -20,24 +27,35 @@ export default class KeepRecordRules extends LightningElement {
     ];
 
     channelName = '/event/MergeRecordSave__e';
-    notificationTitle;
-    notificationBody;
-    notificationStyle;
 
     connectedCallback() {
         this.registerErrorListener();
         this.handleSubscribe();
     }
 
-    @wire(getOperators)
-    wiredOperators({ data }) {
+    @wire(getPreferences)
+    wiredPreferences({ data, error }) {
         if (data) {
-            this.operatorOptions = data;
+            this.preferenceOptions = data.map((p) => ({ label: p.label, value: p.value }));
+            const map = {};
+            data.forEach((p) => { map[p.value] = p.needsValue === true; });
+            this.needsValueByPreference = map;
+            this.rules = this.decorate(this.rules);
+        } else if (error) {
+            this.handleError(error);
         }
     }
 
     get hasObject() {
         return this.objectType !== '' && this.objectType != null;
+    }
+
+    get hasRules() {
+        return this.rules.length > 0;
+    }
+
+    get saveDisabled() {
+        return this.saving || this.loading;
     }
 
     handleObjectChange(event) {
@@ -53,157 +71,146 @@ export default class KeepRecordRules extends LightningElement {
         getObjectFields({ objectType: this.objectType })
             .then((result) => {
                 this.fieldOptions = result.map((f) => ({ label: f.label, value: f.name }));
-                const map = {};
-                result.forEach((f) => { map[f.name] = f.type; });
-                this.fieldTypeByName = map;
             })
             .catch((error) => this.handleError(error));
     }
 
     loadRules() {
+        this.loading = true;
         getKeepRecordRules({ objectType: this.objectType })
             .then((result) => {
-                this.rules = this.decorate(JSON.parse(JSON.stringify(result)));
+                const rules = JSON.parse(JSON.stringify(result || []));
+                rules.sort((a, b) => (a.order || 0) - (b.order || 0));
+                this.rules = this.decorate(rules);
             })
-            .catch((error) => this.handleError(error));
+            .catch((error) => this.handleError(error))
+            .finally(() => { this.loading = false; });
     }
 
-    // add UI-only keys (stable row keys, indices for event handlers, per-condition input type)
+    // UI-only keys: stable row key, index, 1-based position, value visibility, move button state
     decorate(rules) {
-        const decorated = rules.map((rule, ri) => {
-            rule.uiKey = 'rule-' + ri + '-' + Date.now();
-            rule.ruleIndex = ri;
-            rule.conditions = (rule.conditions || []).map((c, ci) => this.decorateCondition(c, ri, ci));
-            return rule;
+        const count = rules.length;
+        return rules.map((rule, i) => {
+            const out = Object.assign({}, rule);
+            out.uiKey = rule.uiKey || ('rule-' + Date.now() + '-' + Math.random());
+            out.index = i;
+            out.position = i + 1;
+            out.needsValue = this.needsValueByPreference[rule.preference] === true;
+            if (!out.needsValue) {
+                out.value = null;
+            }
+            out.isFirst = i === 0;
+            out.isLast = i === count - 1;
+            return out;
         });
-        return decorated;
-    }
-
-    decorateCondition(condition, ri, ci) {
-        condition.uiKey = 'cond-' + ri + '-' + ci + '-' + Date.now();
-        condition.ruleIndex = ri;
-        condition.conditionIndex = ci;
-        const type = this.fieldTypeByName[condition.fieldName];
-        condition.inputType = this.inputTypeForFieldType(type);
-        condition.isCheckbox = condition.inputType === 'checkbox';
-        condition.checked = condition.isCheckbox && condition.value === 'true';
-        return condition;
-    }
-
-    inputTypeForFieldType(fieldType) {
-        switch (fieldType) {
-            case 'BOOLEAN': return 'checkbox';
-            case 'DATE': return 'date';
-            case 'DATETIME': return 'datetime-local';
-            case 'DOUBLE':
-            case 'CURRENCY':
-            case 'INTEGER':
-            case 'LONG':
-            case 'PERCENT': return 'number';
-            default: return 'text';
-        }
     }
 
     addRule() {
-        const order = this.rules.length + 1;
         const rule = {
             id: null,
-            label: this.objectType + ' Keep Rule ' + order,
+            label: null,
             objectName: this.objectType,
-            order: order,
-            filterLogic: '',
-            conditions: []
+            order: this.rules.length + 1,
+            fieldName: '',
+            preference: 'HasValue',
+            value: null,
+            active: true
         };
         this.rules = this.decorate([...this.rules, rule]);
     }
 
     removeRule(event) {
-        const idx = parseInt(event.target.dataset.rule, 10);
+        const idx = parseInt(event.currentTarget.dataset.index, 10);
         const rules = [...this.rules];
         rules.splice(idx, 1);
-        // renumber order to stay 1-based and contiguous
-        rules.forEach((r, i) => { r.order = i + 1; });
         this.rules = this.decorate(rules);
     }
 
-    addCondition(event) {
-        const ri = parseInt(event.target.dataset.rule, 10);
+    moveUp(event) {
+        const idx = parseInt(event.currentTarget.dataset.index, 10);
+        if (idx <= 0) {
+            return;
+        }
         const rules = [...this.rules];
-        rules[ri].conditions = [...rules[ri].conditions, { fieldName: '', operator: 'equals', value: '' }];
+        [rules[idx - 1], rules[idx]] = [rules[idx], rules[idx - 1]];
         this.rules = this.decorate(rules);
     }
 
-    removeCondition(event) {
-        const ri = parseInt(event.target.dataset.rule, 10);
-        const ci = parseInt(event.target.dataset.condition, 10);
+    moveDown(event) {
+        const idx = parseInt(event.currentTarget.dataset.index, 10);
+        if (idx >= this.rules.length - 1) {
+            return;
+        }
         const rules = [...this.rules];
-        rules[ri].conditions.splice(ci, 1);
+        [rules[idx + 1], rules[idx]] = [rules[idx], rules[idx + 1]];
         this.rules = this.decorate(rules);
-    }
-
-    handleLogicChange(event) {
-        const ri = parseInt(event.target.dataset.rule, 10);
-        this.rules[ri].filterLogic = event.target.value;
-    }
-
-    handleLabelChange(event) {
-        const ri = parseInt(event.target.dataset.rule, 10);
-        this.rules[ri].label = event.target.value;
     }
 
     handleFieldChange(event) {
-        const ri = parseInt(event.target.dataset.rule, 10);
-        const ci = parseInt(event.target.dataset.condition, 10);
+        const idx = parseInt(event.currentTarget.dataset.index, 10);
         const rules = [...this.rules];
-        rules[ri].conditions[ci].fieldName = event.detail.value;
-        // re-derive the value input type for the newly chosen field
-        const type = this.fieldTypeByName[event.detail.value];
-        rules[ri].conditions[ci].inputType = this.inputTypeForFieldType(type);
-        rules[ri].conditions[ci].isCheckbox = rules[ri].conditions[ci].inputType === 'checkbox';
-        this.rules = rules;
+        rules[idx] = Object.assign({}, rules[idx], { fieldName: event.detail.value });
+        this.rules = this.decorate(rules);
     }
 
-    handleOperatorChange(event) {
-        const ri = parseInt(event.target.dataset.rule, 10);
-        const ci = parseInt(event.target.dataset.condition, 10);
-        this.rules[ri].conditions[ci].operator = event.detail.value;
+    handlePreferenceChange(event) {
+        const idx = parseInt(event.currentTarget.dataset.index, 10);
+        const rules = [...this.rules];
+        rules[idx] = Object.assign({}, rules[idx], { preference: event.detail.value });
+        this.rules = this.decorate(rules);
     }
 
     handleValueChange(event) {
-        const ri = parseInt(event.target.dataset.rule, 10);
-        const ci = parseInt(event.target.dataset.condition, 10);
-        const cond = this.rules[ri].conditions[ci];
-        cond.value = cond.isCheckbox ? String(event.target.checked) : event.target.value;
+        const idx = parseInt(event.currentTarget.dataset.index, 10);
+        const rules = [...this.rules];
+        rules[idx] = Object.assign({}, rules[idx], { value: event.target.value });
+        this.rules = this.decorate(rules);
+    }
+
+    // the rules in evaluation order with the UI-only keys stripped
+    get payload() {
+        return this.rules.map((rule, i) => ({
+            id: rule.id || null,
+            label: rule.label || null,
+            objectName: this.objectType,
+            order: i + 1,
+            fieldName: rule.fieldName,
+            preference: rule.preference,
+            value: rule.needsValue ? rule.value : null,
+            active: true
+        }));
     }
 
     handleSave() {
-        // strip UI-only keys before sending to Apex
-        const payload = this.rules.map((rule) => ({
-            id: rule.id,
-            label: rule.label,
-            objectName: rule.objectName,
-            order: rule.order,
-            filterLogic: rule.filterLogic,
-            conditions: (rule.conditions || []).map((c) => ({
-                fieldName: c.fieldName,
-                operator: c.operator,
-                value: c.value
-            }))
-        }));
-        saveKeepRecordRules({ jsonData: JSON.stringify(payload) })
-            .then(() => {
-                // success surfaced via the platform-event subscription
+        this.saving = true;
+        saveKeepRecordRules({ objectType: this.objectType, jsonData: JSON.stringify(this.payload) })
+            .then((jobId) => {
+                if (!jobId) {
+                    // nothing stored and nothing to store: no deploy was queued
+                    this.saving = false;
+                    this.showNotification('Keep Record Rules', 'Nothing to save.', 'info');
+                }
+                // otherwise the deploy result arrives through the platform-event subscription
             })
-            .catch((error) => this.handleError(error));
+            .catch((error) => {
+                this.saving = false;
+                this.handleError(error);
+            });
     }
 
     // --- platform event + notifications (same pattern as the other settings tabs) ---
 
     handleSubscribe() {
         const messageCallback = (response) => {
-            if (response && response.data && response.data.payload &&
-                response.data.payload.IsSuccess__c === true) {
+            const payload = response && response.data && response.data.payload;
+            if (!payload) {
+                return;
+            }
+            if (payload.IsSuccess__c === true) {
                 this.handleSuccess();
+            } else if (this.saving) {
+                this.saving = false;
+                this.showNotification('Keep Record Rules not saved', payload.Message__c || 'The metadata deployment failed.', 'error');
             }
         };
         subscribe(this.channelName, -1, messageCallback).then((response) => {
@@ -216,34 +223,28 @@ export default class KeepRecordRules extends LightningElement {
     }
 
     handleSuccess() {
-        this.notificationTitle = 'Keep Record Rules Saved';
-        this.notificationStyle = 'success';
-        this.notificationBody = '';
-        this.showNotification();
+        this.saving = false;
+        this.showNotification('Keep Record Rules saved', '', 'success');
         if (this.hasObject) {
             this.loadRules();
         }
     }
 
     handleError(error) {
-        this.notificationTitle = 'An error has occurred';
-        this.notificationStyle = 'error';
-        this.notificationBody = 'Unknown error';
+        let body = 'Unknown error';
         if (error && error.body) {
             if (Array.isArray(error.body)) {
-                this.notificationBody = error.body.map((e) => e.message).join(', ');
+                body = error.body.map((e) => e.message).join(', ');
             } else if (typeof error.body.message === 'string') {
-                this.notificationBody = error.body.message;
+                body = error.body.message;
             }
+        } else if (error && typeof error.message === 'string') {
+            body = error.message;
         }
-        this.showNotification();
+        this.showNotification('An error has occurred', body, 'error');
     }
 
-    showNotification() {
-        this.dispatchEvent(new ShowToastEvent({
-            title: this.notificationTitle,
-            message: this.notificationBody,
-            variant: this.notificationStyle
-        }));
+    showNotification(title, message, variant) {
+        this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
     }
 }

@@ -1,137 +1,144 @@
 /**
 * @author tj@tjgriffin.com
 * @group Merge
-* @description unit tests for keep-record rule conditions, matching, and ordered keep selection
+* @description tests for the comparative keep-record rule engine (MRG_KeepRecordRule)
 */
 @isTest
 private class MRG_KeepRecordRule_TEST {
 
-	private static MRG_KeepRecordRule.condition cond(String field, String op, String val) {
-		return new MRG_KeepRecordRule.condition(field, op, val);
+	private static MRG_KeepRecordRule rule(Integer order, String field, String preference, String value) {
+		MRG_KeepRecordRule r = new MRG_KeepRecordRule();
+		r.objectName = 'Account';
+		r.order = order;
+		r.fieldName = field;
+		r.preference = preference;
+		r.value = value;
+		return r;
 	}
 
-	static testMethod void testEqualsAndNotEquals() {
-		Contact c = new Contact(LastName='Smith', MailingState='TX');
-		system.assert(cond('MailingState','equals','TX').evaluate(c));
-		system.assert(!cond('MailingState','equals','CA').evaluate(c));
-		system.assert(cond('MailingState','notEquals','CA').evaluate(c));
-		// null field equals blank value
-		Contact blank = new Contact(LastName='X');
-		system.assert(cond('MailingState','equals','').evaluate(blank), 'null field equals blank');
-		system.assert(!cond('MailingState','equals','TX').evaluate(blank));
+	private static Account acct(String name, String site, String type, Integer employees, Decimal revenue) {
+		return new Account(Name=name, Site=site, Type=type, NumberOfEmployees=employees, AnnualRevenue=revenue);
 	}
 
-	static testMethod void testBooleanEquals() {
-		Contact c = new Contact(LastName='X', HasOptedOutOfEmail=true);
-		system.assert(cond('HasOptedOutOfEmail','equals','true').evaluate(c));
-		system.assert(!cond('HasOptedOutOfEmail','equals','false').evaluate(c));
-		system.assert(cond('HasOptedOutOfEmail','notEquals','false').evaluate(c));
+	private static Set<Id> ids(List<SObject> records) {
+		Set<Id> out = new Set<Id>();
+		for(SObject r:records) out.add((Id) r.get('Id'));
+		return out;
 	}
 
-	static testMethod void testStringOperators() {
-		Contact c = new Contact(LastName='Johnson');
-		system.assert(cond('LastName','contains','ohns').evaluate(c));
-		system.assert(cond('LastName','startsWith','John').evaluate(c));
-		system.assert(cond('LastName','endsWith','son').evaluate(c));
-		system.assert(!cond('LastName','contains','xyz').evaluate(c));
+	static testMethod void testHasValueThenOldest() {
+		// the brief: prefer the Account with a Relationship Manager (here: Site), then the oldest
+		List<Account> accts = new List<Account>{ acct('Alone', null, null, null, null), acct('Family', 'Kent Anderson', null, null, null) };
+		insert accts;
+		List<Account> recs = [SELECT Id, Site, CreatedDate FROM Account ORDER BY CreatedDate, Id];
+		List<MRG_KeepRecordRule> rules = new List<MRG_KeepRecordRule>{ rule(2, 'CreatedDate', 'Oldest', null), rule(1, 'Site', 'HasValue', null) };
+
+		system.assertEquals(accts[1].Id, MRG_KeepRecordRule.selectKeepId(rules, recs), 'the record with a Site wins rule 1 regardless of age or list order');
 	}
 
-	static testMethod void testOrderedDateOperators() {
-		Contact c = new Contact(LastName='X', Birthdate=Date.newInstance(2000,1,1));
-		system.assert(cond('Birthdate','greaterThan','1999-01-01').evaluate(c));
-		system.assert(cond('Birthdate','lessThan','2001-01-01').evaluate(c));
-		system.assert(cond('Birthdate','greaterOrEqual','2000-01-01').evaluate(c));
-		system.assert(cond('Birthdate','lessOrEqual','2000-01-01').evaluate(c));
-		system.assert(!cond('Birthdate','greaterThan','2001-01-01').evaluate(c));
-		// null field -> ordered comparison false
-		system.assert(!cond('Birthdate','greaterThan','2000-01-01').evaluate(new Contact(LastName='Y')));
-		// unparseable comparison value -> false, not an exception
-		system.assert(!cond('Birthdate','greaterThan','not-a-date').evaluate(c));
+	static testMethod void testSkippedRuleFallsThroughToNext() {
+		List<Account> accts = new List<Account>{ acct('A', null, 'Prospect', null, null), acct('B', null, 'Customer', null, null) };
+		insert accts;
+		List<Account> recs = [SELECT Id, Site, Type FROM Account];
+		List<MRG_KeepRecordRule> rules = new List<MRG_KeepRecordRule>{ rule(1, 'Site', 'HasValue', null), rule(2, 'Type', 'Equals', 'customer') };
+
+		system.assertEquals(accts[1].Id, MRG_KeepRecordRule.selectKeepId(rules, recs), 'nobody has a Site -> rule 1 skipped; Equals is case-insensitive');
 	}
 
-	static testMethod void testMatchesUsesFilterLogic() {
-		Contact c = new Contact(LastName='X', MailingState='TX', HasOptedOutOfEmail=true);
-		MRG_KeepRecordRule rule = new MRG_KeepRecordRule();
-		rule.filterLogic = '1 OR 2';
-		rule.conditions = new List<MRG_KeepRecordRule.condition>{
-			cond('MailingState','equals','CA'),      // false
-			cond('HasOptedOutOfEmail','equals','true') // true
+	static testMethod void testTieNarrowsThenNextRuleDecides() {
+		List<Account> accts = new List<Account>{ acct('A', 'x', null, 5, null), acct('B', 'y', null, 50, null), acct('C', null, null, 500, null) };
+		insert accts;
+		List<Account> recs = [SELECT Id, Site, NumberOfEmployees FROM Account];
+		List<MRG_KeepRecordRule> rules = new List<MRG_KeepRecordRule>{ rule(1, 'Site', 'HasValue', null), rule(2, 'NumberOfEmployees', 'Largest', null) };
+
+		system.assertEquals(accts[1].Id, MRG_KeepRecordRule.selectKeepId(rules, recs), 'A and B tie on rule 1; C (most employees) is already out, so B wins rule 2');
+	}
+
+	static testMethod void testNoUniqueChoiceReturnsNull() {
+		List<Account> accts = new List<Account>{ acct('A', 'x', null, 5, null), acct('B', 'y', null, 5, null) };
+		insert accts;
+		List<Account> recs = [SELECT Id, Site, NumberOfEmployees FROM Account];
+		List<MRG_KeepRecordRule> rules = new List<MRG_KeepRecordRule>{ rule(1, 'Site', 'HasValue', null), rule(2, 'NumberOfEmployees', 'Smallest', null) };
+
+		system.assertEquals(null, MRG_KeepRecordRule.selectKeepId(rules, recs), 'a full tie leaves the caller its default');
+		system.assertEquals(null, MRG_KeepRecordRule.selectKeepId(new List<MRG_KeepRecordRule>(), recs), 'no rules');
+		system.assertEquals(null, MRG_KeepRecordRule.selectKeepId(rules, new List<SObject>{ recs[0] }), 'a single record is nothing to choose between');
+	}
+
+	static testMethod void testInvalidAndInactiveRulesIgnored() {
+		List<Account> accts = new List<Account>{ acct('A', 'x', null, null, null), acct('B', null, null, null, null) };
+		insert accts;
+		List<Account> recs = [SELECT Id, Site FROM Account];
+		MRG_KeepRecordRule noField = rule(1, null, 'HasValue', null);
+		MRG_KeepRecordRule badPreference = rule(2, 'Site', 'Whatever', null);
+		MRG_KeepRecordRule valueMissing = rule(3, 'Site', 'Equals', null);
+		MRG_KeepRecordRule legacy = rule(4, null, null, null);
+		MRG_KeepRecordRule good = rule(5, 'Site', 'HasValue', null);
+		system.assertEquals(false, noField.isValid());
+		system.assertEquals(false, badPreference.isValid());
+		system.assertEquals(false, valueMissing.isValid());
+		system.assertEquals(false, legacy.isValid());
+		system.assertEquals(true, good.isValid());
+		system.assertEquals(accts[0].Id, MRG_KeepRecordRule.selectKeepId(new List<MRG_KeepRecordRule>{ noField, badPreference, valueMissing, legacy, good }, recs));
+		system.assertEquals(0, badPreference.prefer(recs).size(), 'an invalid rule prefers nothing');
+	}
+
+	static testMethod void testEveryPreference() {
+		List<Account> accts = new List<Account>{
+			acct('Alpha', 'HQ', 'Customer - Direct', 10, 100),
+			acct('Beta', null, 'Prospect', 300, 50),
+			acct('Gamma', 'Branch office', 'Customer - Channel', 20, null)
 		};
-		system.assert(rule.matches(c), '1 OR 2 with second true should match');
+		insert accts;
+		List<Account> recs = [SELECT Id, Name, Site, Type, NumberOfEmployees, AnnualRevenue, CreatedDate FROM Account];
+		Id alpha = accts[0].Id, beta = accts[1].Id, gamma = accts[2].Id;
 
-		rule.filterLogic = '1 AND 2';
-		system.assert(!rule.matches(c), '1 AND 2 with first false should not match');
+		system.assertEquals(new Set<Id>{ alpha, gamma }, ids(rule(1, 'Site', 'HasValue', null).prefer(recs)));
+		system.assertEquals(new Set<Id>{ beta }, ids(rule(1, 'Site', 'IsBlank', null).prefer(recs)));
+		system.assertEquals(new Set<Id>{ beta }, ids(rule(1, 'NumberOfEmployees', 'Largest', null).prefer(recs)));
+		system.assertEquals(new Set<Id>{ alpha }, ids(rule(1, 'NumberOfEmployees', 'Smallest', null).prefer(recs)));
+		system.assertEquals(new Set<Id>{ alpha }, ids(rule(1, 'AnnualRevenue', 'Largest', null).prefer(recs)), 'blank revenue is ignored');
+		system.assertEquals(new Set<Id>{ gamma }, ids(rule(1, 'Site', 'Longest', null).prefer(recs)));
+		system.assertEquals(new Set<Id>{ alpha }, ids(rule(1, 'Site', 'Shortest', null).prefer(recs)));
+		system.assertEquals(new Set<Id>{ alpha }, ids(rule(1, 'Type', 'Equals', 'customer - direct').prefer(recs)));
+		system.assertEquals(new Set<Id>{ beta, gamma }, ids(rule(1, 'Type', 'NotEquals', 'Customer - Direct').prefer(recs)));
+		system.assertEquals(new Set<Id>{ alpha, gamma }, ids(rule(1, 'Type', 'Contains', 'CUSTOMER').prefer(recs)));
+		system.assertEquals(new Set<Id>{ alpha }, ids(rule(1, 'Name', 'Smallest', null).prefer(recs)), 'text compares alphabetically');
+		system.assert(rule(1, 'CreatedDate', 'Oldest', null).prefer(recs).size() >= 1, 'the oldest datetime is found');
+		system.assert(rule(1, 'CreatedDate', 'Newest', null).prefer(recs).size() >= 1, 'the newest datetime is found');
 	}
 
-	static testMethod void testMatchesEmptyConditionsIsFalse() {
-		MRG_KeepRecordRule rule = new MRG_KeepRecordRule();
-		system.assert(!rule.matches(new Contact(LastName='X')), 'no conditions -> no match');
-	}
-
-	static testMethod void testReferencedFields() {
-		MRG_KeepRecordRule rule = new MRG_KeepRecordRule();
-		rule.conditions = new List<MRG_KeepRecordRule.condition>{
-			cond('MailingState','equals','TX'),
-			cond('Birthdate','greaterThan','2000-01-01')
-		};
-		system.assertEquals(new Set<String>{'MailingState','Birthdate'}, rule.referencedFields());
-	}
-
-	static testMethod void testSelectKeepIdUniqueMatchWins() {
+	static testMethod void testBooleanPreferences() {
 		List<Contact> cons = new List<Contact>{
-			new Contact(FirstName='A', LastName='A', MailingState='TX'),
-			new Contact(FirstName='B', LastName='B', MailingState='CA')
+			new Contact(LastName='Opted', HasOptedOutOfEmail=true),
+			new Contact(LastName='Subscribed', HasOptedOutOfEmail=false)
 		};
 		insert cons;
-
-		MRG_KeepRecordRule rule = new MRG_KeepRecordRule();
-		rule.order = 1;
-		rule.conditions = new List<MRG_KeepRecordRule.condition>{ cond('MailingState','equals','CA') };
-
-		List<Contact> queried = [SELECT Id, MailingState FROM Contact];
-		Id keepId = MRG_KeepRecordRule.selectKeepId(new List<MRG_KeepRecordRule>{ rule }, queried);
-		system.assertEquals(cons[1].Id, keepId, 'the single CA record should be chosen');
+		List<Contact> recs = [SELECT Id, HasOptedOutOfEmail FROM Contact];
+		system.assertEquals(new Set<Id>{ cons[0].Id }, ids(rule(1, 'HasOptedOutOfEmail', 'IsTrue', null).prefer(recs)));
+		system.assertEquals(new Set<Id>{ cons[1].Id }, ids(rule(1, 'HasOptedOutOfEmail', 'IsFalse', null).prefer(recs)));
+		system.assertEquals(new Set<Id>{ cons[1].Id }, ids(rule(1, 'HasOptedOutOfEmail', 'Smallest', null).prefer(recs)), 'false < true');
 	}
 
-	static testMethod void testSelectKeepIdSkipsAmbiguousFallsToNextRule() {
-		List<Contact> cons = new List<Contact>{
-			new Contact(FirstName='A', LastName='A', MailingState='TX', HasOptedOutOfEmail=true),
-			new Contact(FirstName='B', LastName='B', MailingState='TX', HasOptedOutOfEmail=false)
-		};
-		insert cons;
-		List<Contact> queried = [SELECT Id, MailingState, HasOptedOutOfEmail FROM Contact];
-
-		// rule 1 matches BOTH (state=TX) -> ambiguous, skipped
-		MRG_KeepRecordRule rule1 = new MRG_KeepRecordRule();
-		rule1.order = 1;
-		rule1.conditions = new List<MRG_KeepRecordRule.condition>{ cond('MailingState','equals','TX') };
-		// rule 2 matches exactly one (opted out) -> wins
-		MRG_KeepRecordRule rule2 = new MRG_KeepRecordRule();
-		rule2.order = 2;
-		rule2.conditions = new List<MRG_KeepRecordRule.condition>{ cond('HasOptedOutOfEmail','equals','true') };
-
-		Id keepId = MRG_KeepRecordRule.selectKeepId(new List<MRG_KeepRecordRule>{ rule2, rule1 }, queried);
-		system.assertEquals(cons[0].Id, keepId, 'rule order should be respected and ambiguous rule skipped');
+	static testMethod void testCompareTypes() {
+		system.assertEquals(-1, MRG_KeepRecordRule.compare(Date.newInstance(2020, 1, 1), Date.newInstance(2021, 1, 1)));
+		system.assertEquals(1, MRG_KeepRecordRule.compare(Datetime.newInstance(2021, 1, 1, 0, 0, 0), Datetime.newInstance(2020, 1, 1, 0, 0, 0)));
+		system.assertEquals(0, MRG_KeepRecordRule.compare(Time.newInstance(1, 0, 0, 0), Time.newInstance(1, 0, 0, 0)));
+		system.assertEquals(1, MRG_KeepRecordRule.compare(10, 9));
+		system.assertEquals(-1, MRG_KeepRecordRule.compare(1.5, 2.5));
+		system.assertEquals(1, MRG_KeepRecordRule.compare((Double) 3.0, (Double) 2.0));
+		system.assertEquals(-1, MRG_KeepRecordRule.compare(false, true));
+		system.assertEquals(0, MRG_KeepRecordRule.compare('abc', 'ABC'));
+		system.assertEquals(true, MRG_KeepRecordRule.isBlank('  '));
+		system.assertEquals(false, MRG_KeepRecordRule.isBlank(0));
 	}
 
-	static testMethod void testSelectKeepIdNoMatchReturnsNull() {
-		List<Contact> cons = new List<Contact>{
-			new Contact(FirstName='A', LastName='A', MailingState='TX'),
-			new Contact(FirstName='B', LastName='B', MailingState='TX')
-		};
-		insert cons;
-		List<Contact> queried = [SELECT Id, MailingState FROM Contact];
-		MRG_KeepRecordRule rule = new MRG_KeepRecordRule();
-		rule.conditions = new List<MRG_KeepRecordRule.condition>{ cond('MailingState','equals','CA') };
-		system.assertEquals(null, MRG_KeepRecordRule.selectKeepId(new List<MRG_KeepRecordRule>{ rule }, queried),
-			'no unique match -> null (caller uses default)');
-	}
-
-	static testMethod void testCompareToOrders() {
-		MRG_KeepRecordRule a = new MRG_KeepRecordRule(); a.order = 2;
-		MRG_KeepRecordRule b = new MRG_KeepRecordRule(); b.order = 1;
-		List<MRG_KeepRecordRule> rules = new List<MRG_KeepRecordRule>{ a, b };
+	static testMethod void testSortsByOrder() {
+		List<MRG_KeepRecordRule> rules = new List<MRG_KeepRecordRule>{ rule(3, 'a', 'HasValue', null), rule(1, 'b', 'HasValue', null), rule(2, 'c', 'HasValue', null) };
 		rules.sort();
-		system.assertEquals(1, rules[0].order, 'lower order sorts first');
+		system.assertEquals('b', rules[0].fieldName);
+		system.assertEquals('c', rules[1].fieldName);
+		system.assertEquals('a', rules[2].fieldName);
+		system.assertEquals(new Set<String>{ 'a' }, rules[2].referencedFields());
 	}
 }

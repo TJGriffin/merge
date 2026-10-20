@@ -144,6 +144,15 @@ public with sharing class MRG_Merge_SVC {
 		return settings != null && settings.MergeHouseholdsMaxOtherMembers__c != null ? Integer.valueOf(settings.MergeHouseholdsMaxOtherMembers__c) : null;
 	}
 	/*******************************************************************************************************
+	* @description whether the household merge after a Contact merge chooses the surviving household with
+	* the Account keep-record rules instead of always keeping the kept contact's household
+	* @return Boolean
+	*/
+	public static Boolean getHouseholdMergeUsesKeepRules(){
+		MergeControlSettings__c settings = getSettings();
+		return settings != null && settings.HouseholdMergeUsesKeepRules__c == true;
+	}
+	/*******************************************************************************************************
 	* @description Returns the merge fields
 	* @param mergeFields the mergeFieldWrap collection to save
 	* @return  String metaData deploy job Id
@@ -199,6 +208,7 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public boolean mergeHouseholdsWithMembers;
 		@auraEnabled public boolean mergeHouseholdsRequireSameAddress;
 		@auraEnabled public Integer mergeHouseholdsMaxOtherMembers;
+		@auraEnabled public boolean householdMergeUsesKeepRules;
 
 		public mergeSetting(MergeControlSettings__c setting) {
 			this.disableAccountTrigger = setting.DisableAccountTrigger__c;
@@ -215,6 +225,7 @@ public with sharing class MRG_Merge_SVC {
 			this.mergeHouseholdsWithMembers = setting.MergeHouseholdsWithMembers__c == true;
 			this.mergeHouseholdsRequireSameAddress = setting.MergeHouseholdsRequireSameAddress__c == true;
 			this.mergeHouseholdsMaxOtherMembers = setting.MergeHouseholdsMaxOtherMembers__c != null ? Integer.valueOf(setting.MergeHouseholdsMaxOtherMembers__c) : null;
+			this.householdMergeUsesKeepRules = setting.HouseholdMergeUsesKeepRules__c == true;
 		}
 	}
 	/*******************************************************************************************************
@@ -232,6 +243,7 @@ public with sharing class MRG_Merge_SVC {
 		setting.MergeHouseholdsWithMembers__c = settingObj.mergeHouseholdsWithMembers == true;
 		setting.MergeHouseholdsRequireSameAddress__c = settingObj.mergeHouseholdsRequireSameAddress == true;
 		setting.MergeHouseholdsMaxOtherMembers__c = settingObj.mergeHouseholdsMaxOtherMembers;
+		setting.HouseholdMergeUsesKeepRules__c = settingObj.householdMergeUsesKeepRules == true;
 		return setting;
 	}
 

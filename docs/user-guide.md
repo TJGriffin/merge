@@ -36,7 +36,7 @@ Merge Control adds two things on top of that:
 - **Preservation rules** let you override the default and pull specific field values from a losing record onto the kept record (for example, always keep the oldest "Customer Since" date).
 - **Tracking** writes a before-and-after log of selected fields so you have an audit trail of what each merge changed.
 
-Which record is kept is decided automatically: within each duplicate group, the records are sorted by Id and the first one is kept. You can change individual field values before merging using the preview screen (see below).
+Which record is kept is decided by the **Keep Record Rules** (see below). Without rules, the records in a duplicate group are sorted by Id and the first one is kept. You can change individual field values before merging using the preview screen (see below).
 
 > **Note:** A single merge handles up to three records at once. If a duplicate group contains more than three records, run the merge again after the first merge to clean up the remainder.
 
@@ -120,6 +120,28 @@ Turn on auto-merge only for rules you trust to match real duplicates. Leave it o
 
 ---
 
+## Keep Record Rules
+
+The **Keep Record Rules** tab decides which record of a duplicate group survives a merge, separately for Accounts and Contacts. A rule is one comparative preference on one field, and the rules form an ordered list:
+
+1. The first rule narrows the group to the records it prefers.
+2. If exactly one record is left, that record is kept.
+3. If several are left, the next rule chooses among those. If no record satisfies a rule, the rule is skipped and the next one sees the same group.
+4. When the rules never single out a record, the record with the lowest Id is kept.
+
+Example for Accounts: **1. Relationship Manager has a value**, **2. Created Date is the oldest**. A household with a relationship manager beats one without; between two that both have one (or both lack one), the older household wins.
+
+Preferences: *has a value*, *is blank*, *is checked*, *is unchecked*, *is the oldest*, *is the newest*, *is the largest*, *is the smallest*, *is the longest text*, *is the shortest text*, *equals*, *does not equal* and *contains* (the last three take a value; text comparisons ignore case). Any readable field can be used, including Created Date and formula fields.
+
+Use the arrows to reorder rules, **Add Rule** and the trash icon to add and remove them, then **Save**. Rules are stored as custom metadata records and deployed in the background; a toast confirms the save. Removed rules are deactivated rather than deleted. Rules built with the previous version of this tab (condition lists) are no longer evaluated; recreate them here.
+
+Where the rules apply:
+- when the scan creates duplicate candidates (the kept record of each candidate),
+- when a Contact candidate's Accounts are merged instead of the contacts (Auto-Merge Accounts),
+- when a household is merged after a Contact merge, if **Household merge uses the Account keep record rules** is on in Global Settings.
+
+---
+
 ## Global settings
 
 Open the **Global Settings** sub-tab to control when Merge Control's automation runs.
@@ -145,6 +167,7 @@ Open the **Global Settings** sub-tab to control when Merge Control's automation 
   - Off by default. Emptied households are still merged as before whatever this setting says.
 - **Merge households with members: require same address** — with the setting above on, merge a household that still has members only when every remaining member's mailing street (first line) and five-digit postal code match the kept contact's mailing address after the merge. Case, punctuation, a second street line and ZIP+4 are ignored. A kept contact with no mailing street never matches, so such households are left alone. Off by default; recommended on.
 - **Merge households with members: max other members** — with the setting above on, the most contacts the merged contact's household may still have and be merged. `1` means a spouse only. Leave blank for no limit.
+- **Household merge uses the Account keep record rules** — when a household is merged after a Contact merge (orphaned household or household with members), choose the surviving household with the Account **Keep Record Rules** instead of always keeping the kept contact's household. If the rules prefer the other household, the kept contact moves into it and the Account candidate records that household as kept. Falls back to the kept contact's household when the rules do not decide, and when a kept contact has more than one household to merge in the same run. Off by default.
 
 The profile and user lists show only profiles and users that have delete permission on Accounts or Contacts, since merging requires delete access.
 
@@ -166,7 +189,7 @@ Use this object in list views and reports to review merge activity over time. On
 ## Common questions
 
 **Which record survives a merge?**
-The records in a group are sorted by Id and the first is kept. You can override individual field values before merging using the preview screen.
+The Keep Record Rules decide (see that section). Without rules, the records in a group are sorted by Id and the first is kept. You can override individual field values before merging using the preview screen.
 
 **What happens to more than three duplicates in one group?**
 Salesforce merges up to three at a time. Run the merge again on the remaining candidate to finish.

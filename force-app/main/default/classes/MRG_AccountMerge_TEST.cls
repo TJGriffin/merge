@@ -60,9 +60,9 @@ private class MRG_AccountMerge_TEST {
 		MRG_KeepRecordRule rule = new MRG_KeepRecordRule();
 		rule.objectName = 'Account';
 		rule.order = 1;
-		rule.conditions = new List<MRG_KeepRecordRule.condition>{
-			new MRG_KeepRecordRule.condition('Type','equals','Customer - Direct')
-		};
+		rule.fieldName = 'Type';
+		rule.preference = MRG_KeepRecordRule.PREFER_EQUALS;
+		rule.value = 'Customer - Direct';
 		MRG_KeepRecordRule.keepRecordRules = new List<MRG_KeepRecordRule>{ rule };
 
 		MergeCandidate__c candidate = MRG_TestFactory.mergeCandidate(cons[0].Id, cons[1].Id, 'Contact');
@@ -276,6 +276,92 @@ private class MRG_AccountMerge_TEST {
 		system.assertEquals(false, accountExists(accts[1].Id), 'an emptied household is merged as before, whatever the member settings');
 		system.assertEquals(1, orphanCandidates().size());
 		system.assertEquals(0, memberCandidates().size());
+	}
+
+	/*******************************************************************************************************
+	* @description an Account keep rule preferring the household whose Site has a value
+	*/
+	private static void siteHasValueRule() {
+		MRG_KeepRecordRule rule = new MRG_KeepRecordRule();
+		rule.objectName = 'Account';
+		rule.order = 1;
+		rule.fieldName = 'Site';
+		rule.preference = MRG_KeepRecordRule.PREFER_HAS_VALUE;
+		MRG_KeepRecordRule.keepRecordRules = new List<MRG_KeepRecordRule>{ rule };
+	}
+
+	static testMethod void testHouseholdMergeKeepRulesChooseLosingHouseholdWhenSet() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), MergeHouseholdsWithMembers__c=true, HouseholdMergeUsesKeepRules__c=true);
+		List<Account> accts = twoHouseholds();
+		accts[1].Site = 'Kent Anderson';
+		update accts[1];
+		siteHasValueRule();
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		Contact c3 = new Contact(FirstName='B', LastName='Three', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2, c3 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(false, accountExists(accts[0].Id), 'the kept contact household loses to the rule');
+		system.assertEquals(true, accountExists(accts[1].Id), 'the family household survives');
+		system.assertEquals(accts[1].Id, [SELECT AccountId FROM Contact WHERE Id=:c1.Id].AccountId, 'the kept contact moved into the surviving household');
+		system.assertEquals(accts[1].Id, [SELECT AccountId FROM Contact WHERE Id=:c3.Id].AccountId, 'the other member stays');
+		List<MergeCandidate__c> accountCandidates = memberCandidates();
+		system.assertEquals(1, accountCandidates.size());
+		system.assertEquals(String.valueOf(accts[1].Id), accountCandidates[0].KeepRecordId__c, 'the candidate records the surviving household as kept');
+		system.assertEquals(String.valueOf(accts[0].Id), accountCandidates[0].MergeRecordId__c);
+		system.assertEquals('Processed', accountCandidates[0].Status__c);
+	}
+
+	static testMethod void testHouseholdMergeKeepRulesAppliesToOrphansToo() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), HouseholdMergeUsesKeepRules__c=true);
+		List<Account> accts = twoHouseholds();
+		accts[1].Site = 'Kent Anderson';
+		update accts[1];
+		siteHasValueRule();
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(false, accountExists(accts[0].Id), 'the emptied household wins by rule and the kept household is merged into it');
+		system.assertEquals(accts[1].Id, [SELECT AccountId FROM Contact WHERE Id=:c1.Id].AccountId);
+		system.assertEquals(1, orphanCandidates().size());
+		system.assertEquals(String.valueOf(accts[1].Id), orphanCandidates()[0].KeepRecordId__c);
+	}
+
+	static testMethod void testHouseholdMergeIgnoresKeepRulesByDefault() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), MergeHouseholdsWithMembers__c=true);
+		List<Account> accts = twoHouseholds();
+		accts[1].Site = 'Kent Anderson';
+		update accts[1];
+		siteHasValueRule();
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		Contact c3 = new Contact(FirstName='B', LastName='Three', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2, c3 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(true, accountExists(accts[0].Id), 'without the setting the kept contact household survives');
+		system.assertEquals(false, accountExists(accts[1].Id));
+		system.assertEquals(accts[0].Id, [SELECT AccountId FROM Contact WHERE Id=:c3.Id].AccountId);
+	}
+
+	static testMethod void testHouseholdMergeKeepRulesUndecidedKeepsKeptHousehold() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), HouseholdMergeUsesKeepRules__c=true);
+		List<Account> accts = twoHouseholds();
+		siteHasValueRule(); // neither household has a Site -> the rule decides nothing
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(true, accountExists(accts[0].Id), 'undecided rules fall back to the kept contact household');
+		system.assertEquals(false, accountExists(accts[1].Id));
 	}
 
 	static testMethod void testAddressKeyNormalization() {
