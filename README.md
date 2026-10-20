@@ -14,7 +14,7 @@ The Merge Control app provides SF Administrators with the following tools relate
 
 ## Installation
 
-Current release: **2.14.0** (unlocked package, `04tbm000000qzPBAAY`)
+Current release: **2.15.0** (unlocked package, `04tbm000000qzPBAAY`)
 
 Install via URL:
 - Production / Developer Edition: https://login.salesforce.com/packaging/installPackage.apexp?p0=04tbm000000qzPBAAY
