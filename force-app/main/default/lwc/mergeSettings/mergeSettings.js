@@ -20,6 +20,9 @@ export default class MergeSettings extends LightningElement {
     @track autoMergeOrphanedHouseholds;
     @track disableNpspTriggersOnOrphanMerge = false;
     @track resetDefaultAddressOnOrphanMerge = false;
+    @track mergeHouseholdsWithMembers = false;
+    @track mergeHouseholdsRequireSameAddress = false;
+    @track mergeHouseholdsMaxOtherMembers;
     @track disabledUsers =[];
     @track disabledProfiles = [];
     @track error;
@@ -88,6 +91,12 @@ export default class MergeSettings extends LightningElement {
                 this.disableNpspTriggersOnOrphanMerge=this.settings.disableNpspTriggersOnOrphanMerge;
             if(this.settings.hasOwnProperty('resetDefaultAddressOnOrphanMerge'))
                 this.resetDefaultAddressOnOrphanMerge=this.settings.resetDefaultAddressOnOrphanMerge;
+            if(this.settings.hasOwnProperty('mergeHouseholdsWithMembers'))
+                this.mergeHouseholdsWithMembers=this.settings.mergeHouseholdsWithMembers;
+            if(this.settings.hasOwnProperty('mergeHouseholdsRequireSameAddress'))
+                this.mergeHouseholdsRequireSameAddress=this.settings.mergeHouseholdsRequireSameAddress;
+            if(this.settings.hasOwnProperty('mergeHouseholdsMaxOtherMembers'))
+                this.mergeHouseholdsMaxOtherMembers=this.settings.mergeHouseholdsMaxOtherMembers;
             if(this.settings.hasOwnProperty('disabledForUsers'))
                 this.disabledUsers = this.settings.disabledForUsers == null ? [] : this.settings.disabledForUsers;
             if(this.settings.hasOwnProperty('disabledForProfiles'))
@@ -186,6 +195,22 @@ export default class MergeSettings extends LightningElement {
         this.hasChanges=true;
     }
 
+    handleMergeHouseholdsWithMembersChange(event){
+        this.mergeHouseholdsWithMembers = event.target.checked;
+        this.hasChanges=true;
+    }
+
+    handleMergeHouseholdsRequireSameAddressChange(event){
+        this.mergeHouseholdsRequireSameAddress = event.target.checked;
+        this.hasChanges=true;
+    }
+
+    handleMergeHouseholdsMaxOtherMembersChange(event){
+        const value = event.target.value;
+        this.mergeHouseholdsMaxOtherMembers = value === '' || value === null || value === undefined ? null : parseInt(value, 10);
+        this.hasChanges=true;
+    }
+
     handleUserAction(event){
         this.disabledUsers = this.disabledUsers == null ? [] : this.disabledUsers;
         var action = event.detail.action;
@@ -234,6 +259,9 @@ export default class MergeSettings extends LightningElement {
         mergeSettings.autoMergeOrphanedHouseholds = this.autoMergeOrphanedHouseholds;
         mergeSettings.disableNpspTriggersOnOrphanMerge = this.disableNpspTriggersOnOrphanMerge;
         mergeSettings.resetDefaultAddressOnOrphanMerge = this.resetDefaultAddressOnOrphanMerge;
+        mergeSettings.mergeHouseholdsWithMembers = this.mergeHouseholdsWithMembers;
+        mergeSettings.mergeHouseholdsRequireSameAddress = this.mergeHouseholdsRequireSameAddress;
+        mergeSettings.mergeHouseholdsMaxOtherMembers = this.mergeHouseholdsMaxOtherMembers;
         mergeSettings.disabledForUsers = this.disabledUsers;
         mergeSettings.disabledForProfiles = this.disabledProfiles;
         var settingJSON = JSON.stringify(mergeSettings);

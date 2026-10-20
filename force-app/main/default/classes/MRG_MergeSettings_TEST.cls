@@ -72,4 +72,35 @@ private class MRG_MergeSettings_TEST {
         system.assertEquals(true, MRG_Merge_SVC.getResetDefaultAddressOnOrphanMerge());
         system.assertEquals(true, MRG_MergeSettings_CTRL.getMergeSetting().resetDefaultAddressOnOrphanMerge);
     }
+
+    static testMethod void testMergeHouseholdsWithMembersSettingsRoundTrip() {
+        MRG_Merge_SVC.mergeSetting settings = MRG_MergeSettings_CTRL.getMergeSetting();
+        system.assertEquals(false, settings.mergeHouseholdsWithMembers, 'off by default');
+        system.assertEquals(false, settings.mergeHouseholdsRequireSameAddress, 'off by default');
+        system.assertEquals(null, settings.mergeHouseholdsMaxOtherMembers, 'no limit by default');
+        system.assertEquals(false, MRG_Merge_SVC.getMergeHouseholdsWithMembers());
+        system.assertEquals(false, MRG_Merge_SVC.getMergeHouseholdsRequireSameAddress());
+        system.assertEquals(null, MRG_Merge_SVC.getMergeHouseholdsMaxOtherMembers());
+
+        settings.mergeHouseholdsWithMembers = true;
+        settings.mergeHouseholdsRequireSameAddress = true;
+        settings.mergeHouseholdsMaxOtherMembers = 2;
+        test.startTest();
+        MRG_Merge_SVC.mergeSetting saved = MRG_MergeSettings_CTRL.saveMergeSettings(JSON.serialize(settings));
+        test.stopTest();
+
+        system.assertEquals(true, saved.mergeHouseholdsWithMembers);
+        system.assertEquals(true, saved.mergeHouseholdsRequireSameAddress);
+        system.assertEquals(2, saved.mergeHouseholdsMaxOtherMembers);
+        system.assertEquals(true, MRG_Merge_SVC.getMergeHouseholdsWithMembers());
+        system.assertEquals(true, MRG_Merge_SVC.getMergeHouseholdsRequireSameAddress());
+        system.assertEquals(2, MRG_Merge_SVC.getMergeHouseholdsMaxOtherMembers());
+        MRG_Merge_SVC.mergeSetting reread = MRG_MergeSettings_CTRL.getMergeSetting();
+        system.assertEquals(true, reread.mergeHouseholdsWithMembers);
+        system.assertEquals(2, reread.mergeHouseholdsMaxOtherMembers);
+
+        reread.mergeHouseholdsMaxOtherMembers = null;
+        MRG_MergeSettings_CTRL.saveMergeSettings(JSON.serialize(reread));
+        system.assertEquals(null, MRG_Merge_SVC.getMergeHouseholdsMaxOtherMembers(), 'blank clears the limit');
+    }
 }
