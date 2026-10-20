@@ -13,6 +13,7 @@ public with sharing class MRG_AccountMerge_SVC {
 
 	public static final String STATUS_ACCOUNTS_MERGED = 'Accounts Merged';
 	public static final String RULE_ORPHANED_HOUSEHOLD = 'Orphaned Household Merge';
+	public static final String RULE_HOUSEHOLD_WITH_MEMBERS = 'Household Member Merge';
 
 	/*******************************************************************************************************
 	* @description Account record type developer names keyed by Account id; when null (the default) they
@@ -200,9 +201,11 @@ public with sharing class MRG_AccountMerge_SVC {
 
 	/*******************************************************************************************************
 	* @description after a Contact merge, merges each merged contact's pre-merge Account into the kept
-	* contact's Account when that Account has no Contacts left and both Accounts' record types are in
-	* MRG_Merge_SVC.getOrphanedHouseholdRecordTypes(). Each merge gets an auditable Account candidate
-	* (Rule__c = RULE_ORPHANED_HOUSEHOLD) processed through MRG_Merge_SVC.processMergesFromBatch (#97).
+	* contact's Account when both Accounts' record types are in MRG_Merge_SVC.getOrphanedHouseholdRecordTypes()
+	* and either the Account has no Contacts left (#97, Rule__c = RULE_ORPHANED_HOUSEHOLD) or
+	* MergeHouseholdsWithMembers__c is set and the remaining members pass canMergeWithMembers
+	* (Rule__c = RULE_HOUSEHOLD_WITH_MEMBERS). Each merge gets an auditable Account candidate processed
+	* through MRG_Merge_SVC.processMergesFromBatch.
 	* When DisableNpspTriggersOnOrphanMerge__c is set, the NPSP triggers are disabled for the rest of the
 	* transaction before the Accounts are merged.
 	* While the NPSP triggers are disabled, the orphans' NPSP Addresses lose their Default flag before the
@@ -232,23 +235,27 @@ public with sharing class MRG_AccountMerge_SVC {
 		}
 		if(orphanIdsByKeepId.isEmpty())
 			return accountCandidates;
-		// the kept contacts' accounts after the merge (preserve/override rules may have changed them)
+		// the kept contacts' accounts and mailing addresses after the merge (preserve/override rules may have changed them)
 		Set<Id> keepIds = orphanIdsByKeepId.keySet();
-		Map<Id,Id> keptAccountIdByKeepId = new Map<Id,Id>();
-		for(Contact c:[SELECT Id, AccountId FROM Contact WHERE Id IN :keepIds])
-			keptAccountIdByKeepId.put(c.Id, c.AccountId);
-		Set<Id> accountIds = new Set<Id>(keptAccountIdByKeepId.values());
+		Map<Id,Contact> keptContactById = new Map<Id,Contact>([SELECT Id, AccountId, MailingStreet, MailingPostalCode FROM Contact WHERE Id IN :keepIds]);
+		Set<Id> accountIds = new Set<Id>();
+		for(Contact kept:keptContactById.values())
+			accountIds.add(kept.AccountId);
 		for(Set<Id> orphanIds:orphanIdsByKeepId.values())
 			accountIds.addAll(orphanIds);
 		accountIds.remove(null);
+		Boolean withMembers = MRG_Merge_SVC.getMergeHouseholdsWithMembers();
+		Boolean sameAddress = MRG_Merge_SVC.getMergeHouseholdsRequireSameAddress();
+		Integer maxOther = MRG_Merge_SVC.getMergeHouseholdsMaxOtherMembers();
 		// dynamic so the package compiles in orgs without Account record types
 		String recordTypeField = Schema.SObjectType.Account.fields.getMap().containsKey('recordtypeid') ? ', RecordType.DeveloperName' : '';
 		Map<Id,Account> accountsById = new Map<Id,Account>((List<Account>) Database.query(
-			'SELECT Id, Name' + recordTypeField + ', (SELECT Id FROM Contacts LIMIT 1) FROM Account WHERE Id IN :accountIds'));
+			'SELECT Id, Name' + recordTypeField + ', (SELECT Id, MailingStreet, MailingPostalCode FROM Contacts LIMIT 200) FROM Account WHERE Id IN :accountIds'));
 		Set<Id> mergedAccountIds = new Set<Id>();
 		Set<Id> mergedKeepIds = new Set<Id>();
 		for(Id keepId:orphanIdsByKeepId.keySet()) {
-			Id keptAccountId = keptAccountIdByKeepId.get(keepId);
+			Contact kept = keptContactById.get(keepId);
+			Id keptAccountId = kept != null ? kept.AccountId : null;
 			if(keptAccountId == null || !isOrphanedHouseholdType(accountsById.get(keptAccountId), recordTypes))
 				continue;
 			for(Id orphanId:orphanIdsByKeepId.get(keepId)) {
@@ -256,12 +263,14 @@ public with sharing class MRG_AccountMerge_SVC {
 				if(orphanId == keptAccountId
 					|| mergedAccountIds.contains(orphanId)
 					|| orphan == null
-					|| !orphan.Contacts.isEmpty()
 					|| !isOrphanedHouseholdType(orphan, recordTypes))
+					continue;
+				Boolean hasMembers = !orphan.Contacts.isEmpty();
+				if(hasMembers && !canMergeWithMembers(orphan, kept, withMembers, sameAddress, maxOther))
 					continue;
 				// one candidate per orphan; the Account path merges each kept account's orphans together
 				MergeCandidate__c accountCandidate = buildAccountCandidate(new List<Id>{ keptAccountId, orphanId }, keptAccountId, accountsById);
-				accountCandidate.Rule__c = RULE_ORPHANED_HOUSEHOLD;
+				accountCandidate.Rule__c = hasMembers ? RULE_HOUSEHOLD_WITH_MEMBERS : RULE_ORPHANED_HOUSEHOLD;
 				accountCandidates.add(accountCandidate);
 				mergedAccountIds.add(orphanId);
 				mergedKeepIds.add(keepId);
@@ -280,6 +289,52 @@ public with sharing class MRG_AccountMerge_SVC {
 		if(npspDisabled && MRG_Merge_SVC.getResetDefaultAddressOnOrphanMerge())
 			MRG_NpspAddress_SVC.resetDefaults(mergedKeepIds);
 		return accountCandidates;
+	}
+
+	/*******************************************************************************************************
+	* @description whether a household that still has contacts may be merged into the kept contact's
+	* household: MergeHouseholdsWithMembers__c is on, the remaining members are within
+	* MergeHouseholdsMaxOtherMembers__c (null = no limit) and, when MergeHouseholdsRequireSameAddress__c
+	* is on, every member's mailing street and postal code match the kept contact's (addressKey)
+	* @param household the merged contact's Account with its remaining Contacts (MailingStreet, MailingPostalCode)
+	* @param kept the kept contact after the merge (MailingStreet, MailingPostalCode)
+	* @param withMembers MergeHouseholdsWithMembers__c
+	* @param sameAddress MergeHouseholdsRequireSameAddress__c
+	* @param maxOther MergeHouseholdsMaxOtherMembers__c
+	* @return Boolean
+	*/
+	@TestVisible private static Boolean canMergeWithMembers(Account household, Contact kept, Boolean withMembers, Boolean sameAddress, Integer maxOther) {
+		if(withMembers != true || kept == null || household == null)
+			return false;
+		if(maxOther != null && household.Contacts.size() > maxOther)
+			return false;
+		if(sameAddress == true) {
+			String keptKey = addressKey(kept.MailingStreet, kept.MailingPostalCode);
+			if(keptKey == null)
+				return false;
+			for(Contact member:household.Contacts) {
+				if(addressKey(member.MailingStreet, member.MailingPostalCode) != keptKey)
+					return false;
+			}
+		}
+		return true;
+	}
+
+	/*******************************************************************************************************
+	* @description comparison key for a mailing address: the first street line and the first five digits
+	* of the postal code, lower-cased, punctuation and repeated spaces removed; null when the street is blank
+	* @param street the mailing street (may be multi-line)
+	* @param postalCode the postal code (ZIP+4 is reduced to five digits)
+	* @return String
+	*/
+	@TestVisible private static String addressKey(String street, String postalCode) {
+		if(String.isBlank(street))
+			return null;
+		String line = street.split('\n')[0].replaceAll('[^a-zA-Z0-9 ]', ' ').replaceAll('\\s+', ' ').trim().toLowerCase();
+		if(String.isBlank(line))
+			return null;
+		String digits = String.isBlank(postalCode) ? '' : postalCode.replaceAll('[^0-9]', '');
+		return line + '|' + (digits.length() > 5 ? digits.substring(0, 5) : digits);
 	}
 
 	/*******************************************************************************************************

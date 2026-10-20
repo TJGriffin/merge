@@ -35,6 +35,21 @@
                                 <lightning-input type="toggle" label="Reset default address on orphaned household merge" name="resetDefaultAddressOnOrphanMerge" field-level-help="After an orphaned household is merged with NPSP triggers disabled, make the kept contact's mailing address the household's single default NPSP Address. Single-member households only; skipped when the contact has an address override or the household has seasonal addresses. Requires 'Disable NPSP triggers on orphaned household merge'. No effect when NPSP is not installed." checked={resetDefaultAddressOnOrphanMerge} onchange={handleResetDefaultAddressOnOrphanMergeChange}></lightning-input>
                             </lightning-layout-item>
                         </lightning-layout>
+                        <lightning-layout>
+                            <lightning-layout-item padding="around-small" size="6">
+                                <lightning-input type="toggle" label="Merge households with members" name="mergeHouseholdsWithMembers" field-level-help="After a Contact merge, also merge the merged contact's household into the kept contact's household when other contacts remain in it (both record types must be listed above). The remaining members, their records and the household's donations move to the kept household. Logged as an Account merge candidate with rule 'Household Member Merge'." checked={mergeHouseholdsWithMembers} onchange={handleMergeHouseholdsWithMembersChange}></lightning-input>
+                            </lightning-layout-item>
+                        </lightning-layout>
+                        <lightning-layout>
+                            <lightning-layout-item padding="around-small" size="6">
+                                <lightning-input type="toggle" label="Merge households with members: require same address" name="mergeHouseholdsRequireSameAddress" field-level-help="Merge a household that still has members only when every remaining member's mailing street (first line) and five-digit postal code match the kept contact's mailing address after the merge. Case, punctuation and ZIP+4 are ignored; a kept contact without a mailing street never matches." checked={mergeHouseholdsRequireSameAddress} onchange={handleMergeHouseholdsRequireSameAddressChange}></lightning-input>
+                            </lightning-layout-item>
+                        </lightning-layout>
+                        <lightning-layout>
+                            <lightning-layout-item padding="around-small" size="3">
+                                <lightning-input type="number" label="Merge households with members: max other members" name="mergeHouseholdsMaxOtherMembers" min="0" max="999" step="1" field-level-help="The most contacts the merged contact's household may still have and be merged (for example 1 = a spouse only). Leave blank for no limit." value={mergeHouseholdsMaxOtherMembers} onchange={handleMergeHouseholdsMaxOtherMembersChange}></lightning-input>
+                            </lightning-layout-item>
+                        </lightning-layout>
                     </lightning-tab>
                     <lightning-tab label="User Configuration">
                         <h2 class="slds-text-title_caps">User Configuration</h2>

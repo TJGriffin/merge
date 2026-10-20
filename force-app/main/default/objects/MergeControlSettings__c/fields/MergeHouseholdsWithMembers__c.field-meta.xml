@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MergeHouseholdsWithMembers__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>After a Contact merge, also merge the merged contact&apos;s household Account into the kept contact&apos;s household when other contacts remain in it (both record types must be listed in Automatically merge orphaned households). The remaining members, their records and the household&apos;s donations move to the kept household. Logged as an Account merge candidate with rule &quot;Household Member Merge&quot;. See Max Other Members and Require Same Address for the safeguards.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>After a Contact merge, also merge the merged contact&apos;s household Account into the kept contact&apos;s household when other contacts remain in it (both record types must be listed in Automatically merge orphaned households). The remaining members, their records and the household&apos;s donations move to the kept household. Logged as an Account merge candidate with rule &quot;Household Member Merge&quot;. See Max Other Members and Require Same Address for the safeguards.</inlineHelpText>
+    <label>Merge Households With Members</label>
+    <type>Checkbox</type>
+</CustomField>

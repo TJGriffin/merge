@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MergeHouseholdsRequireSameAddress__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>With Merge Households With Members on, merge a household that still has members only when every remaining member&apos;s mailing street (first line) and five-digit postal code match the kept contact&apos;s mailing address after the merge. Case, punctuation and ZIP+4 are ignored. A kept contact without a mailing street never matches.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>With Merge Households With Members on, merge a household that still has members only when every remaining member&apos;s mailing street (first line) and five-digit postal code match the kept contact&apos;s mailing address after the merge. Case, punctuation and ZIP+4 are ignored. A kept contact without a mailing street never matches.</inlineHelpText>
+    <label>Merge Households: Require Same Address</label>
+    <type>Checkbox</type>
+</CustomField>

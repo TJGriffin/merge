@@ -138,6 +138,163 @@ private class MRG_AccountMerge_TEST {
 			WHERE Object__c='Account' AND Rule__c=:MRG_AccountMerge_SVC.RULE_ORPHANED_HOUSEHOLD];
 	}
 
+	private static List<MergeCandidate__c> memberCandidates() {
+		return [SELECT KeepRecordId__c, MergeRecordId__c, Status__c FROM MergeCandidate__c
+			WHERE Object__c='Account' AND Rule__c=:MRG_AccountMerge_SVC.RULE_HOUSEHOLD_WITH_MEMBERS];
+	}
+
+	/*******************************************************************************************************
+	* @description two households (HH_Account): C1 alone in H1, C2 with the other members in H2
+	*/
+	private static List<Account> twoHouseholds() {
+		List<Account> accts = MRG_TestFactory.accounts(2);
+		setRecordTypes(new Map<Id,String>{ accts[0].Id => 'HH_Account', accts[1].Id => 'HH_Account' });
+		return accts;
+	}
+
+	static testMethod void testHouseholdWithMembersMergedWhenSet() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), MergeHouseholdsWithMembers__c=true);
+		List<Account> accts = twoHouseholds();
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		Contact c3 = new Contact(FirstName='B', LastName='Three', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2, c3 };
+
+		MergeCandidate__c contactCandidate = mergeContacts(c1, c2);
+
+		system.assertEquals(false, accountExists(accts[1].Id), 'H2 is merged although C3 still lived there');
+		system.assertEquals(accts[0].Id, [SELECT AccountId FROM Contact WHERE Id=:c3.Id].AccountId, 'C3 moved to the kept household');
+		system.assertEquals(accts[0].Id, [SELECT AccountId FROM Contact WHERE Id=:c1.Id].AccountId, 'kept contact stays on H1');
+		system.assertEquals(0, orphanCandidates().size(), 'not logged as an orphan merge');
+		List<MergeCandidate__c> accountCandidates = memberCandidates();
+		system.assertEquals(1, accountCandidates.size(), 'one auditable Account candidate with the member rule');
+		system.assertEquals(String.valueOf(accts[0].Id), accountCandidates[0].KeepRecordId__c);
+		system.assertEquals(String.valueOf(accts[1].Id), accountCandidates[0].MergeRecordId__c);
+		system.assertEquals('Processed', accountCandidates[0].Status__c);
+		system.assertEquals('Processed', contactCandidate.Status__c);
+	}
+
+	static testMethod void testHouseholdWithMembersNotMergedWhenKeptTypeNotListed() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), MergeHouseholdsWithMembers__c=true);
+		List<Account> accts = MRG_TestFactory.accounts(2);
+		setRecordTypes(new Map<Id,String>{ accts[0].Id => 'Business_Account', accts[1].Id => 'HH_Account' });
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		Contact c3 = new Contact(FirstName='B', LastName='Three', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2, c3 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(true, accountExists(accts[1].Id), 'record types still gate the member merge');
+		system.assertEquals(0, memberCandidates().size());
+	}
+
+	static testMethod void testHouseholdWithMembersMaxOtherMembers() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), MergeHouseholdsWithMembers__c=true, MergeHouseholdsMaxOtherMembers__c=1);
+		List<Account> accts = twoHouseholds();
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		Contact c3 = new Contact(FirstName='B', LastName='Three', AccountId=accts[1].Id);
+		Contact c4 = new Contact(FirstName='C', LastName='Four', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2, c3, c4 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(true, accountExists(accts[1].Id), 'two other members exceed the limit of one');
+		system.assertEquals(0, memberCandidates().size());
+		system.assertEquals(accts[1].Id, [SELECT AccountId FROM Contact WHERE Id=:c3.Id].AccountId, 'C3 stays in H2');
+	}
+
+	static testMethod void testHouseholdWithMembersWithinMaxOtherMembersMerged() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), MergeHouseholdsWithMembers__c=true, MergeHouseholdsMaxOtherMembers__c=2);
+		List<Account> accts = twoHouseholds();
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		Contact c3 = new Contact(FirstName='B', LastName='Three', AccountId=accts[1].Id);
+		Contact c4 = new Contact(FirstName='C', LastName='Four', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2, c3, c4 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(false, accountExists(accts[1].Id), 'two other members are within the limit of two');
+		system.assertEquals(1, memberCandidates().size());
+		system.assertEquals(2, [SELECT count() FROM Contact WHERE AccountId=:accts[0].Id AND Id IN (:c3.Id, :c4.Id)], 'both members moved');
+	}
+
+	static testMethod void testHouseholdWithMembersRequireSameAddressMismatchNotMerged() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), MergeHouseholdsWithMembers__c=true, MergeHouseholdsRequireSameAddress__c=true);
+		List<Account> accts = twoHouseholds();
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id, MailingStreet='1 Main St', MailingPostalCode='12345');
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id, MailingStreet='1 Main St', MailingPostalCode='12345');
+		Contact c3 = new Contact(FirstName='B', LastName='Three', AccountId=accts[1].Id, MailingStreet='2 Other St', MailingPostalCode='12345');
+		insert new List<Contact>{ c1, c2, c3 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(true, accountExists(accts[1].Id), 'C3 lives at another address');
+		system.assertEquals(0, memberCandidates().size());
+	}
+
+	static testMethod void testHouseholdWithMembersRequireSameAddressMatchMerged() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), MergeHouseholdsWithMembers__c=true, MergeHouseholdsRequireSameAddress__c=true);
+		List<Account> accts = twoHouseholds();
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id, MailingStreet='1 Main St.\n# E-203', MailingPostalCode='12345-6789');
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id, MailingStreet='1 Main St.\n# E-203', MailingPostalCode='12345-6789');
+		Contact c3 = new Contact(FirstName='B', LastName='Three', AccountId=accts[1].Id, MailingStreet='1  MAIN ST', MailingPostalCode='12345');
+		insert new List<Contact>{ c1, c2, c3 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(false, accountExists(accts[1].Id), 'same street line and ZIP5 despite case, punctuation, line 2 and ZIP+4');
+		system.assertEquals(1, memberCandidates().size());
+		system.assertEquals(accts[0].Id, [SELECT AccountId FROM Contact WHERE Id=:c3.Id].AccountId, 'C3 moved to the kept household');
+	}
+
+	static testMethod void testHouseholdWithMembersRequireSameAddressBlankKeptNotMerged() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), MergeHouseholdsWithMembers__c=true, MergeHouseholdsRequireSameAddress__c=true);
+		List<Account> accts = twoHouseholds();
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		Contact c3 = new Contact(FirstName='B', LastName='Three', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2, c3 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(true, accountExists(accts[1].Id), 'a kept contact without a street never matches');
+		system.assertEquals(0, memberCandidates().size());
+	}
+
+	static testMethod void testHouseholdWithMembersStillMergesOrphans() {
+		insert new MergeControlSettings__c(SetupOwnerId=UserInfo.getOrganizationId(), MergeHouseholdsWithMembers__c=true, MergeHouseholdsRequireSameAddress__c=true, MergeHouseholdsMaxOtherMembers__c=0);
+		List<Account> accts = twoHouseholds();
+		Contact c1 = new Contact(FirstName='A', LastName='One', AccountId=accts[0].Id);
+		Contact c2 = new Contact(FirstName='A', LastName='Two', AccountId=accts[1].Id);
+		insert new List<Contact>{ c1, c2 };
+
+		mergeContacts(c1, c2);
+
+		system.assertEquals(false, accountExists(accts[1].Id), 'an emptied household is merged as before, whatever the member settings');
+		system.assertEquals(1, orphanCandidates().size());
+		system.assertEquals(0, memberCandidates().size());
+	}
+
+	static testMethod void testAddressKeyNormalization() {
+		system.assertEquals('1 main st|12345', MRG_AccountMerge_SVC.addressKey('1 Main St.\r\n# E-203', '12345-6789'));
+		system.assertEquals('1 main st|12345', MRG_AccountMerge_SVC.addressKey('  1   MAIN  ST ', '12345'));
+		system.assertEquals('1 main st|', MRG_AccountMerge_SVC.addressKey('1 Main St', null));
+		system.assertEquals(null, MRG_AccountMerge_SVC.addressKey(null, '12345'));
+		system.assertEquals(null, MRG_AccountMerge_SVC.addressKey(' ', '12345'));
+		system.assertEquals(null, MRG_AccountMerge_SVC.addressKey('---', '12345'));
+	}
+
+	static testMethod void testCanMergeWithMembersGuards() {
+		Account household = new Account(Name='H');
+		Contact kept = new Contact(LastName='Kept', MailingStreet='1 Main St', MailingPostalCode='12345');
+		system.assertEquals(false, MRG_AccountMerge_SVC.canMergeWithMembers(household, kept, false, false, null), 'setting off');
+		system.assertEquals(false, MRG_AccountMerge_SVC.canMergeWithMembers(household, null, true, false, null), 'no kept contact');
+		system.assertEquals(false, MRG_AccountMerge_SVC.canMergeWithMembers(null, kept, true, false, null), 'no household');
+	}
+
 	static testMethod void testOrphanedHouseholdMergedWithDefaultSetting() {
 		// no MergeControlSettings__c: the default record type list applies (case-insensitive)
 		List<Account> accts = MRG_TestFactory.accounts(2);

@@ -117,6 +117,33 @@ public with sharing class MRG_Merge_SVC {
 		return settings != null && settings.ResetDefaultAddressOnOrphanMerge__c == true;
 	}
 	/*******************************************************************************************************
+	* @description whether the merged contact's household is merged into the kept contact's household
+	* after a Contact merge even when other contacts remain in it (both record types must be in
+	* getOrphanedHouseholdRecordTypes())
+	* @return Boolean
+	*/
+	public static Boolean getMergeHouseholdsWithMembers(){
+		MergeControlSettings__c settings = getSettings();
+		return settings != null && settings.MergeHouseholdsWithMembers__c == true;
+	}
+	/*******************************************************************************************************
+	* @description whether a household with remaining members is merged only when every member's mailing
+	* street and postal code match the kept contact's
+	* @return Boolean
+	*/
+	public static Boolean getMergeHouseholdsRequireSameAddress(){
+		MergeControlSettings__c settings = getSettings();
+		return settings != null && settings.MergeHouseholdsRequireSameAddress__c == true;
+	}
+	/*******************************************************************************************************
+	* @description the most remaining members a household may have and still be merged; null = no limit
+	* @return Integer
+	*/
+	public static Integer getMergeHouseholdsMaxOtherMembers(){
+		MergeControlSettings__c settings = getSettings();
+		return settings != null && settings.MergeHouseholdsMaxOtherMembers__c != null ? Integer.valueOf(settings.MergeHouseholdsMaxOtherMembers__c) : null;
+	}
+	/*******************************************************************************************************
 	* @description Returns the merge fields
 	* @param mergeFields the mergeFieldWrap collection to save
 	* @return  String metaData deploy job Id
@@ -169,6 +196,9 @@ public with sharing class MRG_Merge_SVC {
 		@auraEnabled public String autoMergeOrphanedHouseholds;
 		@auraEnabled public boolean disableNpspTriggersOnOrphanMerge;
 		@auraEnabled public boolean resetDefaultAddressOnOrphanMerge;
+		@auraEnabled public boolean mergeHouseholdsWithMembers;
+		@auraEnabled public boolean mergeHouseholdsRequireSameAddress;
+		@auraEnabled public Integer mergeHouseholdsMaxOtherMembers;
 
 		public mergeSetting(MergeControlSettings__c setting) {
 			this.disableAccountTrigger = setting.DisableAccountTrigger__c;
@@ -182,6 +212,9 @@ public with sharing class MRG_Merge_SVC {
 			this.autoMergeOrphanedHouseholds = String.isNotBlank(setting.AutoMergeOrphanedHouseholds__c) ? setting.AutoMergeOrphanedHouseholds__c : DEFAULT_ORPHANED_HOUSEHOLD_TYPES;
 			this.disableNpspTriggersOnOrphanMerge = setting.DisableNpspTriggersOnOrphanMerge__c == true;
 			this.resetDefaultAddressOnOrphanMerge = setting.ResetDefaultAddressOnOrphanMerge__c == true;
+			this.mergeHouseholdsWithMembers = setting.MergeHouseholdsWithMembers__c == true;
+			this.mergeHouseholdsRequireSameAddress = setting.MergeHouseholdsRequireSameAddress__c == true;
+			this.mergeHouseholdsMaxOtherMembers = setting.MergeHouseholdsMaxOtherMembers__c != null ? Integer.valueOf(setting.MergeHouseholdsMaxOtherMembers__c) : null;
 		}
 	}
 	/*******************************************************************************************************
@@ -196,6 +229,9 @@ public with sharing class MRG_Merge_SVC {
 		setting.AutoMergeOrphanedHouseholds__c = String.isNotBlank(settingObj.autoMergeOrphanedHouseholds) ? settingObj.autoMergeOrphanedHouseholds : null;
 		setting.DisableNpspTriggersOnOrphanMerge__c = settingObj.disableNpspTriggersOnOrphanMerge == true;
 		setting.ResetDefaultAddressOnOrphanMerge__c = settingObj.resetDefaultAddressOnOrphanMerge == true;
+		setting.MergeHouseholdsWithMembers__c = settingObj.mergeHouseholdsWithMembers == true;
+		setting.MergeHouseholdsRequireSameAddress__c = settingObj.mergeHouseholdsRequireSameAddress == true;
+		setting.MergeHouseholdsMaxOtherMembers__c = settingObj.mergeHouseholdsMaxOtherMembers;
 		return setting;
 	}
 
@@ -570,7 +606,8 @@ public with sharing class MRG_Merge_SVC {
 		// apply preserved / override field values to the surviving records after the merge
 		if(mergeResult.updateRecords != null && mergeResult.updateRecords.size()>0)
 			update mergeResult.updateRecords;
-		// merge Accounts left without Contacts into the kept contact's Account (#97)
+		// merge the merged contacts' Accounts into the kept contact's Account: emptied households (#97) and,
+		// when MergeHouseholdsWithMembers__c is set, households that still have members
 		if(objectType=='Contact')
 			MRG_AccountMerge_SVC.mergeOrphanedHouseholds(mergeKeyMap, objMap);
 		Map<Id, mergeHistoryResult> mergeResultByKeepId = getMergeHistoryResultByKeepId(mergeResult,mergeKeyMap);
